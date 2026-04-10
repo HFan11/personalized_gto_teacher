@@ -1,0 +1,7 @@
+node_modules/
+.DS_Store
+.vercel/
+.claude/
+*.xcodeproj/
+PokerGTO/
+test_core.swift

@@ -1,0 +1,1831 @@
+/* ============================================================
+   GTO Poker Trainer - Mobile-First CSS
+   ============================================================ */
+
+:root {
+    --bg-primary: #0a0e17;
+    --bg-secondary: #131a2b;
+    --bg-card: #1a2332;
+    --bg-elevated: #1e2d40;
+    --text-primary: #e8ecf1;
+    --text-secondary: #8899aa;
+    --text-muted: #556677;
+    --accent-blue: #3b82f6;
+    --accent-green: #22c55e;
+    --accent-red: #ef4444;
+    --accent-orange: #f59e0b;
+    --accent-purple: #a855f7;
+    --border-color: #243447;
+    --card-red: #ef4444;
+    --card-black: #e8ecf1;
+    --card-blue: #3b82f6;
+    --card-green: #22c55e;
+    --felt-green: #1a5c2e;
+    --shadow: 0 4px 20px rgba(0,0,0,0.3);
+    --radius: 12px;
+    --radius-sm: 8px;
+    --radius-lg: 16px;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    min-height: 100vh;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* ============================================================
+   Navigation
+   ============================================================ */
+
+.nav-bar {
+    display: flex;
+    justify-content: center;
+    gap: 4px;
+    padding: 8px 12px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.nav-bar.hidden {
+    display: none;
+}
+
+.nav-btn {
+    flex: 1;
+    max-width: 140px;
+    padding: 10px 8px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.nav-btn .nav-icon {
+    font-size: 20px;
+}
+
+.nav-btn.active {
+    background: var(--accent-blue);
+    color: white;
+}
+
+.nav-btn:not(.active):hover {
+    background: var(--bg-elevated);
+}
+
+/* ============================================================
+   Sections & Pages
+   ============================================================ */
+
+.page {
+    display: none;
+    padding: 16px;
+    padding-bottom: 100px;
+    max-width: 600px;
+    margin: 0 auto;
+    animation: fadeIn 0.3s ease;
+    height: calc(100vh - 76px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.page.active {
+    display: block;
+}
+
+#page-practice { padding: 8px 10px; padding-bottom: 120px; }
+#page-practice .ui-card { padding: 10px; margin-bottom: 8px; }
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.section-title {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 16px;
+    color: var(--text-primary);
+}
+
+.section-subtitle {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+}
+
+/* ============================================================
+   Cover Page
+   ============================================================ */
+
+.cover-page {
+    display: none;
+    height: 100vh;
+    min-height: 100vh;
+    background: linear-gradient(135deg, #0a1628 0%, #0d2137 25%, #0a2e1f 50%, #0d3320 75%, #0a1628 100%);
+    position: relative;
+    overflow: hidden;
+    padding: 0;
+    max-width: none;
+}
+
+.cover-page.active {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 32px 24px;
+}
+
+/* Subtle card/chip motif background */
+.cover-page::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background:
+        radial-gradient(circle at 20% 30%, rgba(59, 130, 246, 0.06) 0%, transparent 50%),
+        radial-gradient(circle at 80% 70%, rgba(34, 197, 94, 0.06) 0%, transparent 50%),
+        radial-gradient(circle at 50% 10%, rgba(168, 85, 247, 0.04) 0%, transparent 40%);
+    pointer-events: none;
+}
+
+.cover-page::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-image:
+        radial-gradient(circle, rgba(255,255,255,0.015) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+}
+
+.cover-logo {
+    font-size: 64px;
+    margin-bottom: 16px;
+    position: relative;
+    z-index: 1;
+    filter: drop-shadow(0 0 20px rgba(59, 130, 246, 0.3));
+}
+
+.cover-title {
+    font-size: 36px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    margin-bottom: 12px;
+    position: relative;
+    z-index: 1;
+    background: linear-gradient(135deg, #e8ecf1 0%, #3b82f6 50%, #22c55e 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.cover-subtitle {
+    font-size: 16px;
+    color: var(--text-secondary);
+    max-width: 320px;
+    line-height: 1.6;
+    margin-bottom: 40px;
+    position: relative;
+    z-index: 1;
+}
+
+.cover-btn {
+    position: relative;
+    z-index: 1;
+    padding: 16px 48px;
+    border: none;
+    border-radius: 50px;
+    background: linear-gradient(135deg, var(--accent-blue), #2563eb);
+    color: white;
+    font-size: 18px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow:
+        0 0 20px rgba(59, 130, 246, 0.4),
+        0 0 60px rgba(59, 130, 246, 0.15);
+    letter-spacing: 0.5px;
+}
+
+.cover-btn:hover {
+    transform: translateY(-2px);
+    box-shadow:
+        0 0 30px rgba(59, 130, 246, 0.6),
+        0 0 80px rgba(59, 130, 246, 0.25);
+}
+
+.cover-btn:active {
+    transform: scale(0.97);
+}
+
+.cover-features {
+    display: flex;
+    gap: 24px;
+    margin-top: 48px;
+    position: relative;
+    z-index: 1;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.cover-features .feature {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    max-width: 100px;
+}
+
+.cover-features .feature-icon {
+    font-size: 28px;
+    margin-bottom: 4px;
+}
+
+/* ============================================================
+   Cards (UI Cards, not playing cards)
+   ============================================================ */
+
+.ui-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 12px;
+}
+
+.ui-card-header {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* ============================================================
+   Profile Cards
+   ============================================================ */
+
+.profile-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.profile-card {
+    background: var(--bg-card);
+    border: 2px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+}
+
+.profile-card:hover {
+    border-color: var(--accent-blue);
+}
+
+.profile-card:active {
+    transform: scale(0.98);
+}
+
+.profile-card.selected {
+    border-color: var(--accent-blue);
+    background: rgba(59, 130, 246, 0.1);
+}
+
+.profile-card .profile-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 0;
+}
+
+.profile-card .avatar {
+    font-size: 28px;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.profile-card .profile-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.profile-card .profile-name {
+    font-size: 15px;
+    font-weight: 700;
+}
+
+.profile-card .profile-style {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 4px;
+    display: inline-block;
+    margin-top: 2px;
+}
+
+.profile-card .profile-desc {
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+    margin-top: 6px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.profile-card .profile-stats {
+    display: flex;
+    gap: 16px;
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid var(--border-color);
+}
+
+.profile-stat {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.profile-stat span {
+    font-weight: 700;
+    color: var(--text-primary);
+    font-size: 14px;
+}
+
+.profile-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.profile-action-btn {
+    flex: 1;
+    padding: 8px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-elevated);
+    color: var(--text-secondary);
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.profile-action-btn:hover {
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
+}
+
+.profile-action-btn.primary {
+    background: var(--accent-blue);
+    color: white;
+    border-color: var(--accent-blue);
+}
+
+/* ============================================================
+   Accordion / Collapsible Profiles
+   ============================================================ */
+
+.accordion {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.accordion-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.2s;
+    user-select: none;
+}
+
+.accordion-header:hover {
+    background: var(--bg-elevated);
+    border-color: var(--accent-blue);
+}
+
+.accordion-header .chevron {
+    font-size: 14px;
+    color: var(--text-secondary);
+    transition: transform 0.3s ease;
+    flex-shrink: 0;
+}
+
+.accordion-header.open {
+    border-color: var(--accent-blue);
+    background: var(--bg-elevated);
+    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+
+.accordion-header.open .chevron {
+    transform: rotate(180deg);
+}
+
+.accordion-body {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-top: none;
+    border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+}
+
+.accordion-body.open {
+    max-height: 45vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.accordion-body-inner {
+    padding: 16px;
+}
+
+/* ============================================================
+   Hand Matrix (13x13 grid)
+   ============================================================ */
+
+.matrix-container {
+    overflow: hidden;
+    margin: 0;
+    padding: 0;
+}
+
+.hand-matrix {
+    display: grid;
+    grid-template-columns: repeat(13, 1fr);
+    gap: 1px;
+    width: 100%;
+    font-size: 10px;
+}
+
+.matrix-cell {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
+    font-weight: 600;
+    font-size: 9px;
+    cursor: pointer;
+    transition: transform 0.15s;
+    position: relative;
+}
+
+@media (min-width: 400px) {
+    .matrix-cell { font-size: 10px; }
+}
+
+@media (min-width: 500px) {
+    .matrix-cell { font-size: 11px; }
+}
+
+.matrix-cell:hover {
+    transform: scale(1.15);
+    z-index: 1;
+    box-shadow: 0 0 8px rgba(255,255,255,0.2);
+}
+
+.matrix-cell.raise {
+    background: var(--accent-red);
+    color: white;
+}
+
+.matrix-cell.call {
+    background: var(--accent-green);
+    color: white;
+}
+
+.matrix-cell.fold {
+    background: var(--bg-elevated);
+    color: var(--text-muted);
+}
+
+.matrix-cell.threebet {
+    background: var(--accent-orange);
+    color: white;
+}
+
+.matrix-legend {
+    display: flex;
+    gap: 16px;
+    margin-top: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.legend-color {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+}
+
+/* ============================================================
+   Position Selector
+   ============================================================ */
+
+.position-selector {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 16px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+}
+
+.pos-btn {
+    flex: 1;
+    min-width: 0;
+    padding: 8px 6px;
+    border: 2px solid var(--border-color);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.pos-btn.active {
+    border-color: var(--accent-blue);
+    background: rgba(59, 130, 246, 0.15);
+    color: var(--accent-blue);
+}
+
+/* Practice mode tabs */
+.practice-mode-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    background: var(--bg-card);
+    border-radius: var(--radius-md);
+    margin-bottom: 8px;
+}
+
+.mode-tab {
+    flex: 1;
+    padding: 10px 8px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.mode-tab.active {
+    background: var(--accent-blue);
+    color: white;
+}
+
+/* Scenario tabs (preflop range page) */
+.scenario-tabs {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+}
+.scenario-tab {
+    padding: 6px 10px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 600;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.scenario-tab.active {
+    background: var(--accent-blue);
+    color: white;
+    border-color: var(--accent-blue);
+}
+.scenario-tab:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+/* Matrix cell states */
+.matrix-cell.call {
+    background: var(--accent-green) !important;
+    color: white;
+}
+.matrix-cell.raise {
+    background: var(--accent-red) !important;
+    color: white;
+}
+
+/* Pot type selector */
+.pot-type-selector {
+    display: flex;
+    gap: 6px;
+}
+
+.pot-type-btn {
+    flex: 1;
+    padding: 8px 6px;
+    border: 2px solid var(--border-color);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+}
+
+.pot-type-btn.active {
+    border-color: #f59e0b;
+    background: rgba(245, 158, 11, 0.15);
+    color: #f59e0b;
+}
+
+.pot-type-label {
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.pot-type-desc {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+.pot-type-info {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 1px;
+}
+
+/* Aggressor selector */
+.aggressor-selector {
+    display: flex;
+    gap: 6px;
+}
+
+.agg-btn {
+    flex: 1;
+    padding: 10px 8px;
+    border: 2px solid var(--border-color);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 13px;
+    font-weight: 600;
+    text-align: center;
+}
+
+.agg-btn.active {
+    border-color: #8b5cf6;
+    background: rgba(139, 92, 246, 0.15);
+    color: #8b5cf6;
+}
+
+/* Villain position buttons */
+.villain-pos-btn.active {
+    border-color: #e74c3c !important;
+    background: rgba(231, 76, 60, 0.15) !important;
+    color: #e74c3c !important;
+}
+
+/* ============================================================
+   Playing Cards
+   ============================================================ */
+
+.playing-card {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 46px;
+    height: 64px;
+    background: white;
+    border-radius: 6px;
+    font-weight: 700;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    position: relative;
+    transition: transform 0.2s;
+}
+
+.playing-card:hover {
+    transform: translateY(-4px);
+}
+
+.playing-card .card-rank {
+    font-size: 16px;
+    line-height: 1;
+}
+
+.playing-card .card-suit {
+    font-size: 18px;
+    line-height: 1;
+    margin-top: 2px;
+}
+
+.playing-card.spades { color: #1a1a2e; }
+.playing-card.hearts { color: #e74c3c; }
+.playing-card.diamonds { color: #3498db; }
+.playing-card.clubs { color: #27ae60; }
+
+.playing-card.facedown {
+    background: linear-gradient(135deg, #2c3e50, #3498db);
+    color: transparent;
+}
+
+.playing-card.facedown::after {
+    content: '\1F0A0';
+    font-size: 28px;
+    position: absolute;
+}
+
+.cards-row {
+    display: flex;
+    gap: 4px;
+    justify-content: center;
+    margin: 8px 0;
+    flex-wrap: wrap;
+}
+
+.poker-table .playing-card {
+    width: 38px;
+    height: 52px;
+    font-size: 12px;
+}
+.poker-table .card-rank { font-size: 15px; }
+.poker-table .card-suit { font-size: 12px; }
+
+/* ============================================================
+   Poker Table (Practice View)
+   ============================================================ */
+
+.poker-table {
+    background: linear-gradient(135deg, #0d3320, #1a5c2e, #0d3320);
+    border: 3px solid #8B6914;
+    border-radius: 40px / 50px;
+    padding: 12px 12px;
+    margin-bottom: 8px;
+    text-align: center;
+    box-shadow: inset 0 0 40px rgba(0,0,0,0.3), 0 4px 20px rgba(0,0,0,0.4);
+    position: relative;
+}
+
+.table-info {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    margin-bottom: 4px;
+}
+
+.table-info-item {
+    background: rgba(0,0,0,0.3);
+    padding: 3px 8px;
+    border-radius: 20px;
+    font-size: 11px;
+    color: #afd7af;
+}
+
+.table-info-item strong {
+    color: #fff;
+}
+
+.board-area {
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.hero-area {
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid rgba(255,255,255,0.15);
+}
+
+.hero-label {
+    font-size: 11px;
+    color: #afd7af;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    justify-content: center;
+}
+
+.villain-area {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-bottom: 4px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.villain-area .playing-card.facedown {
+    width: 28px;
+    height: 38px;
+}
+
+.villain-area .playing-card {
+    width: 28px;
+    height: 38px;
+    font-size: 10px;
+}
+.villain-area .card-rank { font-size: 12px; }
+.villain-area .card-suit { font-size: 9px; }
+
+.position-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    background: var(--accent-blue);
+    color: white;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    margin-left: 8px;
+}
+
+.villain-badge {
+    background: var(--accent-red);
+}
+
+#hand-info-card { padding: 8px 12px; margin-bottom: 6px; }
+#hand-info-card .equity-bar { height: 4px; margin: 4px 0; }
+
+/* ============================================================
+   Action Timeline (GTO Wizard style)
+   ============================================================ */
+
+.action-timeline {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    white-space: nowrap;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-color) transparent;
+    margin-bottom: 6px;
+}
+
+.action-timeline::-webkit-scrollbar {
+    height: 4px;
+}
+
+.action-timeline::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.action-timeline::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 2px;
+}
+
+.timeline-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 6px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 20px;
+    flex-shrink: 0;
+    transition: all 0.2s;
+}
+
+.timeline-item.current {
+    border-color: var(--accent-blue);
+    background: rgba(59, 130, 246, 0.15);
+    box-shadow: 0 0 10px rgba(59, 130, 246, 0.2);
+}
+
+.timeline-street {
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.timeline-action {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 10px;
+    color: white;
+}
+
+.timeline-action.action-fold {
+    background: #636e72;
+}
+
+.timeline-action.action-check {
+    background: var(--accent-blue);
+}
+
+.timeline-action.action-call {
+    background: var(--accent-green);
+}
+
+.timeline-action.action-raise,
+.timeline-action.action-bet {
+    background: var(--accent-red);
+}
+
+.timeline-action.action-allin {
+    background: var(--accent-purple);
+}
+
+.timeline-arrow {
+    color: var(--text-muted);
+    font-size: 14px;
+    flex-shrink: 0;
+    margin: 0 2px;
+}
+
+/* ============================================================
+   Bet Sizing Selector
+   ============================================================ */
+
+.sizing-selector {
+    display: flex;
+    gap: 4px;
+    padding: 8px 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+}
+
+.sizing-selector::-webkit-scrollbar {
+    display: none;
+}
+
+.sizing-btn {
+    flex-shrink: 0;
+    padding: 6px 8px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    border-radius: 50px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.sizing-btn:hover {
+    border-color: var(--accent-orange);
+    color: var(--accent-orange);
+}
+
+.sizing-btn.active {
+    background: var(--accent-orange);
+    color: white;
+    border-color: var(--accent-orange);
+    box-shadow: 0 0 12px rgba(245, 158, 11, 0.3);
+}
+
+.sizing-custom {
+    flex-shrink: 0;
+    width: 80px;
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    border-radius: 50px;
+    font-size: 13px;
+    font-weight: 600;
+    text-align: center;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.sizing-custom::placeholder {
+    color: var(--text-muted);
+}
+
+.sizing-custom:focus {
+    border-color: var(--accent-orange);
+}
+
+/* ============================================================
+   Hero/Villain Range Tabs
+   ============================================================ */
+
+.range-tabs {
+    display: flex;
+    gap: 4px;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-sm);
+    padding: 4px;
+    margin-bottom: 12px;
+}
+
+.range-tab {
+    flex: 1;
+    padding: 10px 16px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+}
+
+.range-tab:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.range-tab.active {
+    background: var(--accent-blue);
+    color: white;
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+}
+
+/* ============================================================
+   Action Buttons
+   ============================================================ */
+
+.action-buttons {
+    display: flex;
+    gap: 8px;
+    margin: 16px 0;
+}
+
+.action-btn {
+    flex: 1;
+    padding: 10px 8px;
+    border: 2px solid transparent;
+    border-radius: var(--radius);
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.action-btn .action-label {
+    font-size: 10px;
+    font-weight: 400;
+    opacity: 0.8;
+}
+
+.action-btn.fold-btn {
+    background: rgba(149, 165, 166, 0.2);
+    color: #95a5a6;
+    border-color: #95a5a6;
+}
+
+.action-btn.check-btn {
+    background: rgba(52, 152, 219, 0.2);
+    color: #3498db;
+    border-color: #3498db;
+}
+
+.action-btn.call-btn {
+    background: rgba(46, 204, 113, 0.2);
+    color: #2ecc71;
+    border-color: #2ecc71;
+}
+
+.action-btn.raise-btn {
+    background: rgba(231, 76, 60, 0.2);
+    color: #e74c3c;
+    border-color: #e74c3c;
+}
+
+.action-btn:active {
+    transform: scale(0.96);
+}
+
+/* ============================================================
+   Strategy Result Panel
+   ============================================================ */
+
+.strategy-panel {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    overflow: hidden;
+    margin: 12px 0;
+}
+
+.strategy-header {
+    padding: 12px 16px;
+    background: var(--bg-elevated);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+}
+
+.strategy-body {
+    padding: 16px;
+}
+
+.advice-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.advice-item:last-child {
+    border-bottom: none;
+}
+
+.advice-freq {
+    min-width: 50px;
+    text-align: center;
+}
+
+.advice-freq .freq-num {
+    font-size: 22px;
+    font-weight: 800;
+}
+
+.advice-freq .freq-pct {
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+.advice-detail {
+    flex: 1;
+}
+
+.advice-action {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.advice-sizing {
+    font-size: 12px;
+    color: var(--accent-orange);
+    margin-bottom: 4px;
+}
+
+.advice-reason {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+/* ============================================================
+   Info Badges / Tags
+   ============================================================ */
+
+.badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.badge-blue { background: rgba(59,130,246,0.2); color: var(--accent-blue); }
+.badge-green { background: rgba(34,197,94,0.2); color: var(--accent-green); }
+.badge-red { background: rgba(239,68,68,0.2); color: var(--accent-red); }
+.badge-orange { background: rgba(245,158,11,0.2); color: var(--accent-orange); }
+.badge-purple { background: rgba(168,85,247,0.2); color: var(--accent-purple); }
+
+.stat-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 14px;
+}
+
+.stat-row:last-child { border-bottom: none; }
+.stat-row .stat-label { color: var(--text-secondary); }
+.stat-row .stat-value { font-weight: 600; }
+
+/* ============================================================
+   Result Overlay
+   ============================================================ */
+
+.result-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    animation: fadeIn 0.2s;
+}
+
+.result-overlay.show {
+    display: flex;
+}
+
+.result-card {
+    background: var(--bg-card);
+    border-radius: var(--radius-lg);
+    padding: 16px;
+    max-width: 400px;
+    width: 100%;
+    max-height: 70vh;
+    overflow-y: auto;
+    box-shadow: var(--shadow);
+}
+
+.result-icon {
+    font-size: 48px;
+    text-align: center;
+    margin-bottom: 12px;
+}
+
+.result-title {
+    font-size: 20px;
+    font-weight: 700;
+    text-align: center;
+    margin-bottom: 16px;
+}
+
+/* ============================================================
+   Score Bar
+   ============================================================ */
+
+.score-bar {
+    display: flex;
+    gap: 12px;
+    padding: 4px 12px;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-sm);
+    margin-bottom: 4px;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+}
+
+.score-item {
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+.score-item strong {
+    color: var(--text-primary);
+}
+
+/* ============================================================
+   Buttons
+   ============================================================ */
+
+.btn {
+    padding: 12px 24px;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.btn:active { transform: scale(0.97); }
+
+.btn-primary {
+    background: var(--accent-blue);
+    color: white;
+}
+
+.btn-success {
+    background: var(--accent-green);
+    color: white;
+}
+
+.btn-danger {
+    background: var(--accent-red);
+    color: white;
+}
+
+.btn-outline {
+    background: transparent;
+    border: 2px solid var(--border-color);
+    color: var(--text-secondary);
+}
+
+.btn-block {
+    display: flex;
+    width: 100%;
+}
+
+.btn-group {
+    display: flex;
+    gap: 8px;
+}
+
+.btn-group .btn { flex: 1; }
+
+/* ============================================================
+   Form Inputs
+   ============================================================ */
+
+input[type="text"], input[type="number"], select, textarea {
+    width: 100%;
+    padding: 10px 14px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+input:focus, select:focus, textarea:focus {
+    border-color: var(--accent-blue);
+}
+
+label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+}
+
+.form-group {
+    margin-bottom: 16px;
+}
+
+/* ============================================================
+   Modal
+   ============================================================ */
+
+.modal-backdrop {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 300;
+    align-items: flex-end;
+    justify-content: center;
+}
+
+.modal-backdrop.show {
+    display: flex;
+}
+
+.modal-content {
+    background: var(--bg-card);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    padding: 24px;
+    width: 100%;
+    max-width: 600px;
+    max-height: 85vh;
+    overflow-y: auto;
+    animation: slideUp 0.3s ease;
+}
+
+@keyframes slideUp {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.modal-title {
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 24px;
+    cursor: pointer;
+    padding: 4px;
+}
+
+/* ============================================================
+   Range Editor
+   ============================================================ */
+
+.range-stats {
+    display: flex;
+    gap: 8px;
+    margin: 12px 0;
+    flex-wrap: wrap;
+}
+
+.range-stat {
+    background: var(--bg-elevated);
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.range-stat strong {
+    color: var(--text-primary);
+}
+
+/* ============================================================
+   Responsive
+   ============================================================ */
+
+@media (max-width: 380px) {
+    .nav-btn { font-size: 11px; padding: 8px 4px; }
+    .nav-btn .nav-icon { font-size: 18px; }
+    .playing-card { width: 44px; height: 62px; }
+    .playing-card .card-rank { font-size: 14px; }
+    .playing-card .card-suit { font-size: 15px; }
+    .page { padding: 12px; }
+    .cover-title { font-size: 28px; }
+    .cover-subtitle { font-size: 14px; }
+    .cover-btn { padding: 14px 36px; font-size: 16px; }
+}
+
+/* Smooth transitions for page switches */
+.page {
+    transition: opacity 0.2s;
+}
+
+/* Loading spinner */
+.spinner {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid var(--border-color);
+    border-top-color: var(--accent-blue);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* equity bar */
+.equity-bar {
+    height: 8px;
+    background: var(--bg-elevated);
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 8px 0;
+}
+
+.equity-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.5s ease;
+}
+
+/* Combo count text */
+.combo-info {
+    text-align: center;
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-top: 8px;
+}
+
+.combo-info strong {
+    color: var(--text-primary);
+}
+
+/* ============================================================
+   Inline Result Animation
+   ============================================================ */
+
+@keyframes slideIn {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+#inline-result {
+    animation: slideIn 0.25s ease-out;
+}
+
+/* Showdown reveal animation */
+#showdown-area {
+    animation: slideIn 0.3s ease-out;
+}
+
+/* Pulsing "your turn" indicator on action buttons */
+@keyframes pulseGlow {
+    0%, 100% { box-shadow: none; }
+    50% { box-shadow: 0 0 12px rgba(59, 130, 246, 0.4); }
+}
+
+.action-buttons {
+    animation: pulseGlow 2s ease-in-out infinite;
+    border-radius: var(--radius);
+}
+
+/* Street label pulse when new street */
+@keyframes streetPulse {
+    0% { color: var(--accent-orange); transform: scale(1.1); }
+    100% { color: var(--text-primary); transform: scale(1); }
+}
+
+#street-display {
+    animation: streetPulse 0.6s ease-out;
+}
+
+/* Smooth board card appearance */
+.board-area .playing-card {
+    animation: slideIn 0.3s ease-out;
+}
+
+/* Better active states for action buttons */
+.action-btn:active {
+    transform: scale(0.93) !important;
+    filter: brightness(1.2);
+}
+
+/* ============================================================
+   Setup Wizard
+   ============================================================ */
+
+.wizard-page {
+    height: 100vh;
+    max-width: 600px;
+    margin: 0 auto;
+    display: none;
+    flex-direction: column;
+    padding: 0;
+    overflow: hidden;
+}
+.wizard-page.active {
+    display: flex;
+}
+
+/* Progress bar */
+.wizard-progress {
+    height: 4px;
+    background: var(--bg-elevated);
+    width: 100%;
+    flex-shrink: 0;
+}
+.wizard-progress-bar {
+    height: 100%;
+    background: var(--accent-blue);
+    transition: width 0.4s ease;
+    border-radius: 0 2px 2px 0;
+}
+
+/* Step indicators */
+.wizard-step-indicators {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 16px 8px;
+    flex-shrink: 0;
+}
+.wizard-step-dot {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--bg-elevated);
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s;
+}
+.wizard-step-dot.active {
+    background: var(--accent-blue);
+    color: white;
+}
+.wizard-step-dot.done {
+    background: var(--accent-green);
+    color: white;
+}
+
+/* Steps */
+.wizard-step {
+    display: none;
+    flex: 1;
+    flex-direction: column;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 0 16px 16px;
+}
+.wizard-step.active {
+    display: flex;
+    animation: slideIn 0.3s ease-out;
+}
+
+.wizard-step-header {
+    text-align: center;
+    padding: 8px 0 12px;
+    flex-shrink: 0;
+}
+.wizard-step-icon {
+    font-size: 36px;
+    margin-bottom: 4px;
+}
+.wizard-step-header h2 {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+.wizard-step-desc {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.wizard-step-content {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* Bottom nav */
+.wizard-nav {
+    display: flex;
+    gap: 8px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    flex-shrink: 0;
+}
+.wizard-nav .btn {
+    flex: 1;
+}
+.wizard-nav .btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* Profile grid in wizard */
+.wizard-page .profile-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* ============================================================
+   Help Page
+   ============================================================ */
+
+.nav-help-btn {
+    margin-left: auto;
+    opacity: 0.7;
+    font-size: 11px !important;
+}
+
+.nav-help-btn:hover {
+    opacity: 1;
+}
+
+.help-section {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 12px;
+}
+
+.help-title {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 12px;
+    color: var(--accent-blue);
+}
+
+.help-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.help-step {
+    display: flex;
+    gap: 12px;
+}
+
+.help-step-num {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    min-width: 28px;
+    border-radius: 50%;
+    background: var(--accent-blue);
+    color: white;
+    font-weight: 700;
+    font-size: 14px;
+    margin-top: 2px;
+}
+
+.help-step strong {
+    display: block;
+    font-size: 14px;
+    margin-bottom: 4px;
+}
+
+.help-step p {
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+.help-item {
+    margin-bottom: 12px;
+}
+
+.help-item:last-child {
+    margin-bottom: 0;
+}
+
+.help-item strong {
+    display: block;
+    font-size: 13px;
+    margin-bottom: 4px;
+    color: var(--accent-orange);
+}
+
+.help-item p, .help-item ul {
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+}

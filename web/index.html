@@ -1,0 +1,2806 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>PokerGTO - 德扑GTO训练器</title>
+    <link rel="stylesheet" href="css/style.css?v=26">
+</head>
+<body>
+
+<!-- ============================================================
+     Cover Page
+     ============================================================ -->
+<div class="page cover-page active" id="page-cover">
+    <div class="cover-logo">♠♥♦♣</div>
+    <h1 class="cover-title">PokerGTO</h1>
+    <p class="cover-subtitle">德州扑克 GTO 策略训练器</p>
+    <div class="cover-features">
+        <span>🎯 翻后对抗练习</span>
+        <span>🃏 翻前范围编辑</span>
+        <span>👤 对手档案模拟</span>
+        <span>📊 实时GTO建议</span>
+    </div>
+    <button class="cover-btn" onclick="enterApp()">开始训练</button>
+    <div style="margin-top:24px; font-size:12px; color:var(--text-muted);">6-Max Cash Game · 100BB Deep</div>
+</div>
+
+<!-- ============================================================
+     Navigation Bar (hidden on cover)
+     ============================================================ -->
+<nav class="nav-bar hidden" id="main-nav">
+    <button class="nav-btn active" onclick="switchPage('profiles')" id="nav-profiles">
+        <span class="nav-icon">👤</span>
+        <span>档案</span>
+    </button>
+    <button class="nav-btn" onclick="switchPage('preflop')" id="nav-preflop">
+        <span class="nav-icon">🃏</span>
+        <span>翻前范围</span>
+    </button>
+    <button class="nav-btn" onclick="switchPage('practice')" id="nav-practice">
+        <span class="nav-icon">🎯</span>
+        <span>1v1练习</span>
+    </button>
+    <button class="nav-btn nav-help-btn" onclick="openHelp()" id="nav-help" title="使用指引">
+        <span class="nav-icon">❓</span>
+        <span>帮助</span>
+    </button>
+</nav>
+
+<!-- ============================================================
+     Page 1: Player Profiles (Accordion)
+     ============================================================ -->
+<div class="page" id="page-profiles">
+    <h2 class="section-title">对局设置</h2>
+    <p class="section-subtitle">设置你和对手的档案，然后开始练习</p>
+
+    <!-- Hero Profile Accordion -->
+    <div class="accordion" id="hero-accordion">
+        <div class="accordion-header" onclick="toggleAccordion('hero-accordion')">
+            <div style="display:flex;align-items:center;gap:10px;">
+                <span style="font-size:24px;">🦸</span>
+                <div>
+                    <div style="font-weight:700;">我的档案 (Hero)</div>
+                    <div style="font-size:12px;color:var(--text-secondary);" id="hero-profile-summary">选择你的游戏风格</div>
+                </div>
+            </div>
+            <span class="chevron">▼</span>
+        </div>
+        <div class="accordion-body">
+            <div class="accordion-body-inner">
+                <div class="profile-grid" id="hero-profile-list"></div>
+                <button class="btn btn-outline btn-block" style="margin-top:12px;" onclick="openNewProfileModal('hero')">
+                    + 创建自定义Hero档案
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Villain Profile Accordion -->
+    <div class="accordion" id="villain-accordion">
+        <div class="accordion-header" onclick="toggleAccordion('villain-accordion')">
+            <div style="display:flex;align-items:center;gap:10px;">
+                <span style="font-size:24px;">😈</span>
+                <div>
+                    <div style="font-weight:700;">对手档案 (Villain)</div>
+                    <div style="font-size:12px;color:var(--text-secondary);" id="villain-profile-summary">选择模拟对手类型</div>
+                </div>
+            </div>
+            <span class="chevron">▼</span>
+        </div>
+        <div class="accordion-body">
+            <div class="accordion-body-inner">
+                <div class="profile-grid" id="villain-profile-list"></div>
+                <button class="btn btn-outline btn-block" style="margin-top:12px;" onclick="openNewProfileModal('villain')">
+                    + 创建自定义Villain档案
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div style="margin-top:16px;">
+        <button class="btn btn-primary btn-block" onclick="switchPage('practice')" id="start-practice-btn" disabled>
+            选择双方档案后开始练习
+        </button>
+    </div>
+    <div style="margin-top:8px;">
+        <button class="btn btn-outline btn-block" onclick="resetProfiles()" style="font-size:13px; color: var(--text-muted);">
+            恢复默认档案
+        </button>
+    </div>
+</div>
+
+<!-- ============================================================
+     Page 2: Preflop Ranges (Hero + Villain tabs)
+     ============================================================ -->
+<div class="page" id="page-preflop">
+    <div id="preflop-no-profile" style="text-align:center; padding: 40px 0;">
+        <div style="font-size:48px; margin-bottom:16px;">🃏</div>
+        <p style="color: var(--text-secondary);">请先在"档案"中选择Hero和Villain</p>
+        <button class="btn btn-primary" style="margin-top:16px;" onclick="switchPage('profiles')">去选择</button>
+    </div>
+
+    <div id="preflop-content" style="display:none;">
+        <!-- Hero / Villain Range Tabs -->
+        <div class="range-tabs">
+            <button class="range-tab active" onclick="switchRangeTab('hero')" id="range-tab-hero">
+                🦸 我的范围
+            </button>
+            <button class="range-tab" onclick="switchRangeTab('villain')" id="range-tab-villain">
+                😈 对手范围
+            </button>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:12px;margin:12px 0;">
+            <div id="range-avatar" style="font-size:28px;"></div>
+            <div>
+                <div style="font-weight:700;font-size:16px;" id="range-profile-name"></div>
+                <div style="font-size:12px;color:var(--text-secondary);" id="range-profile-style"></div>
+            </div>
+        </div>
+
+        <div class="ui-card-header">位置选择</div>
+        <div class="position-selector" id="preflop-positions"></div>
+
+        <!-- Scenario Selector -->
+        <div class="ui-card-header" style="margin-top:8px;">场景</div>
+        <div class="scenario-tabs" id="scenario-tabs"></div>
+
+        <!-- Opener Position (for vs_raise) -->
+        <div id="opener-pos-area" style="display:none;">
+            <div class="ui-card-header" style="margin-top:8px;">对手开池位置</div>
+            <div class="position-selector" id="opener-positions"></div>
+        </div>
+
+        <div class="ui-card">
+            <div class="ui-card-header">
+                <span id="preflop-pos-label">BTN</span> <span id="preflop-range-type">率先加注范围 (RFI)</span>
+            </div>
+            <div class="matrix-container">
+                <div class="hand-matrix" id="hand-matrix"></div>
+            </div>
+            <div class="matrix-legend" id="matrix-legend">
+                <div class="legend-item"><div class="legend-color" style="background:var(--accent-red);"></div><span id="legend-raise-label">Raise</span></div>
+                <div class="legend-item"><div class="legend-color" style="background:var(--accent-green);"></div><span id="legend-call-label">Call</span></div>
+                <div class="legend-item"><div class="legend-color" style="background:var(--bg-elevated);"></div><span>Fold</span></div>
+            </div>
+            <div class="combo-info" id="combo-info"></div>
+        </div>
+
+        <div class="range-stats" id="range-stats"></div>
+    </div>
+</div>
+
+<!-- ============================================================
+     Page 3: 1v1 Practice
+     ============================================================ -->
+<div class="page" id="page-practice">
+    <div id="practice-no-profile" style="text-align:center; padding: 40px 0;">
+        <div style="font-size:48px; margin-bottom:16px;">🎯</div>
+        <p style="color: var(--text-secondary);">请先在"档案"中选择Hero和Villain</p>
+        <button class="btn btn-primary" style="margin-top:16px;" onclick="switchPage('profiles')">去选择</button>
+    </div>
+
+    <div id="practice-content" style="display:none;">
+        <!-- Practice Mode Tabs -->
+        <div class="practice-mode-tabs" id="practice-mode-tabs">
+            <button class="mode-tab active" onclick="switchPracticeMode('preflop')" id="mode-tab-preflop">🃏 翻前练习</button>
+            <button class="mode-tab" onclick="switchPracticeMode('postflop')" id="mode-tab-postflop">🎯 翻后练习</button>
+        </div>
+
+        <!-- Score Bar (compact, with change-position link) -->
+        <div class="score-bar" id="score-bar">
+            <div class="score-item" onclick="goToSetup()" style="cursor:pointer; text-decoration:underline; color:var(--accent-blue);">⚙ 设置</div>
+            <div class="score-item">📊 均分: <strong id="score-correct">0</strong>/<strong id="score-total" style="font-size:11px;color:var(--text-muted);">0</strong>手</div>
+            <div class="score-item">评级: <strong id="score-rate">-</strong></div>
+            <div class="score-item">手数: <strong id="score-hands">0</strong></div>
+        </div>
+
+        <!-- ============================================================
+             PREFLOP PRACTICE MODULE
+             ============================================================ -->
+        <div id="preflop-practice-area" style="display:block;">
+            <!-- Preflop Setup -->
+            <div id="preflop-practice-setup">
+                <div class="ui-card">
+                    <div class="ui-card-header">🦸 选择你的位置 (Hero)</div>
+                    <div class="position-selector" id="preflop-hero-positions"></div>
+                    <div class="ui-card-header" style="margin-top:12px;">😈 选择对手位置 (Villain)</div>
+                    <div class="position-selector" id="preflop-villain-positions"></div>
+                    <div style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:13px;color:var(--text-secondary);">
+                        <span>🦸 <strong id="preflop-hero-name">-</strong></span>
+                        <span>vs</span>
+                        <span>😈 <strong id="preflop-villain-name">-</strong></span>
+                    </div>
+                    <button class="btn btn-primary btn-block" style="margin-top:12px;" onclick="startPreflopHand()" id="preflop-deal-btn">
+                        发牌开始
+                    </button>
+                </div>
+            </div>
+
+            <!-- Preflop Active Hand -->
+            <div id="preflop-hand" style="display:none;">
+                <!-- Scenario Description -->
+                <div class="ui-card" style="text-align:center; padding:16px;">
+                    <div style="font-size:14px; color:var(--text-secondary); margin-bottom:8px;" id="preflop-scenario-desc"></div>
+                    <div style="font-size:12px; margin-bottom:12px;">
+                        <span class="position-badge" id="preflop-hero-badge" style="font-size:11px;"></span>
+                        <span id="preflop-ip-label" style="font-size:11px; color:var(--text-muted); margin-left:4px;"></span>
+                    </div>
+                    <!-- Hero Cards -->
+                    <div class="cards-row" id="preflop-hero-cards" style="justify-content:center; margin-bottom:12px;"></div>
+                    <div style="font-size:13px; font-weight:600;" id="preflop-hand-label"></div>
+                </div>
+
+                <!-- Preflop Action Buttons -->
+                <div class="action-buttons" id="preflop-action-buttons" style="display:flex;"></div>
+
+                <!-- Preflop Result -->
+                <div id="preflop-result" style="display:none;">
+                    <div class="inline-result-bar" id="preflop-result-bar">
+                        <span id="preflop-result-icon"></span>
+                        <span id="preflop-result-text" style="flex:1;"></span>
+                    </div>
+                    <div id="preflop-result-detail" style="padding:8px 12px; font-size:12px;"></div>
+                    <div style="display:flex; gap:8px; margin-top:8px;">
+                        <button class="btn btn-primary btn-block" onclick="startPreflopHand()">下一手 →</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============================================================
+             POSTFLOP PRACTICE MODULE
+             ============================================================ -->
+        <div id="postflop-practice-area" style="display:none;">
+            <!-- Postflop Setup -->
+            <div id="practice-setup">
+                <div class="ui-card">
+                    <div class="ui-card-header">🦸 选择你的位置 (Hero)</div>
+                    <div class="position-selector" id="practice-positions"></div>
+                    <div class="ui-card-header" style="margin-top:12px;">😈 选择对手位置 (Villain)</div>
+                    <div class="position-selector" id="practice-villain-positions"></div>
+
+                    <!-- Pot Type Selector -->
+                    <div class="ui-card-header" style="margin-top:12px;">💰 底池类型</div>
+                    <div class="pot-type-selector" id="pot-type-selector">
+                        <button class="pot-type-btn active" onclick="selectPotType('srp', this)" data-type="srp">
+                            <div class="pot-type-label">SRP</div>
+                            <div class="pot-type-desc">单次加注底池</div>
+                            <div class="pot-type-info">6BB · SPR 16</div>
+                        </button>
+                        <button class="pot-type-btn" onclick="selectPotType('threebet', this)" data-type="threebet">
+                            <div class="pot-type-label">3bet</div>
+                            <div class="pot-type-desc">三次下注底池</div>
+                            <div class="pot-type-info">22BB · SPR 3.5</div>
+                        </button>
+                        <button class="pot-type-btn" onclick="selectPotType('fourbet', this)" data-type="fourbet">
+                            <div class="pot-type-label">4bet</div>
+                            <div class="pot-type-desc">四次下注底池</div>
+                            <div class="pot-type-info">45BB · SPR 1.2</div>
+                        </button>
+                    </div>
+
+                    <!-- Aggressor Selector -->
+                    <div class="ui-card-header" style="margin-top:12px;">⚔️ 翻前行动</div>
+                    <div class="aggressor-selector" id="aggressor-selector">
+                        <button class="agg-btn active" onclick="selectAggressor('hero', this)">
+                            🦸 Hero进攻<br><span style="font-size:10px;color:var(--text-muted);">你是加注者</span>
+                        </button>
+                        <button class="agg-btn" onclick="selectAggressor('villain', this)">
+                            😈 Villain进攻<br><span style="font-size:10px;color:var(--text-muted);">你是跟注者</span>
+                        </button>
+                    </div>
+
+                    <div style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:13px;color:var(--text-secondary);">
+                        <span>🦸 <strong id="setup-hero-name">-</strong></span>
+                        <span style="font-size:11px;" id="setup-hero-range-info"></span>
+                        <span>vs</span>
+                        <span>😈 <strong id="setup-villain-name">-</strong></span>
+                        <span style="font-size:11px;" id="setup-villain-range-info"></span>
+                    </div>
+                    <div style="font-size:11px; color:var(--text-muted); margin-top:4px;" id="pot-type-summary"></div>
+                    <button class="btn btn-primary btn-block" style="margin-top:12px;" onclick="startPracticeHand()" id="deal-btn">
+                        发牌开始
+                    </button>
+                </div>
+            </div>
+
+        <!-- Active Hand -->
+        <div id="practice-hand" style="display:none;">
+            <!-- Action Timeline -->
+            <div class="action-timeline" id="action-timeline"></div>
+
+            <!-- Poker Table -->
+            <div class="poker-table">
+                <div class="table-info">
+                    <div class="table-info-item">底池: <strong id="pot-display">6BB</strong></div>
+                    <div class="table-info-item">SPR: <strong id="spr-display">16.2</strong></div>
+                    <div class="table-info-item" id="street-display">Flop</div>
+                </div>
+                <!-- Villain area (face down during play) -->
+                <div class="villain-area" id="villain-table-area">
+                    <span class="position-badge villain-badge" id="villain-pos-badge" style="font-size:10px;">BB</span>
+                    <span id="villain-name-badge" style="font-size:10px;"></span>
+                    <div class="cards-row" id="villain-cards-display">
+                        <div class="playing-card facedown"></div>
+                        <div class="playing-card facedown"></div>
+                    </div>
+                </div>
+                <div class="board-area">
+                    <div class="cards-row" id="board-cards"></div>
+                </div>
+                <div class="hero-area">
+                    <div class="hero-label">
+                        <span class="position-badge" id="hero-pos-badge">BTN</span>
+                        <span style="font-size:11px;">Hero</span>
+                    </div>
+                    <div class="cards-row" id="hero-cards"></div>
+                </div>
+            </div>
+
+            <!-- Hand Info (compact single row) -->
+            <div id="hand-info-card" style="display:flex; align-items:center; gap:8px; padding:6px 10px; background:var(--bg-card); border:1px solid var(--border-color); border-radius:8px; margin-bottom:6px; font-size:12px;">
+                <span class="badge" id="hand-category-badge" style="font-size:11px; white-space:nowrap;">顶对</span>
+                <div class="equity-bar" style="flex:1; height:4px; margin:0;">
+                    <div class="equity-fill" id="equity-fill" style="width:50%;"></div>
+                </div>
+                <strong id="equity-text" style="white-space:nowrap;">50%</strong>
+                <span id="board-texture-text" style="color:var(--text-muted); font-size:10px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100px;"></span>
+            </div>
+
+            <!-- Inline Result Strip (replaces modal overlay) -->
+            <div id="inline-result" style="display:none;">
+                <div id="inline-result-bar" style="display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:8px; margin-bottom:6px; font-size:12px; cursor:pointer;" onclick="toggleResultDetail()">
+                    <span id="inline-result-icon" style="font-size:16px;">✅</span>
+                    <span id="inline-result-text" style="flex:1;"></span>
+                    <span id="inline-result-toggle" style="font-size:10px; color:var(--text-muted);">详情 ▼</span>
+                </div>
+                <div id="inline-result-detail" style="display:none; padding:8px 10px; background:var(--bg-card); border:1px solid var(--border-color); border-radius:8px; margin-bottom:6px; font-size:12px;">
+                    <div id="inline-advice-body"></div>
+                </div>
+            </div>
+
+            <!-- Villain Range Analysis Panel (PioSolver-like) -->
+            <div id="range-analysis-panel" style="display:none;">
+                <div id="range-analysis-header" style="display:flex; align-items:center; gap:8px; padding:8px 10px; background:var(--bg-card); border:1px solid rgba(155,89,182,0.3); border-radius:8px; margin-bottom:6px; font-size:12px; cursor:pointer;" onclick="toggleRangeAnalysis()">
+                    <span style="font-size:14px;">🔍</span>
+                    <span style="flex:1; font-weight:600; color:#bb86fc;">对手范围分析</span>
+                    <span id="range-analysis-summary" style="color:var(--text-secondary); font-size:11px;"></span>
+                    <span id="range-analysis-toggle" style="font-size:10px; color:var(--text-muted);">展开 ▼</span>
+                </div>
+                <div id="range-analysis-body" style="display:none; padding:10px; background:var(--bg-card); border:1px solid rgba(155,89,182,0.2); border-radius:8px; margin-bottom:6px; font-size:12px;">
+                    <!-- Action-specific range (bet range or check range) -->
+                    <div id="range-action-section"></div>
+                    <!-- Full range breakdown bar -->
+                    <div id="range-bar-section" style="margin-top:8px;"></div>
+                    <!-- Category details -->
+                    <div id="range-detail-section" style="margin-top:8px;"></div>
+                </div>
+            </div>
+
+            <!-- Showdown (inline, not separate area) -->
+            <div id="showdown-area" style="display:none;">
+                <div style="display:flex; gap:12px; justify-content:center; align-items:center; padding:8px; background:var(--bg-card); border:1px solid var(--accent-orange); border-radius:8px; margin-bottom:6px;">
+                    <div style="text-align:center;">
+                        <div style="font-size:10px; color:var(--text-secondary);">Hero</div>
+                        <div class="cards-row" id="showdown-hero-cards"></div>
+                        <div class="badge badge-blue" style="font-size:10px; margin-top:2px;" id="showdown-hero-hand"></div>
+                    </div>
+                    <div style="text-align:center;">
+                        <div style="font-size:14px; font-weight:700;" id="showdown-result">🎉</div>
+                        <div style="font-size:10px; color:var(--text-secondary);" id="showdown-pot"></div>
+                    </div>
+                    <div style="text-align:center;">
+                        <div style="font-size:10px; color:var(--text-secondary);">Villain</div>
+                        <div class="cards-row" id="showdown-villain-cards"></div>
+                        <div class="badge badge-red" style="font-size:10px; margin-top:2px;" id="showdown-villain-hand"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bet Sizing Selector -->
+            <div id="sizing-area" style="display:none;">
+                <div class="sizing-selector" id="sizing-selector">
+                    <button class="sizing-btn" onclick="selectSizing('33')" data-sizing="33">1/3</button>
+                    <button class="sizing-btn" onclick="selectSizing('50')" data-sizing="50">1/2</button>
+                    <button class="sizing-btn active" onclick="selectSizing('66')" data-sizing="66">2/3</button>
+                    <button class="sizing-btn" onclick="selectSizing('100')" data-sizing="100">Pot</button>
+                    <button class="sizing-btn" onclick="selectSizing('150')" data-sizing="150">1.5x</button>
+                    <button class="sizing-btn" onclick="selectSizing('allin')" data-sizing="allin">All-In</button>
+                </div>
+            </div>
+
+            <!-- Action Buttons area (dynamically populated) -->
+            <div class="action-buttons" id="action-buttons"></div>
+
+            <!-- Confirm Bet Button -->
+            <div id="confirm-bet-area" style="display:none;">
+                <div class="btn-group">
+                    <button class="btn btn-outline" onclick="cancelBet()">取消</button>
+                    <button class="btn btn-danger btn-block" onclick="confirmBet()" id="confirm-bet-btn">确认下注</button>
+                </div>
+            </div>
+        </div>
+        </div><!-- close postflop-practice-area -->
+    </div><!-- close practice-content -->
+</div><!-- close page-practice -->
+
+<!-- Result overlay removed - now uses inline result strip -->
+
+<!-- ============================================================
+     Setup Wizard (first-time users)
+     ============================================================ -->
+<div class="page wizard-page" id="page-wizard">
+    <!-- Progress bar -->
+    <div class="wizard-progress">
+        <div class="wizard-progress-bar" id="wizard-progress-bar"></div>
+    </div>
+    <div class="wizard-step-indicators" id="wizard-step-indicators"></div>
+
+    <!-- Step 1: Select Hero profile -->
+    <div class="wizard-step" id="wizard-step-1">
+        <div class="wizard-step-header">
+            <div class="wizard-step-icon">🦸</div>
+            <h2>选择你的档案</h2>
+            <p class="wizard-step-desc">选择最接近你打法的档案作为Hero</p>
+        </div>
+        <div class="wizard-step-content">
+            <div class="profile-grid" id="wizard-hero-profiles"></div>
+            <button class="btn btn-outline" style="width:100%;margin-top:12px;" onclick="openNewProfileModal('hero')">+ 创建自定义档案</button>
+        </div>
+    </div>
+
+    <!-- Step 2: Edit Hero ranges (skippable) -->
+    <div class="wizard-step" id="wizard-step-2">
+        <div class="wizard-step-header">
+            <h2>编辑你的翻前范围</h2>
+            <p class="wizard-step-desc">点击手牌切换 Raise / Call / Fold</p>
+        </div>
+        <div class="wizard-step-content" id="wizard-hero-range-area"></div>
+    </div>
+
+    <!-- Step 3: Select Villain profile -->
+    <div class="wizard-step" id="wizard-step-3">
+        <div class="wizard-step-header">
+            <div class="wizard-step-icon">😈</div>
+            <h2>选择对手档案</h2>
+            <p class="wizard-step-desc">选择你想模拟对抗的对手类型</p>
+        </div>
+        <div class="wizard-step-content">
+            <div class="profile-grid" id="wizard-villain-profiles"></div>
+            <button class="btn btn-outline" style="width:100%;margin-top:12px;" onclick="openNewProfileModal('villain')">+ 创建自定义档案</button>
+        </div>
+    </div>
+
+    <!-- Step 4: Edit Villain ranges (skippable) -->
+    <div class="wizard-step" id="wizard-step-4">
+        <div class="wizard-step-header">
+            <h2>查看/编辑对手翻前范围</h2>
+            <p class="wizard-step-desc">了解对手各位置的开池范围</p>
+        </div>
+        <div class="wizard-step-content" id="wizard-villain-range-area"></div>
+    </div>
+
+    <!-- Step 5: Ready -->
+    <div class="wizard-step" id="wizard-step-5">
+        <div class="wizard-step-header">
+            <div class="wizard-step-icon">🚀</div>
+            <h2>准备就绪!</h2>
+            <p class="wizard-step-desc">设置完成，开始训练吧</p>
+        </div>
+        <div class="wizard-step-content" id="wizard-summary"></div>
+    </div>
+
+    <!-- Bottom navigation -->
+    <div class="wizard-nav">
+        <button class="btn btn-outline" id="wizard-btn-back" onclick="wizardBack()">← 上一步</button>
+        <button class="btn btn-outline" id="wizard-btn-skip" onclick="wizardSkip()">跳过</button>
+        <button class="btn btn-primary" id="wizard-btn-next" onclick="wizardNext()">下一步 →</button>
+    </div>
+</div>
+
+<!-- ============================================================
+     Help Page (accessible via ? button)
+     ============================================================ -->
+<div class="page" id="page-help" style="display:none;">
+    <div style="padding: 0 16px 24px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+            <h2 class="section-title" style="margin:0;">📖 使用文档</h2>
+            <button class="btn btn-outline" onclick="closeHelp()" style="font-size:12px; padding:6px 12px;">返回</button>
+        </div>
+
+        <!-- Quick Start -->
+        <div class="help-section">
+            <h3 class="help-title">🚀 快速开始</h3>
+            <div class="help-steps">
+                <div class="help-step">
+                    <span class="help-step-num">1</span>
+                    <div>
+                        <strong>选择档案</strong>
+                        <p>在「档案」页选择你(Hero)和对手(Villain)的玩家类型。内置5种常见类型：GTO平衡型(TAG)、紧岩石(NIT)、松凶疯子(LAG)、跟注站(FISH)、职业玩家(REG)。</p>
+                    </div>
+                </div>
+                <div class="help-step">
+                    <span class="help-step-num">2</span>
+                    <div>
+                        <strong>开始练习</strong>
+                        <p>进入「1v1练习」，选择你的座位位置(UTG/HJ/CO/BTN/SB/BB)，点击"发牌开始"。系统会从你和对手的翻前范围中随机发牌。</p>
+                    </div>
+                </div>
+                <div class="help-step">
+                    <span class="help-step-num">3</span>
+                    <div>
+                        <strong>做出决策</strong>
+                        <p>看到你的手牌和翻牌面后，选择你的动作：过牌(Check)、下注(Bet)、跟注(Call)、加注(Raise)或弃牌(Fold)。下注时可以选择不同尺度(1/3、1/2、2/3、底池、1.5x、全压)。</p>
+                    </div>
+                </div>
+                <div class="help-step">
+                    <span class="help-step-num">4</span>
+                    <div>
+                        <strong>查看反馈</strong>
+                        <p>每次动作后系统给出GTO评价(最优/可接受/次优/失误)。点击"详情"展开查看GTO建议的完整频率分布和理由。</p>
+                    </div>
+                </div>
+                <div class="help-step">
+                    <span class="help-step-num">5</span>
+                    <div>
+                        <strong>继续下一街</strong>
+                        <p>点击"转牌→"或"河牌→"继续。每条街对手会根据其风格和手牌决定行动。练完可点击"新手牌"开始新一手。</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Interface Guide -->
+        <div class="help-section">
+            <h3 class="help-title">🖥 界面说明</h3>
+            <div class="help-item">
+                <strong>信息栏</strong>
+                <p>显示手牌分类(如"顶对顶踢脚TPTK")、权益百分比、牌面纹理(干燥/湿润/同花面)。面对下注时额外显示底池赔率。</p>
+            </div>
+            <div class="help-item">
+                <strong>时间线</strong>
+                <p>顶部横向滚动条显示完整行动历史：翻前加注 → 跟注 → 翻牌 → 对手下注 → 你的决策 → 转牌...</p>
+            </div>
+            <div class="help-item">
+                <strong>对手范围分析</strong>
+                <p>点击"🔍 对手范围分析"展开PioSolver风格的范围分析：价值/听牌/空气比例、贝叶斯范围缩窄追踪、组合数量统计。</p>
+            </div>
+            <div class="help-item">
+                <strong>摊牌结果</strong>
+                <p>当一手牌结束(弃牌或到河牌)时，会展示双方底牌和最终结果。</p>
+            </div>
+            <div class="help-item">
+                <strong>撤回</strong>
+                <p>点击"← 撤回"可以撤销上一步决策，重新选择。状态会完全恢复(包括范围权重)。</p>
+            </div>
+        </div>
+
+        <!-- GTO Concepts -->
+        <div class="help-section">
+            <h3 class="help-title">🧮 GTO核心概念</h3>
+            <div class="help-item">
+                <strong>权益 (Equity)</strong>
+                <p>你的手牌在当前局面下的胜率百分比。通过蒙特卡洛模拟2000次发牌计算。权益 > 底池赔率时跟注有利。</p>
+            </div>
+            <div class="help-item">
+                <strong>底池赔率 (Pot Odds)</strong>
+                <p>公式：跟注额 / (底池 + 跟注额)。面对半池下注需33%胜率，面对底池下注需50%胜率。</p>
+            </div>
+            <div class="help-item">
+                <strong>MDF 最小防守频率</strong>
+                <p>公式：底池 / (底池 + 下注额)。为了不被对手随意诈唬获利，你至少需要以这个频率继续(跟注或加注)。</p>
+            </div>
+            <div class="help-item">
+                <strong>SPR 筹码底池比</strong>
+                <p>公式：有效筹码 / 底池。SPR ≤ 2 → 倾向全压提交筹码；SPR 3-6 → 可打1-2条街；SPR > 10 → 灵活打多街。</p>
+            </div>
+            <div class="help-item">
+                <strong>牌面纹理</strong>
+                <p>干燥(Dry)：低连接性、彩虹面，如K-7-2。湿润(Wet)：高连接性、同花面，如J♥-T♥-9♠。牌面越湿润，听牌越多，需要更大保护性下注。</p>
+            </div>
+            <div class="help-item">
+                <strong>范围极化 vs 合并</strong>
+                <p>极化范围：只包含坚果牌(价值)和空气牌(诈唬)，常用于大注；合并范围：包含多种强度的牌，常用于小注。</p>
+            </div>
+            <div class="help-item">
+                <strong>隐含赔率 (Implied Odds)</strong>
+                <p>翻牌/转牌上，如果你有强听牌(如坚果同花听牌)，即使当前权益不够跟注，完成后可能赢到更多筹码。河牌无隐含赔率。</p>
+            </div>
+            <div class="help-item">
+                <strong>阻断牌 (Blockers)</strong>
+                <p>如果你手持A♥而牌面有3张♥，你阻断了对手拥有坚果同花的可能性，这使诈唬效率更高。</p>
+            </div>
+        </div>
+
+        <!-- Hand Categories -->
+        <div class="help-section">
+            <h3 class="help-title">🃏 手牌分类说明</h3>
+            <div class="help-item">
+                <strong>坚果牌 (Nuts)</strong>
+                <p>同花顺、四条、葫芦、坚果同花(Ace高)、暗三条(Set)。强度 ≥ 0.85。策略：大注/超池价值下注。</p>
+            </div>
+            <div class="help-item">
+                <strong>强成牌 (Strong Made)</strong>
+                <p>顺子、非坚果同花、超对AA/KK、明三条(Trips)、TPTK(顶对顶踢脚)、顶两对。强度 0.65-0.85。策略：中大注价值下注。</p>
+            </div>
+            <div class="help-item">
+                <strong>中等成牌 (Medium Made)</strong>
+                <p>超对QQ/JJ、顶对强/弱踢脚、口袋对超过第二大公牌、底两对。强度 0.40-0.65。策略：控池为主，偶尔薄价值下注。</p>
+            </div>
+            <div class="help-item">
+                <strong>弱成牌 (Weak Made)</strong>
+                <p>中底对、口袋小对。强度 0.30-0.40。策略：过牌为主，偶尔阻断下注。</p>
+            </div>
+            <div class="help-item">
+                <strong>强听牌 (Strong Draw)</strong>
+                <p>坚果同花听牌、同花+顺子组合听牌。强度 0.48-0.58。策略：积极半诈唬。</p>
+            </div>
+            <div class="help-item">
+                <strong>弱听牌 (Weak Draw)</strong>
+                <p>非坚果同花听牌、纯顺子听牌。强度 0.28-0.40。策略：偶尔小注半诈唬，多数过牌。</p>
+            </div>
+            <div class="help-item">
+                <strong>空气牌 (Air)</strong>
+                <p>高牌、完全空气、河牌未完成的听牌。强度 < 0.25。策略：偶尔精选诈唬(有阻断牌时)，多数放弃。</p>
+            </div>
+        </div>
+
+        <!-- Villain Profiles -->
+        <div class="help-section">
+            <h3 class="help-title">👤 对手类型与利用策略</h3>
+            <div class="help-item">
+                <strong>🤖 GTO平衡型 (TAG)</strong>
+                <p>标准紧凶风格。使用标准GTO策略对抗，保持平衡。无特殊利用调整。</p>
+            </div>
+            <div class="help-item">
+                <strong>🪨 紧岩石 (NIT)</strong>
+                <p>范围极紧，很少诈唬。对策：增加诈唬频率，面对下注倾向弃牌(他们的下注范围很强)。恐吓牌上诈唬效率极高。</p>
+            </div>
+            <div class="help-item">
+                <strong>🔥 松凶疯子 (LAG)</strong>
+                <p>范围宽，诈唬频率高。对策：扩大跟注范围(尤其是强牌)，减少弃牌。OOP时增加过牌加注频率。</p>
+            </div>
+            <div class="help-item">
+                <strong>📞 跟注站 (FISH)</strong>
+                <p>几乎不弃牌，极少诈唬。对策：加大价值下注尺度(他们会跟注)，河牌空气牌绝不诈唬(白送筹码)。</p>
+            </div>
+            <div class="help-item">
+                <strong>🦈 职业玩家 (REG)</strong>
+                <p>接近GTO但有微调空间。对策：保持基本平衡策略，微调即可。不要过度利用。</p>
+            </div>
+        </div>
+
+        <!-- Bayesian Range Tracking -->
+        <div class="help-section">
+            <h3 class="help-title">🔬 贝叶斯范围追踪</h3>
+            <div class="help-item">
+                <p>系统使用贝叶斯方法实时追踪对手的范围。对手每个动作都会更新所有组合的权重：</p>
+                <ul style="margin:8px 0 0 16px; font-size:13px; color:var(--text-secondary); line-height:1.8;">
+                    <li><strong>下注：</strong>坚果牌权重↑、中等牌权重↓、空气牌(诈唬)权重↑</li>
+                    <li><strong>过牌：</strong>坚果牌权重↓(慢打除外)、中等牌权重↑、空气牌权重↑</li>
+                    <li><strong>跟注：</strong>坚果牌权重↑(没加注)、中等牌权重↑、空气牌权重↓</li>
+                    <li><strong>大注 vs 小注：</strong>大注范围更极化(强牌+诈唬↑，中等牌↓)；小注范围更合并</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="help-section">
+            <h3 class="help-title">⚙️ 其他功能</h3>
+            <div class="help-item">
+                <strong>翻前范围编辑</strong>
+                <p>在「翻前范围」页面可以查看和编辑13×13手牌矩阵，设置每个位置的 Raise/Call/Fold 范围。</p>
+            </div>
+            <div class="help-item">
+                <strong>自定义档案</strong>
+                <p>在「档案」页面可以创建自定义玩家类型，设置名称、风格、VPIP/PFR等参数。</p>
+            </div>
+            <div class="help-item">
+                <strong>评分系统</strong>
+                <p>GTO质量加权评分(0-100%)。最优动作得满分，次优按频率比例得分，完全错误得0分。</p>
+            </div>
+        </div>
+
+        <div style="text-align:center; padding:24px 0; color:var(--text-muted); font-size:12px;">
+            PokerGTO · 6-Max Cash Game · 100BB Deep<br>
+            基于GTO博弈论最优策略的德州扑克训练器
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================
+     New Profile Modal
+     ============================================================ -->
+<div class="modal-backdrop" id="profile-modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <div class="modal-title" id="modal-title">创建新档案</div>
+            <button class="modal-close" onclick="closeModal()">&times;</button>
+        </div>
+        <div class="form-group">
+            <label>名称</label>
+            <input type="text" id="profile-name-input" placeholder="如：紧凶老王">
+        </div>
+        <div class="form-group">
+            <label>头像 (Emoji)</label>
+            <input type="text" id="profile-avatar-input" placeholder="如：🎭" maxlength="2" value="🎭">
+        </div>
+        <div class="form-group">
+            <label>风格</label>
+            <select id="profile-style-input">
+                <option value="TAG">TAG (紧凶)</option>
+                <option value="LAG">LAG (松凶)</option>
+                <option value="NIT">NIT (岩石)</option>
+                <option value="FISH">FISH (鱼)</option>
+                <option value="REG">REG (常客)</option>
+                <option value="CUSTOM">自定义</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>描述</label>
+            <textarea id="profile-desc-input" rows="2" placeholder="描述这个玩家的特点..."></textarea>
+        </div>
+        <div class="form-group">
+            <label>VPIP (%)</label>
+            <input type="number" id="profile-vpip-input" value="25" min="5" max="100">
+        </div>
+        <div class="form-group">
+            <label>PFR (%)</label>
+            <input type="number" id="profile-pfr-input" value="20" min="0" max="100">
+        </div>
+        <p style="font-size:12px; color: var(--text-muted); margin-bottom:16px;">
+            创建后可以在"翻前范围"页面中编辑各位置的范围
+        </p>
+        <div class="btn-group">
+            <button class="btn btn-outline" onclick="closeModal()">取消</button>
+            <button class="btn btn-primary" onclick="saveNewProfile()">保存</button>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================
+     JavaScript
+     ============================================================ -->
+<script src="js/poker-core.js?v=20"></script>
+<script src="js/cfr-solver.js?v=1"></script>
+<script src="js/hand-abstraction.js?v=1"></script>
+<script src="js/preflop-solver.js?v=1"></script>
+<script src="js/postflop-solver.js?v=1"></script>
+<script src="js/profiles.js?v=20"></script>
+<script src="js/preflop-practice.js?v=21"></script>
+<script src="js/practice.js?v=26"></script>
+<script>
+// ============================================================
+// App State
+// ============================================================
+
+const pm = new ProfileManager();
+let practice = new PracticeSession(pm);
+let preflopPractice = new PreflopPracticeSession(pm);
+let selectedHeroId = null;
+let selectedVillainId = null;
+let currentPreflopPos = 'BTN';
+let currentPracticePos = 'BTN';
+let currentPracticeVillainPos = null; // null = random
+let currentPreflopHeroPos = 'BTN';
+let currentPreflopVillainPos = null; // null = random
+let currentPracticeMode = 'preflop'; // 'preflop' or 'postflop'
+let currentPotType = 'srp'; // 'srp', 'threebet', 'fourbet'
+let currentAggressor = 'hero'; // 'hero' or 'villain'
+let currentRangeTab = 'hero'; // 'hero' or 'villain'
+let currentState = null;
+let selectedSizing = '66'; // default 2/3 pot
+let actionLog = []; // action history for timeline
+
+// ============================================================
+// Cover Page
+// ============================================================
+
+function enterApp() {
+    document.getElementById('page-cover').classList.remove('active');
+    if (!localStorage.getItem('pokergto_onboarded')) {
+        showWizard();
+    } else {
+        document.getElementById('main-nav').classList.remove('hidden');
+        document.getElementById('page-profiles').classList.add('active');
+        document.getElementById('nav-profiles').classList.add('active');
+        renderProfiles();
+    }
+}
+
+// ============================================================
+// Page Navigation
+// ============================================================
+
+function switchPage(pageName) {
+    document.querySelectorAll('.page').forEach(p => {
+        if (!p.classList.contains('cover-page')) p.classList.remove('active');
+    });
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('page-' + pageName).classList.add('active');
+    document.getElementById('nav-' + pageName).classList.add('active');
+
+    if (pageName === 'preflop') renderPreflopPage();
+    if (pageName === 'practice') {
+        // Always run the guard check first
+        if (!selectedHeroId || !selectedVillainId) {
+            document.getElementById('practice-no-profile').style.display = 'block';
+            document.getElementById('practice-content').style.display = 'none';
+        } else {
+            document.getElementById('practice-no-profile').style.display = 'none';
+            document.getElementById('practice-content').style.display = 'block';
+            switchPracticeMode(currentPracticeMode);
+        }
+    }
+    if (pageName === 'profiles') renderProfiles();
+}
+
+// ============================================================
+// Accordion
+// ============================================================
+
+function toggleAccordion(id) {
+    const el = document.getElementById(id);
+    const header = el.querySelector('.accordion-header');
+    const body = el.querySelector('.accordion-body');
+    const isOpening = !header.classList.contains('open');
+
+    // Close the OTHER accordion first to avoid nested-scroll issues
+    if (isOpening) {
+        document.querySelectorAll('.accordion').forEach(acc => {
+            if (acc.id !== id) {
+                acc.querySelector('.accordion-header')?.classList.remove('open');
+                acc.querySelector('.accordion-body')?.classList.remove('open');
+            }
+        });
+    }
+
+    header.classList.toggle('open');
+    body.classList.toggle('open');
+}
+
+// ============================================================
+// Profile Page
+// ============================================================
+
+function renderProfiles() {
+    renderProfileList('hero-profile-list', selectedHeroId, 'hero');
+    renderProfileList('villain-profile-list', selectedVillainId, 'villain');
+    updateProfileSummaries();
+    updateStartButton();
+}
+
+function renderProfileList(containerId, selectedId, side) {
+    const list = document.getElementById(containerId);
+    const profiles = pm.getAll();
+    list.innerHTML = profiles.map(p => `
+        <div class="profile-card ${selectedId === p.id ? 'selected' : ''}"
+             onclick="selectProfileFor('${side}', '${p.id}')">
+            <div class="profile-header">
+                <div class="avatar">${p.avatar}</div>
+                <div class="profile-info">
+                    <div class="profile-name">${p.name}</div>
+                    <span class="profile-style badge" style="background:${p.color}22; color:${p.color};">${p.style}</span>
+                </div>
+                ${selectedId === p.id ? '<span class="badge badge-green">已选</span>' : ''}
+            </div>
+            <div class="profile-desc">${p.description}</div>
+            <div class="profile-stats">
+                <div class="profile-stat">VPIP <span>${p.vpip}%</span></div>
+                <div class="profile-stat">PFR <span>${p.pfr}%</span></div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function selectProfileFor(side, id) {
+    if (side === 'hero') {
+        selectedHeroId = id;
+    } else {
+        selectedVillainId = id;
+    }
+    renderProfiles();
+
+    // Auto collapse current accordion after selection
+    const accId = side + '-accordion';
+    const header = document.querySelector('#' + accId + ' .accordion-header');
+    const body = document.querySelector('#' + accId + ' .accordion-body');
+    setTimeout(() => {
+        header.classList.remove('open');
+        body.classList.remove('open');
+
+        // Auto open the NEXT accordion if it hasn't been selected yet
+        if (side === 'hero' && !selectedVillainId) {
+            setTimeout(() => toggleAccordion('villain-accordion'), 200);
+        }
+        // Scroll to start button if both are selected
+        if (selectedHeroId && selectedVillainId) {
+            setTimeout(() => {
+                const startBtn = document.getElementById('start-practice-btn');
+                startBtn?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 300);
+        }
+    }, 300);
+}
+
+function updateProfileSummaries() {
+    const heroP = selectedHeroId ? pm.getById(selectedHeroId) : null;
+    const villainP = selectedVillainId ? pm.getById(selectedVillainId) : null;
+    document.getElementById('hero-profile-summary').textContent =
+        heroP ? `${heroP.avatar} ${heroP.name} (${heroP.style})` : '选择你的游戏风格';
+    document.getElementById('villain-profile-summary').textContent =
+        villainP ? `${villainP.avatar} ${villainP.name} (${villainP.style})` : '选择模拟对手类型';
+}
+
+function updateStartButton() {
+    const btn = document.getElementById('start-practice-btn');
+    if (selectedHeroId && selectedVillainId) {
+        btn.disabled = false;
+        btn.textContent = '开始1v1练习 →';
+    } else {
+        btn.disabled = true;
+        btn.textContent = '选择双方档案后开始练习';
+    }
+}
+
+function resetProfiles() {
+    if (confirm('确定恢复所有默认档案？')) {
+        pm.resetToDefaults();
+        selectedHeroId = null;
+        selectedVillainId = null;
+        renderProfiles();
+    }
+}
+
+// ============================================================
+// New Profile Modal
+// ============================================================
+
+let modalSide = 'villain';
+
+function openNewProfileModal(side) {
+    modalSide = side;
+    document.getElementById('profile-modal').classList.add('show');
+    document.getElementById('modal-title').textContent =
+        side === 'hero' ? '创建Hero档案' : '创建Villain档案';
+}
+
+function closeModal() {
+    document.getElementById('profile-modal').classList.remove('show');
+}
+
+function saveNewProfile() {
+    const name = document.getElementById('profile-name-input').value.trim();
+    if (!name) { alert('请输入名称'); return; }
+
+    const style = document.getElementById('profile-style-input').value;
+    const vpip = parseInt(document.getElementById('profile-vpip-input').value) || 25;
+    const pfr = parseInt(document.getElementById('profile-pfr-input').value) || 20;
+    const ranges = generateRangesFromStats(vpip, pfr);
+
+    const profile = {
+        id: 'custom-' + Date.now(),
+        name: name,
+        avatar: document.getElementById('profile-avatar-input').value || '🎭',
+        description: document.getElementById('profile-desc-input').value || `${style}风格玩家`,
+        style: style, vpip: vpip, pfr: pfr,
+        color: '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0'),
+        ranges: ranges
+    };
+
+    pm.add(profile);
+    closeModal();
+    selectProfileFor(modalSide, profile.id);
+    renderProfiles();
+
+    // If wizard is active, update wizard state
+    if (document.getElementById('page-wizard')?.classList.contains('active')) {
+        if (modalSide === 'hero') selectedHeroId = profile.id;
+        else selectedVillainId = profile.id;
+        renderWizardStep();
+    }
+}
+
+function generateRangesFromStats(vpip, pfr) {
+    const allHands = [
+        "AA","KK","QQ","JJ","AKs","TT","AQs","AKo","AJs","KQs","99","ATs","AQo","KJs",
+        "KTs","QJs","AJo","A9s","QTs","88","KQo","A8s","K9s","JTs","A5s","A4s","A7s","A6s",
+        "A3s","KJo","A2s","T9s","77","Q9s","KTo","J9s","ATo","98s","66","K8s","Q8s","87s",
+        "T8s","QJo","55","K7s","97s","76s","J8s","A9o","86s","K6s","65s","44","Q7s","K5s",
+        "QTo","T7s","54s","96s","75s","33","J7s","K4s","A8o","K3s","Q6s","64s","22","JTo",
+        "85s","K2s","53s","Q5s","J9o","43s","T6s","A7o","Q4s","74s","A5o","Q3s","T9o","J6s",
+        "A6o","Q2s","63s","98o","A4o","52s","J5s","42s","T8o","A3o","84s","J4s","73s","87o",
+        "32s","95s","A2o","J3s","62s","76o","J2s","93s","65o","T5s","K9o","54o","97o","86o",
+        "T4s","82s","Q9o","T3s","92s","75o","T2s","83s","72s"
+    ];
+    const rfiCount = Math.round(pfr / 100 * 169);
+    const positions = ['UTG','HJ','CO','BTN','SB','BB'];
+    const posMultiplier = {UTG:0.55,HJ:0.7,CO:0.85,BTN:1.2,SB:1.0,BB:0};
+    const ranges = {};
+    for (const pos of positions) {
+        const count = Math.min(Math.round(rfiCount * posMultiplier[pos]), allHands.length);
+        ranges[pos] = { rfi: allHands.slice(0, count) };
+    }
+    return ranges;
+}
+
+// ============================================================
+// Preflop Range Page (Hero + Villain tabs)
+// ============================================================
+
+// ============================================================
+// Preflop Range Page — Multi-Scenario Support
+// Scenarios: RFI, vs Raise (3bet/call/fold), vs 3bet (4bet/call/fold), vs 4bet (5bet/call/fold)
+// ============================================================
+
+let currentScenario = 'rfi';         // 'rfi' | 'vs_raise' | 'vs_3bet' | 'vs_4bet'
+let currentOpenerPos = null;         // For vs_raise: which position opened
+
+// Preflop action order for determining valid scenarios
+const PREFLOP_POS_LIST = ['UTG','HJ','CO','BTN','SB','BB'];
+
+function getAvailableScenarios(pos) {
+    const scenarios = [];
+    if (pos !== 'BB') scenarios.push({ id: 'rfi', label: 'RFI 开池' });
+    // vs_raise: can face a raise from an earlier preflop position
+    const preIdx = PREFLOP_POS_LIST.indexOf(pos);
+    const openers = PREFLOP_POS_LIST.filter((p, i) => i < preIdx);
+    if (openers.length > 0 || pos === 'BB' || pos === 'SB') {
+        scenarios.push({ id: 'vs_raise', label: 'vs 加注' });
+    }
+    // vs_3bet: hero opened, someone 3bet → hero position can open (not BB)
+    if (pos !== 'BB') {
+        scenarios.push({ id: 'vs_3bet', label: 'vs 3bet' });
+    }
+    // vs_4bet: hero 3bet, villain 4bet → available for positions that can 3bet
+    if (pos !== 'BB') {
+        scenarios.push({ id: 'vs_4bet', label: 'vs 4bet' });
+    }
+    return scenarios;
+}
+
+function getAvailableOpeners(heroPos) {
+    const preIdx = PREFLOP_POS_LIST.indexOf(heroPos);
+    // All positions that act before hero in preflop order
+    return PREFLOP_POS_LIST.filter((p, i) => i < preIdx);
+}
+
+// Get scenario range data: returns { raise: [...], call: [...] }
+// Falls back to GTO_PREFLOP defaults if profile has no custom data
+function getScenarioRangeData(profileId, pos, scenario, openerPos) {
+    const profile = pm.getById(profileId);
+    if (!profile) return { raise: [], call: [] };
+
+    // Check profile for custom scenario data first
+    const posData = profile.ranges[pos];
+
+    if (scenario === 'rfi') {
+        const rfi = posData?.rfi || [];
+        const limp = posData?.limp || [];
+        return { raise: rfi, call: limp };
+    }
+
+    if (scenario === 'vs_raise') {
+        // Check profile custom data
+        const key = 'vs_raise_vs_' + openerPos;
+        if (posData?.[key]) {
+            return { raise: posData[key].threebet || [], call: posData[key].call || [] };
+        }
+        // Fallback to GTO_PREFLOP
+        const gtoData = GTO_PREFLOP.vs_raise?.[pos]?.['vs_' + openerPos];
+        if (gtoData) {
+            return { raise: [...gtoData.threebet], call: [...gtoData.call] };
+        }
+        return { raise: [], call: [] };
+    }
+
+    if (scenario === 'vs_3bet') {
+        if (posData?.vs_3bet) {
+            return { raise: posData.vs_3bet.fourbet || [], call: posData.vs_3bet.call || [] };
+        }
+        const gtoData = GTO_PREFLOP.vs_3bet?.[pos];
+        if (gtoData) {
+            return { raise: [...gtoData.fourbet], call: [...gtoData.call] };
+        }
+        return { raise: [], call: [] };
+    }
+
+    if (scenario === 'vs_4bet') {
+        if (posData?.vs_4bet) {
+            return { raise: posData.vs_4bet.fivebet || [], call: posData.vs_4bet.call || [] };
+        }
+        const gtoData = GTO_PREFLOP.vs_4bet;
+        if (gtoData) {
+            return { raise: [...gtoData.fivebet_jam], call: [...gtoData.call] };
+        }
+        return { raise: [], call: [] };
+    }
+
+    return { raise: [], call: [] };
+}
+
+// Save scenario range edit to profile
+function saveScenarioRange(profileId, pos, scenario, openerPos, raiseHands, callHands) {
+    const profile = pm.getById(profileId);
+    if (!profile) return;
+    if (!profile.ranges[pos]) profile.ranges[pos] = {};
+
+    if (scenario === 'rfi') {
+        profile.ranges[pos].rfi = raiseHands;
+        profile.ranges[pos].limp = callHands;
+    } else if (scenario === 'vs_raise') {
+        const key = 'vs_raise_vs_' + openerPos;
+        profile.ranges[pos][key] = { threebet: raiseHands, call: callHands };
+    } else if (scenario === 'vs_3bet') {
+        profile.ranges[pos].vs_3bet = { fourbet: raiseHands, call: callHands };
+    } else if (scenario === 'vs_4bet') {
+        profile.ranges[pos].vs_4bet = { fivebet: raiseHands, call: callHands };
+    }
+    pm.update(profileId, { ranges: profile.ranges });
+}
+
+function renderPreflopPage() {
+    if (!selectedHeroId && !selectedVillainId) {
+        document.getElementById('preflop-no-profile').style.display = 'block';
+        document.getElementById('preflop-content').style.display = 'none';
+        return;
+    }
+    document.getElementById('preflop-no-profile').style.display = 'none';
+    document.getElementById('preflop-content').style.display = 'block';
+
+    // Update tab active state
+    document.getElementById('range-tab-hero').classList.toggle('active', currentRangeTab === 'hero');
+    document.getElementById('range-tab-villain').classList.toggle('active', currentRangeTab === 'villain');
+
+    const profileId = currentRangeTab === 'hero' ? selectedHeroId : selectedVillainId;
+    if (!profileId) {
+        document.getElementById('range-profile-name').textContent = '未选择';
+        document.getElementById('range-profile-style').textContent = '';
+        document.getElementById('range-avatar').textContent = '❓';
+        document.getElementById('hand-matrix').innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);grid-column:1/-1;">请先选择档案</div>';
+        return;
+    }
+
+    const profile = pm.getById(profileId);
+    document.getElementById('range-avatar').textContent = profile.avatar;
+    document.getElementById('range-profile-name').textContent = profile.name;
+    document.getElementById('range-profile-style').textContent = `${profile.style} | VPIP ${profile.vpip}% | PFR ${profile.pfr}%`;
+
+    const positions = ['UTG','HJ','CO','BTN','SB','BB'];
+    document.getElementById('preflop-positions').innerHTML = positions.map(p => `
+        <button class="pos-btn ${currentPreflopPos === p ? 'active' : ''}"
+                onclick="selectPreflopPos('${p}')">${p}</button>
+    `).join('');
+
+    // Render scenario tabs
+    renderScenarioTabs();
+
+    // Render opener position if needed
+    renderOpenerPositions();
+
+    renderMatrix(profileId);
+}
+
+function renderScenarioTabs() {
+    const scenarios = getAvailableScenarios(currentPreflopPos);
+    // Auto-fix: if current scenario is not available for this position, reset
+    if (!scenarios.find(s => s.id === currentScenario)) {
+        currentScenario = scenarios[0]?.id || 'rfi';
+        currentOpenerPos = null;
+    }
+
+    document.getElementById('scenario-tabs').innerHTML = scenarios.map(s =>
+        `<button class="scenario-tab ${currentScenario === s.id ? 'active' : ''}"
+                 onclick="selectScenario('${s.id}')">${s.label}</button>`
+    ).join('');
+}
+
+function renderOpenerPositions() {
+    const area = document.getElementById('opener-pos-area');
+    if (currentScenario !== 'vs_raise') {
+        area.style.display = 'none';
+        return;
+    }
+    area.style.display = 'block';
+    const openers = getAvailableOpeners(currentPreflopPos);
+    if (openers.length === 0) {
+        area.style.display = 'none';
+        return;
+    }
+    // Auto-select first opener if none selected
+    if (!currentOpenerPos || !openers.includes(currentOpenerPos)) {
+        currentOpenerPos = openers[0];
+    }
+    document.getElementById('opener-positions').innerHTML = openers.map(p =>
+        `<button class="pos-btn ${currentOpenerPos === p ? 'active' : ''}"
+                 onclick="selectOpenerPos('${p}')">${p}</button>`
+    ).join('');
+}
+
+function switchRangeTab(tab) {
+    currentRangeTab = tab;
+    renderPreflopPage();
+}
+
+function selectPreflopPos(pos) {
+    currentPreflopPos = pos;
+    currentOpenerPos = null; // Reset opener when position changes
+    renderPreflopPage();
+}
+
+function selectScenario(scenario) {
+    currentScenario = scenario;
+    currentOpenerPos = null;
+    renderPreflopPage();
+}
+
+function selectOpenerPos(pos) {
+    currentOpenerPos = pos;
+    renderOpenerPositions();
+    const profileId = currentRangeTab === 'hero' ? selectedHeroId : selectedVillainId;
+    renderMatrix(profileId);
+}
+
+function renderMatrix(profileId) {
+    const profile = pm.getById(profileId);
+    if (!profile) return;
+
+    // Get range data for current scenario
+    const data = getScenarioRangeData(profileId, currentPreflopPos, currentScenario, currentOpenerPos);
+    const raiseSet = new Set(data.raise);
+    const callSet = new Set(data.call);
+
+    // Update header labels
+    const scenarioLabels = {
+        rfi: '率先加注范围 (RFI)',
+        vs_raise: `vs ${currentOpenerPos || '?'} 开池 (3bet/Call/Fold)`,
+        vs_3bet: '面对3bet (4bet/Call/Fold)',
+        vs_4bet: '面对4bet (5bet/Call/Fold)',
+    };
+    const raiseLabels = {
+        rfi: 'Raise',
+        vs_raise: '3-Bet',
+        vs_3bet: '4-Bet',
+        vs_4bet: '5-Bet Jam',
+    };
+
+    document.getElementById('preflop-pos-label').textContent = currentPreflopPos;
+    document.getElementById('preflop-range-type').textContent = scenarioLabels[currentScenario] || '';
+    document.getElementById('legend-raise-label').textContent = raiseLabels[currentScenario] || 'Raise';
+    document.getElementById('legend-call-label').textContent = currentScenario === 'rfi' ? 'Limp' : 'Call';
+
+    // All scenarios support 3-state (RFI: raise/limp/fold, others: raise/call/fold)
+    const hasCall = true;
+
+    const matrix = getHandMatrix();
+    const grid = document.getElementById('hand-matrix');
+
+    let raiseCombos = 0, callCombos = 0;
+    let html = '';
+    for (let i = 0; i < 13; i++) {
+        for (let j = 0; j < 13; j++) {
+            const hand = matrix[i][j];
+            const inRaise = raiseSet.has(hand);
+            const inCall = callSet.has(hand);
+            let cls = 'fold';
+            if (inRaise) cls = 'raise';
+            else if (inCall) cls = 'call';
+            const combos = getComboCount(hand);
+            if (inRaise) raiseCombos += combos;
+            if (inCall) callCombos += combos;
+            html += `<div class="matrix-cell ${cls}"
+                          onclick="toggleRangeCell('${hand}','${profileId}',${hasCall})"
+                          title="${hand} (${combos} combos)">${hand}</div>`;
+        }
+    }
+    grid.innerHTML = html;
+
+    const totalDef = raiseCombos + callCombos;
+    const raisePct = (raiseCombos / 1326 * 100).toFixed(1);
+    const callPct = (callCombos / 1326 * 100).toFixed(1);
+    const defPct = (totalDef / 1326 * 100).toFixed(1);
+
+    const callLabel = currentScenario === 'rfi' ? 'Limp' : 'Call';
+    if (callCombos > 0 || currentScenario !== 'rfi') {
+        document.getElementById('combo-info').innerHTML =
+            `${raiseLabels[currentScenario]}: <strong>${raiseCombos}</strong> (${raisePct}%) | ` +
+            `${callLabel}: <strong>${callCombos}</strong> (${callPct}%) | ` +
+            `总防守: <strong>${totalDef}</strong> (${defPct}%)`;
+        document.getElementById('range-stats').innerHTML = `
+            <div class="range-stat">${raiseLabels[currentScenario]}: <strong>${raisePct}%</strong></div>
+            <div class="range-stat">${callLabel}: <strong>${callPct}%</strong></div>
+            <div class="range-stat">防守: <strong>${defPct}%</strong></div>
+            <div class="range-stat">位置: <strong>${currentPreflopPos}</strong></div>
+        `;
+    } else {
+        document.getElementById('combo-info').innerHTML =
+            `Raise: <strong>${raiseCombos}</strong> / 1326 组合 (<strong>${raisePct}%</strong>)`;
+        document.getElementById('range-stats').innerHTML = `
+            <div class="range-stat">加注范围: <strong>${raisePct}%</strong></div>
+            <div class="range-stat">组合数: <strong>${raiseCombos}</strong></div>
+            <div class="range-stat">位置: <strong>${currentPreflopPos}</strong></div>
+        `;
+    }
+}
+
+// Toggle cell: for RFI cycles raise→fold; for other scenarios cycles raise→call→fold
+function toggleRangeCell(hand, profileId, hasCall) {
+    const data = getScenarioRangeData(profileId, currentPreflopPos, currentScenario, currentOpenerPos);
+    const inRaise = data.raise.includes(hand);
+    const inCall = data.call.includes(hand);
+
+    // Remove from both first
+    data.raise = data.raise.filter(h => h !== hand);
+    data.call = data.call.filter(h => h !== hand);
+
+    if (!hasCall) {
+        // RFI: toggle raise ↔ fold
+        if (!inRaise) data.raise.push(hand);
+    } else {
+        // Multi-state: fold → raise → call → fold
+        if (!inRaise && !inCall) {
+            data.raise.push(hand); // fold → raise
+        } else if (inRaise) {
+            data.call.push(hand);  // raise → call
+        }
+        // inCall → fold (already removed)
+    }
+
+    saveScenarioRange(profileId, currentPreflopPos, currentScenario, currentOpenerPos, data.raise, data.call);
+    renderMatrix(profileId);
+}
+
+// ============================================================
+// Practice Page — Mode Switching
+// ============================================================
+
+let handsPlayed = 0;
+let resultDetailOpen = false;
+
+function switchPracticeMode(mode) {
+    currentPracticeMode = mode;
+    document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('mode-tab-' + mode).classList.add('active');
+
+    if (mode === 'preflop') {
+        document.getElementById('preflop-practice-area').style.display = 'block';
+        document.getElementById('postflop-practice-area').style.display = 'none';
+        renderPreflopPracticePage();
+    } else {
+        document.getElementById('preflop-practice-area').style.display = 'none';
+        document.getElementById('postflop-practice-area').style.display = 'block';
+        renderPostflopPracticePage();
+    }
+}
+
+// ============================================================
+// Preflop Practice Functions
+// ============================================================
+
+function renderPreflopPracticePage() {
+    const heroP = pm.getById(selectedHeroId);
+    const villainP = pm.getById(selectedVillainId);
+    document.getElementById('preflop-hero-name').textContent = heroP ? heroP.name : '-';
+    document.getElementById('preflop-villain-name').textContent = villainP ? villainP.name : '-';
+
+    const positions = ['UTG','HJ','CO','BTN','SB','BB'];
+    document.getElementById('preflop-hero-positions').innerHTML = positions.map(p => `
+        <button class="pos-btn ${currentPreflopHeroPos === p ? 'active' : ''}"
+                onclick="selectPreflopHeroPos('${p}', this)">${p}</button>
+    `).join('');
+
+    document.getElementById('preflop-villain-positions').innerHTML =
+        `<button class="pos-btn villain-pos-btn ${currentPreflopVillainPos === null ? 'active' : ''}"
+                 onclick="selectPreflopVillainPosBtn(null, this)">随机</button>` +
+        positions.map(p => `
+            <button class="pos-btn villain-pos-btn ${currentPreflopVillainPos === p ? 'active' : ''}"
+                    onclick="selectPreflopVillainPosBtn('${p}', this)">${p}</button>
+        `).join('');
+}
+
+function selectPreflopHeroPos(pos, el) {
+    currentPreflopHeroPos = pos;
+    document.querySelectorAll('#preflop-hero-positions .pos-btn').forEach(b => b.classList.remove('active'));
+    if (el) el.classList.add('active');
+    if (currentPreflopVillainPos === pos) {
+        currentPreflopVillainPos = null;
+        document.querySelectorAll('#preflop-villain-positions .pos-btn').forEach(b => {
+            b.classList.remove('active');
+            if (b.textContent.trim() === '随机') b.classList.add('active');
+        });
+    }
+}
+
+function selectPreflopVillainPosBtn(pos, el) {
+    if (pos && pos === currentPreflopHeroPos) return;
+    currentPreflopVillainPos = pos;
+    document.querySelectorAll('#preflop-villain-positions .pos-btn').forEach(b => b.classList.remove('active'));
+    if (el) el.classList.add('active');
+}
+
+function startPreflopHand() {
+    const btn = document.getElementById('preflop-deal-btn');
+    if (btn) btn.innerHTML = '<span class="spinner"></span>';
+
+    setTimeout(() => {
+        const scenario = preflopPractice.generateScenario(
+            selectedHeroId, selectedVillainId,
+            currentPreflopHeroPos, currentPreflopVillainPos
+        );
+
+        if (!scenario) {
+            if (btn) btn.textContent = '发牌开始';
+            return;
+        }
+
+        // Show hand UI
+        document.getElementById('preflop-practice-setup').style.display = 'none';
+        document.getElementById('preflop-hand').style.display = 'block';
+        document.getElementById('preflop-result').style.display = 'none';
+        document.getElementById('preflop-action-buttons').style.display = 'flex';
+
+        // Render scenario
+        document.getElementById('preflop-scenario-desc').textContent = scenario.description;
+        document.getElementById('preflop-hero-badge').textContent = scenario.heroPos;
+        document.getElementById('preflop-ip-label').textContent = scenario.heroIsIP ? '(IP 有位置)' : '(OOP 无位置)';
+        document.getElementById('preflop-hero-cards').innerHTML = scenario.heroCards.map(c => renderPlayingCard(c)).join('');
+        document.getElementById('preflop-hand-label').textContent = scenario.heroHandKey;
+
+        // Render action buttons
+        const actionLabels = {
+            'raise': { label: '加注 Raise', color: '#e74c3c' },
+            '3bet': { label: '3-Bet', color: '#e74c3c' },
+            '4bet': { label: '4-Bet', color: '#e74c3c' },
+            '5bet-jam': { label: '5-Bet 全压', color: '#e74c3c' },
+            'call': { label: '跟注 Call', color: '#2ecc71' },
+            'fold': { label: '弃牌 Fold', color: '#95a5a6' },
+        };
+
+        document.getElementById('preflop-action-buttons').innerHTML = scenario.availableActions.map(a => {
+            const info = actionLabels[a] || { label: a, color: '#999' };
+            return `<button class="action-btn" style="flex:1; border-color:${info.color}; color:${info.color};"
+                            onclick="preflopAction('${a}')">${info.label}</button>`;
+        }).join('');
+
+        if (btn) btn.textContent = '发牌开始';
+        handsPlayed++;
+        updateScoreDisplay();
+    }, 150);
+}
+
+function preflopAction(action) {
+    const result = preflopPractice.processAnswer(action);
+    if (!result) return;
+
+    // Hide action buttons
+    document.getElementById('preflop-action-buttons').style.display = 'none';
+
+    // Show result
+    const resultDiv = document.getElementById('preflop-result');
+    resultDiv.style.display = 'block';
+
+    const sc = result.score || 0;
+    let gradeLabel, gradeColor;
+    if (sc >= 90) { gradeLabel = '完美'; gradeColor = '#22c55e'; }
+    else if (sc >= 70) { gradeLabel = '良好'; gradeColor = '#3b82f6'; }
+    else if (sc >= 50) { gradeLabel = '一般'; gradeColor = '#f59e0b'; }
+    else if (sc >= 30) { gradeLabel = '待改进'; gradeColor = '#f97316'; }
+    else { gradeLabel = '失误'; gradeColor = '#ef4444'; }
+
+    const iconEl = document.getElementById('preflop-result-icon');
+    iconEl.textContent = sc;
+    iconEl.style.cssText = `font-size:18px; font-weight:800; color:${gradeColor}; min-width:36px; text-align:center;`;
+    const bar = document.getElementById('preflop-result-bar');
+    bar.style.background = `rgba(${sc >= 50 ? '34,197,94' : '239,68,68'},${0.06 + sc / 100 * 0.14})`;
+    bar.style.border = `1px solid ${gradeColor}40`;
+    document.getElementById('preflop-result-text').innerHTML =
+        `<span style="color:${gradeColor}; font-weight:600;">${gradeLabel}</span> — ` +
+        `推荐策略: <strong style="color:#e74c3c;">${result.bestAction}</strong>` +
+        (action !== result.bestAction ? ` <span style="color:var(--text-muted);">(你选了: ${action})</span>` : '');
+
+    // Detail: show all correct actions and reasoning
+    let detailHtml = result.correctActions.map(a =>
+        `<div style="padding:4px 0; border-bottom:1px solid var(--border-color);">
+            <span style="font-weight:700; color:${a.action === result.bestAction ? '#e74c3c' : '#2ecc71'};">${a.frequency}%</span>
+            <strong style="margin-left:6px;">${a.action}</strong>
+            <div style="font-size:11px; color:var(--text-secondary); margin-top:2px;">${a.reasoning}</div>
+        </div>`
+    ).join('');
+
+    // Show which range this hand belongs to
+    const scenario = preflopPractice.currentScenario;
+    if (scenario.type === 'rfi') {
+        const rfiRange = GTO_PREFLOP.rfi[scenario.heroPos] || [];
+        detailHtml += `<div style="margin-top:8px; padding:6px 8px; background:rgba(155,89,182,0.08); border-radius:6px; font-size:11px;">
+            📊 ${scenario.heroPos} RFI范围: ${rfiRange.length}种手牌
+            ${rfiRange.includes(scenario.heroHandKey) ? '✅ 在范围内' : '❌ 不在范围内'}
+        </div>`;
+    } else if (scenario.type === 'vs_raise') {
+        const ranges = GTO_PREFLOP.vs_raise[scenario.heroPos]?.['vs_' + scenario.villainPos];
+        if (ranges) {
+            detailHtml += `<div style="margin-top:8px; padding:6px 8px; background:rgba(155,89,182,0.08); border-radius:6px; font-size:11px;">
+                📊 ${scenario.heroPos} vs ${scenario.villainPos}开池:
+                3bet范围 ${ranges.threebet.length}种 | 跟注范围 ${ranges.call.length}种
+            </div>`;
+        }
+    } else if (scenario.type === 'vs_3bet') {
+        const ranges = GTO_PREFLOP.vs_3bet[scenario.heroPos];
+        if (ranges) {
+            detailHtml += `<div style="margin-top:8px; padding:6px 8px; background:rgba(155,89,182,0.08); border-radius:6px; font-size:11px;">
+                📊 ${scenario.heroPos}面对3bet:
+                4bet范围 ${ranges.fourbet.length}种 | 跟注范围 ${ranges.call.length}种
+            </div>`;
+        }
+    }
+
+    document.getElementById('preflop-result-detail').innerHTML = detailHtml;
+
+    // Update scores
+    updateScoreDisplay();
+}
+
+// ============================================================
+// Pot Type & Aggressor Selection
+// ============================================================
+
+function selectPotType(type, el) {
+    currentPotType = type;
+    document.querySelectorAll('.pot-type-btn').forEach(b => b.classList.remove('active'));
+    if (el) el.classList.add('active');
+    updatePotTypeSummary();
+    updateSetupRangeInfo();
+}
+
+function selectAggressor(who, el) {
+    currentAggressor = who;
+    document.querySelectorAll('.agg-btn').forEach(b => b.classList.remove('active'));
+    if (el) el.classList.add('active');
+    updatePotTypeSummary();
+    updateSetupRangeInfo();
+}
+
+function updatePotTypeSummary() {
+    const config = GTO_PREFLOP.pot_configs[currentPotType];
+    const aggLabel = currentAggressor === 'hero' ? 'Hero是加注者(进攻方)' : 'Villain是加注者(Hero防守)';
+    const el = document.getElementById('pot-type-summary');
+    if (el) el.textContent = `${config.labelShort}: 底池${config.potSize}BB, SPR ${config.spr}, ${aggLabel}`;
+}
+
+// ============================================================
+// Postflop Practice Page (enhanced)
+// ============================================================
+
+function renderPostflopPracticePage() {
+    renderPracticePage();
+    updatePotTypeSummary();
+}
+
+function renderPracticePage() {
+    if (!selectedHeroId || !selectedVillainId) {
+        document.getElementById('practice-no-profile').style.display = 'block';
+        document.getElementById('practice-content').style.display = 'none';
+        return;
+    }
+    document.getElementById('practice-no-profile').style.display = 'none';
+    document.getElementById('practice-content').style.display = 'block';
+
+    const heroP = pm.getById(selectedHeroId);
+    const villainP = pm.getById(selectedVillainId);
+    document.getElementById('setup-hero-name').textContent = heroP ? heroP.name : '-';
+    document.getElementById('setup-villain-name').textContent = villainP ? villainP.name : '-';
+
+    const positions = ['UTG','HJ','CO','BTN','SB','BB'];
+    document.getElementById('practice-positions').innerHTML = positions.map(p => `
+        <button class="pos-btn ${currentPracticePos === p ? 'active' : ''}"
+                onclick="selectPracticePos('${p}', this)">${p}</button>
+    `).join('');
+
+    // Villain position selector (with "随机" option)
+    document.getElementById('practice-villain-positions').innerHTML =
+        `<button class="pos-btn villain-pos-btn ${currentPracticeVillainPos === null ? 'active' : ''}"
+                 onclick="selectPracticeVillainPos(null, this)">随机</button>` +
+        positions.map(p => `
+            <button class="pos-btn villain-pos-btn ${currentPracticeVillainPos === p ? 'active' : ''}"
+                    onclick="selectPracticeVillainPos('${p}', this)">${p}</button>
+        `).join('');
+
+    // Show range info for selected positions
+    updateSetupRangeInfo();
+    updateScoreDisplay();
+}
+
+function selectPracticePos(pos, el) {
+    currentPracticePos = pos;
+    document.querySelectorAll('#practice-positions .pos-btn').forEach(b => b.classList.remove('active'));
+    const target = el || (typeof event !== 'undefined' && event?.target);
+    if (target) {
+        target.classList.add('active');
+    } else {
+        document.querySelectorAll('#practice-positions .pos-btn').forEach(b => {
+            if (b.textContent.trim() === pos) b.classList.add('active');
+        });
+    }
+    // If villain is same as hero, reset villain to random
+    if (currentPracticeVillainPos === pos) {
+        currentPracticeVillainPos = null;
+        document.querySelectorAll('#practice-villain-positions .pos-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('#practice-villain-positions .pos-btn').forEach(b => {
+            if (b.textContent.trim() === '随机') b.classList.add('active');
+        });
+    }
+    updateSetupRangeInfo();
+}
+
+function selectPracticeVillainPos(pos, el) {
+    // Can't be same as hero
+    if (pos && pos === currentPracticePos) return;
+    currentPracticeVillainPos = pos;
+    document.querySelectorAll('#practice-villain-positions .pos-btn').forEach(b => b.classList.remove('active'));
+    if (el) {
+        el.classList.add('active');
+    } else {
+        document.querySelectorAll('#practice-villain-positions .pos-btn').forEach(b => {
+            const txt = b.textContent.trim();
+            if (pos === null && txt === '随机') b.classList.add('active');
+            else if (txt === pos) b.classList.add('active');
+        });
+    }
+    updateSetupRangeInfo();
+}
+
+function updateSetupRangeInfo() {
+    const heroInfoEl = document.getElementById('setup-hero-range-info');
+    const villainInfoEl = document.getElementById('setup-villain-range-info');
+    if (!heroInfoEl || !villainInfoEl) return;
+
+    // Hero range info
+    if (selectedHeroId && currentPracticePos) {
+        const heroRange = pm.getRange(selectedHeroId, currentPracticePos);
+        heroInfoEl.textContent = heroRange.length > 0 ? `(${currentPracticePos}: ${heroRange.length}种手牌)` : `(${currentPracticePos}: 无范围)`;
+        heroInfoEl.style.color = heroRange.length > 0 ? '#2ecc71' : '#e74c3c';
+    } else {
+        heroInfoEl.textContent = '';
+    }
+
+    // Villain range info
+    if (selectedVillainId && currentPracticeVillainPos) {
+        const villainRange = pm.getRange(selectedVillainId, currentPracticeVillainPos);
+        villainInfoEl.textContent = villainRange.length > 0 ? `(${currentPracticeVillainPos}: ${villainRange.length}种手牌)` : `(${currentPracticeVillainPos}: 无范围)`;
+        villainInfoEl.style.color = villainRange.length > 0 ? '#2ecc71' : '#e74c3c';
+    } else {
+        villainInfoEl.textContent = currentPracticeVillainPos ? '' : '(随机位置)';
+        villainInfoEl.style.color = 'var(--text-muted)';
+    }
+}
+
+function startPracticeHand() {
+    const dealBtn = document.getElementById('deal-btn');
+    if (dealBtn) dealBtn.innerHTML = '<span class="spinner"></span>';
+    actionLog = [];
+    handsPlayed++;
+
+    setTimeout(() => {
+        // Apply pot type configuration
+        const potConfig = GTO_PREFLOP.pot_configs[currentPotType];
+        const isVillainAggressor = currentAggressor === 'villain';
+
+        currentState = practice.startNewHand(
+            selectedVillainId, currentPracticePos, selectedHeroId, currentPracticeVillainPos,
+            currentPotType, isVillainAggressor
+        );
+        if (!currentState) {
+            if (dealBtn) dealBtn.textContent = '发牌开始';
+            return;
+        }
+
+        // Build preflop action line based on pot type
+        const heroOrd = POS_ORDER[currentState.heroPosition] || 0;
+        const villOrd = POS_ORDER[currentState.villainPosition] || 0;
+
+        if (currentPotType === 'srp') {
+            if (isVillainAggressor) {
+                actionLog.push({ street:'Preflop', position:currentState.villainPosition, action:'Raise', sizing:'2.5BB', isVillain:true });
+                actionLog.push({ street:'Preflop', position:currentState.heroPosition, action:'Call', sizing:'', isVillain:false });
+            } else {
+                actionLog.push({ street:'Preflop', position:currentState.heroPosition, action:'Raise', sizing:'2.5BB', isVillain:false });
+                actionLog.push({ street:'Preflop', position:currentState.villainPosition, action:'Call', sizing:'', isVillain:true });
+            }
+        } else if (currentPotType === 'threebet') {
+            if (isVillainAggressor) {
+                // Villain 3bet, hero called
+                actionLog.push({ street:'Preflop', position:currentState.heroPosition, action:'Raise', sizing:'2.5BB', isVillain:false });
+                actionLog.push({ street:'Preflop', position:currentState.villainPosition, action:'3-Bet', sizing:'8BB', isVillain:true });
+                actionLog.push({ street:'Preflop', position:currentState.heroPosition, action:'Call', sizing:'', isVillain:false });
+            } else {
+                // Hero 3bet, villain called
+                actionLog.push({ street:'Preflop', position:currentState.villainPosition, action:'Raise', sizing:'2.5BB', isVillain:true });
+                actionLog.push({ street:'Preflop', position:currentState.heroPosition, action:'3-Bet', sizing:'8BB', isVillain:false });
+                actionLog.push({ street:'Preflop', position:currentState.villainPosition, action:'Call', sizing:'', isVillain:true });
+            }
+        } else if (currentPotType === 'fourbet') {
+            if (isVillainAggressor) {
+                // Villain 4bet, hero called: Villain opens → Hero 3bets → Villain 4bets → Hero calls
+                actionLog.push({ street:'Preflop', position:currentState.villainPosition, action:'Raise', sizing:'2.5BB', isVillain:true });
+                actionLog.push({ street:'Preflop', position:currentState.heroPosition, action:'3-Bet', sizing:'8BB', isVillain:false });
+                actionLog.push({ street:'Preflop', position:currentState.villainPosition, action:'4-Bet', sizing:'22BB', isVillain:true });
+                actionLog.push({ street:'Preflop', position:currentState.heroPosition, action:'Call', sizing:'', isVillain:false });
+            } else {
+                // Hero 4bet, villain called: Hero opens → Villain 3bets → Hero 4bets → Villain calls
+                actionLog.push({ street:'Preflop', position:currentState.heroPosition, action:'Raise', sizing:'2.5BB', isVillain:false });
+                actionLog.push({ street:'Preflop', position:currentState.villainPosition, action:'3-Bet', sizing:'8BB', isVillain:true });
+                actionLog.push({ street:'Preflop', position:currentState.heroPosition, action:'4-Bet', sizing:'22BB', isVillain:false });
+                actionLog.push({ street:'Preflop', position:currentState.villainPosition, action:'Call', sizing:'', isVillain:true });
+            }
+        }
+
+        addVillainPostflopAction();
+        renderPracticeHand();
+        if (dealBtn) dealBtn.textContent = '发牌开始';
+    }, 150);
+}
+
+function addVillainPostflopAction() {
+    const vInfo = practice.getVillainActionInfo();
+    if (vInfo) {
+        actionLog.push({
+            street: currentState.street.charAt(0).toUpperCase() + currentState.street.slice(1),
+            position: currentState.villainPosition,
+            action: vInfo.action,
+            sizing: vInfo.sizing,
+            isVillain: true
+        });
+    }
+}
+
+function renderPracticeHand() {
+    document.getElementById('practice-setup').style.display = 'none';
+    document.getElementById('practice-hand').style.display = 'block';
+    document.getElementById('action-buttons').style.display = 'flex';
+    document.getElementById('sizing-area').style.display = 'none';
+    document.getElementById('confirm-bet-area').style.display = 'none';
+    document.getElementById('showdown-area').style.display = 'none';
+    document.getElementById('inline-result').style.display = 'none';
+    // Show range analysis in collapsed state (helps user think about villain's range)
+    showRangeAnalysis();
+
+    const state = currentState;
+
+    // Table info
+    document.getElementById('pot-display').textContent = state.potSize.toFixed(1) + 'BB';
+    document.getElementById('spr-display').textContent = state.spr.toFixed(1);
+    document.getElementById('street-display').textContent = state.street.charAt(0).toUpperCase() + state.street.slice(1);
+
+    // Positions & villain info
+    document.getElementById('hero-pos-badge').textContent = state.heroPosition;
+    document.getElementById('villain-pos-badge').textContent = state.villainPosition;
+    document.getElementById('villain-name-badge').textContent = state.villainProfile.avatar + ' ' + state.villainProfile.name;
+
+    // Villain face-down cards
+    document.getElementById('villain-cards-display').innerHTML =
+        '<div class="playing-card facedown"></div><div class="playing-card facedown"></div>';
+
+    // Board & hero cards
+    document.getElementById('board-cards').innerHTML = state.boardCards.map(c => renderPlayingCard(c)).join('');
+    document.getElementById('hero-cards').innerHTML = state.heroCards.map(c => renderPlayingCard(c)).join('');
+
+    // Hand info (compact row)
+    const cat = state.handCategory;
+    const eqPct = (state.equity * 100).toFixed(0);
+    document.getElementById('hand-category-badge').textContent = cat.categoryCN;
+    document.getElementById('hand-category-badge').className = 'badge ' + getCategoryBadgeClass(cat.category);
+    document.getElementById('equity-text').textContent = eqPct + '%';
+    document.getElementById('equity-fill').style.width = eqPct + '%';
+    document.getElementById('equity-fill').style.background = getEquityColor(state.equity);
+    // Abbreviated board texture + pot odds when facing bet
+    const bt = state.boardTexture;
+    if (state.facingBet) {
+        const potOdds = (practice.villainBetSize / (practice.potSize + practice.villainBetSize) * 100).toFixed(0);
+        const betPct = (practice.villainBetSize / practice.potSize * 100).toFixed(0);
+        document.getElementById('board-texture-text').textContent = `面对${betPct}%pot | 需${potOdds}%`;
+    } else {
+        document.getElementById('board-texture-text').textContent = bt ? bt.wetnessCN + '|' + bt.suitDesc : '';
+    }
+
+    // Action buttons
+    renderActionButtons(state);
+
+    // Timeline
+    renderTimeline();
+    updateScoreDisplay();
+}
+
+function renderActionButtons(state) {
+    const c = document.getElementById('action-buttons');
+    if (state.facingBet) {
+        const potAfterCall = practice.potSize + practice.villainBetSize * 2;
+        const potOdds = (practice.villainBetSize / (practice.potSize + practice.villainBetSize) * 100).toFixed(0);
+        c.innerHTML = `
+            <button class="action-btn fold-btn" onclick="makeAction('fold')">弃牌<span class="action-label">Fold</span></button>
+            <button class="action-btn call-btn" onclick="makeAction('call')">跟注<span class="action-label">Call ${practice.villainBetSize.toFixed(1)}BB</span><span class="action-label" style="font-size:9px;opacity:0.7;">需${potOdds}%胜率</span></button>
+            <button class="action-btn raise-btn" onclick="showSizingThenBet()">加注<span class="action-label">Raise</span></button>
+        `;
+    } else {
+        c.innerHTML = `
+            <button class="action-btn check-btn" onclick="makeAction('check')" style="flex:1;">过牌<span class="action-label">Check</span></button>
+            <button class="action-btn raise-btn" onclick="showSizingThenBet()" style="flex:1;">下注<span class="action-label">Bet</span></button>
+        `;
+    }
+}
+
+// Update hand info bar when facing a bet after check
+function updateFacingBetInfo() {
+    const potOdds = (practice.villainBetSize / (practice.potSize + practice.villainBetSize) * 100).toFixed(0);
+    const mdf = ((1 - practice.villainBetSize / (practice.potSize + practice.villainBetSize)) * 100).toFixed(0);
+    const betPct = (practice.villainBetSize / practice.potSize * 100).toFixed(0);
+    document.getElementById('board-texture-text').textContent = `对手下注${betPct}%底池 | 赔率${potOdds}% | MDF${mdf}%`;
+}
+
+// ============================================================
+// Action Timeline
+// ============================================================
+
+function renderTimeline() {
+    const container = document.getElementById('action-timeline');
+    if (actionLog.length === 0) {
+        container.innerHTML = '';
+        return;
+    }
+    let html = '';
+    let prevStreet = '';
+    for (let i = 0; i < actionLog.length; i++) {
+        const a = actionLog[i];
+        if (a.street !== prevStreet) {
+            if (prevStreet) html += '<div class="timeline-arrow">→</div>';
+            html += `<div class="timeline-item"><span class="timeline-street">${a.street}</span></div>`;
+            html += `<div class="timeline-arrow">→</div>`;
+            prevStreet = a.street;
+        } else if (i > 0) {
+            html += '<div class="timeline-arrow">→</div>';
+        }
+        const actionColor = getActionColor(a.action);
+        const label = a.isVillain ? '😈' : '🦸';
+        html += `<div class="timeline-item${i === actionLog.length-1 ? ' current' : ''}">
+            <span style="font-size:9px;">${label}${a.position}</span>
+            <span class="timeline-action" style="background:${actionColor};">${a.action}${a.sizing ? ' '+a.sizing : ''}</span>
+        </div>`;
+    }
+    html += '<div class="timeline-arrow">→</div>';
+    html += '<div class="timeline-item current"><span class="timeline-action" style="background:var(--bg-elevated);">?</span></div>';
+    container.innerHTML = html;
+    container.scrollLeft = container.scrollWidth;
+}
+
+function getActionColor(action) {
+    const l = action.toLowerCase();
+    if (l.includes('fold')) return '#95a5a6';
+    if (l.includes('check')) return '#3498db';
+    if (l.includes('call')) return '#22c55e';
+    if (l.includes('raise') || l.includes('bet')) return '#e74c3c';
+    if (l.includes('all')) return '#a855f7';
+    return 'var(--bg-elevated)';
+}
+
+// ============================================================
+// Bet Sizing
+// ============================================================
+
+function showSizingThenBet() {
+    document.getElementById('sizing-area').style.display = 'block';
+    document.getElementById('action-buttons').style.display = 'none';
+    document.getElementById('confirm-bet-area').style.display = 'block';
+    // Sync active button with selectedSizing
+    document.querySelectorAll('.sizing-btn').forEach(b => b.classList.remove('active'));
+    const activeBtn = document.querySelector(`.sizing-btn[data-sizing="${selectedSizing}"]`);
+    if (activeBtn) activeBtn.classList.add('active');
+    updateConfirmBetLabel();
+}
+
+function selectSizing(size) {
+    selectedSizing = size;
+    document.querySelectorAll('.sizing-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector(`.sizing-btn[data-sizing="${size}"]`).classList.add('active');
+    updateConfirmBetLabel();
+}
+
+function updateConfirmBetLabel() {
+    const labels = {'33':'1/3','50':'1/2','66':'2/3','100':'Pot','150':'1.5x','allin':'All-In'};
+    const label = labels[selectedSizing] || selectedSizing;
+    // When facing a bet, sizing is based on pot + villain bet
+    const basePot = currentState ? currentState.potSize : 6;
+    const effectivePot = currentState && currentState.facingBet ? basePot + practice.villainBetSize : basePot;
+    let betAmount = selectedSizing === 'allin' ? (currentState ? currentState.effectiveStack : 100) : effectivePot * (parseInt(selectedSizing) / 100);
+    document.getElementById('confirm-bet-btn').textContent = `确认 ${label} (${betAmount.toFixed(1)}BB)`;
+}
+
+function cancelBet() {
+    document.getElementById('sizing-area').style.display = 'none';
+    document.getElementById('confirm-bet-area').style.display = 'none';
+    document.getElementById('action-buttons').style.display = 'flex';
+}
+
+function confirmBet() {
+    const sizingPct = selectedSizing === 'allin' ? 'allin' : parseInt(selectedSizing);
+    makeAction('raise', sizingPct);
+}
+
+// ============================================================
+// Action Processing (inline result, no modal overlay)
+// ============================================================
+
+function makeAction(action, sizingPct) {
+    const actionLogSnapshot = [...actionLog];
+    const streetLabel = currentState.street.charAt(0).toUpperCase() + currentState.street.slice(1);
+    let betSizeLabel = '';
+    const facingBet = currentState.facingBet;
+    const isRiver = currentState.street === 'river';
+    const heroIsIP = currentState.heroIsIP;
+    let heroBetAmount = 0;
+
+    // Calculate bet amount (don't update pot yet for raise — wait for villain response)
+    if (action === 'raise') {
+        const labels = {'33':'1/3','50':'1/2','66':'2/3','100':'Pot','150':'1.5x','allin':'All-In'};
+        betSizeLabel = labels[String(sizingPct)] || '2/3';
+        // When facing a bet, sizing is based on pot AFTER villain's bet
+        const effectivePot = facingBet ? practice.potSize + practice.villainBetSize : practice.potSize;
+        if (sizingPct === 'allin') {
+            heroBetAmount = practice.effectiveStack;
+        } else {
+            heroBetAmount = effectivePot * (parseInt(sizingPct) / 100);
+        }
+    }
+
+    // Action label for timeline
+    let actionLabel;
+    if (action === 'raise' && facingBet) actionLabel = 'Raise';
+    else if (action === 'raise') actionLabel = 'Bet';
+    else actionLabel = action.charAt(0).toUpperCase() + action.slice(1);
+
+    // Add hero action to timeline
+    actionLog.push({ street: streetLabel, position: currentState.heroPosition, action: actionLabel, sizing: betSizeLabel, isVillain: false });
+
+    // Score the action through engine
+    const result = practice.processAction(action, actionLogSnapshot);
+    showInlineResult(result, actionLabel, betSizeLabel, facingBet);
+    showRangeAnalysis();
+    updateScoreDisplay();
+
+    // Hide action/sizing areas
+    document.getElementById('action-buttons').style.display = 'none';
+    document.getElementById('sizing-area').style.display = 'none';
+    document.getElementById('confirm-bet-area').style.display = 'none';
+
+    // === Post-action flow ===
+    if (action === 'fold') {
+        renderFoldResult();
+        showPostButtons('end');
+    } else if (action === 'check') {
+        handleCheckFlow(streetLabel, isRiver, heroIsIP);
+    } else if (action === 'call') {
+        // Hero calls villain's bet — add both to pot
+        practice.potSize += practice.villainBetSize * 2;
+        practice.effectiveStack -= practice.villainBetSize;
+        // Check if all-in: either river or no more chips left → showdown
+        const isAllInCall = practice.effectiveStack <= 0.5;
+        if (isRiver || isAllInCall) {
+            if (isAllInCall && !isRiver) {
+                dealRemainingBoardCards();
+            }
+            renderShowdown();
+            showPostButtons('end');
+        } else {
+            showPostButtons('continue');
+        }
+    } else if (action === 'raise') {
+        handleBetFlow(streetLabel, isRiver, heroBetAmount, facingBet);
+    }
+
+    // Update table info display
+    currentState = practice.getState();
+    document.getElementById('pot-display').textContent = currentState.potSize.toFixed(1) + 'BB';
+    document.getElementById('spr-display').textContent = currentState.spr.toFixed(1);
+
+    // Reset board texture text (clear facing-bet info after action)
+    if (action !== 'check' || !currentState.facingBet) {
+        const bt = currentState.boardTexture;
+        document.getElementById('board-texture-text').textContent = bt ? bt.wetnessCN + '|' + bt.suitDesc : '';
+    }
+
+    renderTimeline();
+}
+
+// Handle check action — villain may respond or street ends
+function handleCheckFlow(streetLabel, isRiver, heroIsIP) {
+    if (!heroIsIP) {
+        // Hero is OOP and checked → villain (IP) decides
+        const villainResponse = practice.simulateVillainIPResponse();
+        currentState = practice.getState();
+
+        // Add villain response to timeline
+        const vInfo = practice.getVillainActionInfo();
+        if (vInfo) {
+            actionLog.push({
+                street: streetLabel,
+                position: currentState.villainPosition,
+                action: vInfo.action,
+                sizing: vInfo.sizing,
+                isVillain: true
+            });
+        }
+
+        if (villainResponse === 'bet') {
+            // Villain bets → hero must face the bet
+            // Clear old check result to avoid confusion
+            document.getElementById('inline-result').style.display = 'none';
+            hideRangeAnalysis();
+            document.getElementById('action-buttons').style.display = 'flex';
+            renderActionButtons(currentState);
+            // Update hand info to show pot odds context
+            updateFacingBetInfo();
+            renderTimeline();
+        } else {
+            // Both checked → advance or showdown
+            if (isRiver) {
+                renderShowdown();
+                showPostButtons('end');
+            } else {
+                showPostButtons('continue');
+            }
+        }
+    } else {
+        // Hero is IP, villain already checked → both checked
+        if (isRiver) {
+            renderShowdown();
+            showPostButtons('end');
+        } else {
+            showPostButtons('continue');
+        }
+    }
+}
+
+// Handle bet/raise — villain responds (call or fold)
+function handleBetFlow(streetLabel, isRiver, heroBetAmount, wasFacingBet) {
+    // Hero puts in their bet
+    practice.effectiveStack -= heroBetAmount;
+    practice.potSize += heroBetAmount;
+
+    // If hero was facing a bet, add villain's original bet to pot too
+    if (wasFacingBet) {
+        practice.potSize += practice.villainBetSize;
+    }
+
+    // Villain decides
+    const villainResponse = practice.simulateVillainFacingBet(heroBetAmount);
+
+    if (villainResponse === 'fold') {
+        actionLog.push({ street: streetLabel, position: currentState.villainPosition, action: 'Fold', sizing: '', isVillain: true });
+        renderHeroWinResult();
+        showPostButtons('end');
+    } else {
+        // Villain calls — match hero's bet; update Bayesian range weights
+        const callBetPct = heroBetAmount / practice.potSize;
+        practice._updateVillainRangeWeights('call', callBetPct);
+        actionLog.push({ street: streetLabel, position: currentState.villainPosition, action: 'Call', sizing: '', isVillain: true });
+        if (wasFacingBet) {
+            // Villain needs to match hero's raise (raise - original bet already in)
+            practice.potSize += (heroBetAmount - practice.villainBetSize);
+        } else {
+            practice.potSize += heroBetAmount;
+        }
+        // Check if all-in: either river or no more chips left → showdown
+        const isAllIn = practice.effectiveStack <= 0.5;
+        if (isRiver || isAllIn) {
+            // Deal out remaining board cards if all-in before river
+            if (isAllIn && !isRiver) {
+                dealRemainingBoardCards();
+            }
+            renderShowdown();
+            showPostButtons('end');
+        } else {
+            showPostButtons('continue');
+        }
+        showRangeAnalysis();
+    }
+    currentState = practice.getState();
+}
+
+// Render result when villain folds to hero's bet
+function renderHeroWinResult() {
+    const state = practice.getState();
+    document.getElementById('showdown-area').style.display = 'block';
+
+    document.getElementById('showdown-hero-cards').innerHTML = state.heroCards.map(c => renderPlayingCard(c)).join('');
+    const heroEval = evaluateBest(state.heroCards, state.boardCards);
+    document.getElementById('showdown-hero-hand').textContent = heroEval ? heroEval.nameCN : '?';
+    document.getElementById('showdown-hero-hand').style.background = '';
+
+    document.getElementById('showdown-villain-cards').innerHTML = state.villainCards.map(c => renderPlayingCard(c)).join('');
+    document.getElementById('showdown-villain-hand').textContent = 'Fold';
+    document.getElementById('showdown-villain-hand').style.background = '#95a5a6';
+
+    // Reveal villain cards on table
+    document.getElementById('villain-cards-display').innerHTML = state.villainCards.map(c => renderPlayingCard(c)).join('');
+
+    const resultEl = document.getElementById('showdown-result');
+    resultEl.textContent = '🎉 V弃牌!';
+    resultEl.style.color = '#22c55e';
+    document.getElementById('showdown-pot').textContent = state.potSize.toFixed(1) + 'BB';
+}
+
+function showInlineResult(result, actionLabel, betSizeLabel, facingBet) {
+    const strip = document.getElementById('inline-result');
+    const bar = document.getElementById('inline-result-bar');
+    const icon = document.getElementById('inline-result-icon');
+    const text = document.getElementById('inline-result-text');
+    const detail = document.getElementById('inline-result-detail');
+
+    strip.style.display = 'block';
+    detail.style.display = 'none';
+    resultDetailOpen = false;
+    document.getElementById('inline-result-toggle').textContent = '详情 ▼';
+
+    const rec = result.recommendation;
+    const best = rec.advice[0];
+    const sc = result.score || 0;
+    const mf = result.matchedFrequency || 0;
+
+    // Score-based display: 0-100
+    let gradeLabel, gradeColor;
+    if (sc >= 90) { gradeLabel = '完美'; gradeColor = '#22c55e'; }
+    else if (sc >= 70) { gradeLabel = '良好'; gradeColor = '#3b82f6'; }
+    else if (sc >= 50) { gradeLabel = '一般'; gradeColor = '#f59e0b'; }
+    else if (sc >= 30) { gradeLabel = '待改进'; gradeColor = '#f97316'; }
+    else { gradeLabel = '失误'; gradeColor = '#ef4444'; }
+
+    icon.textContent = sc;
+    icon.style.cssText = `font-size:18px; font-weight:800; color:${gradeColor}; min-width:36px; text-align:center;`;
+    bar.style.background = `rgba(${sc >= 50 ? '34,197,94' : '239,68,68'},${0.06 + sc / 100 * 0.14})`;
+    bar.style.border = `1px solid ${gradeColor}40`;
+    text.innerHTML = `<span style="color:${gradeColor}; font-weight:600;">${gradeLabel}</span> 推荐: <strong style="color:${best.color};">${best.actionCN} ${best.frequency}%</strong>${mf > 0 && mf < best.frequency ? ` <span style="color:var(--text-muted); font-size:11px;">(你的选择 ${mf}%)</span>` : ''}`;
+
+    // Build detail content
+    // Shared narrative context shown once at top
+    const narrativeHtml = rec.narrative ? `
+        <div style="padding:6px 8px; margin-bottom:6px; background:rgba(59,130,246,0.08); border-radius:6px; border-left:3px solid #3b82f6; font-size:11px; color:var(--text-secondary); line-height:1.5;">
+            ${rec.narrative}
+        </div>` : '';
+
+    // Each action's reasoning is unique — no repeated context
+    const adviceHtml = narrativeHtml + rec.advice.map(a => `
+        <div style="display:flex; gap:8px; align-items:flex-start; padding:4px 0; border-bottom:1px solid var(--border-color);">
+            <span style="color:${a.color}; font-weight:700; min-width:36px;">${a.frequency}%</span>
+            <div>
+                <span style="color:${a.color}; font-weight:600;">${a.actionCN}</span>
+                ${a.sizing !== '-' ? `<span style="color:var(--text-muted);"> ${a.sizing}</span>` : ''}
+                <div style="color:var(--text-secondary); font-size:11px; margin-top:2px;">${a.reasoning}</div>
+            </div>
+        </div>
+    `).join('');
+
+    const infoHtml = `
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px; margin-top:8px; font-size:11px; color:var(--text-secondary);">
+            <span>权益: <strong style="color:var(--text-primary);">${(rec.equity*100).toFixed(1)}%</strong></span>
+            <span>SPR: <strong style="color:var(--text-primary);">${rec.spr.toFixed(1)}</strong></span>
+            <span>手牌: <strong style="color:var(--text-primary);">${rec.handCategory.categoryCN}</strong></span>
+            <span>位置: <strong style="color:var(--text-primary);">${rec.inPosition ? 'IP' : 'OOP'}</strong></span>
+        </div>
+    `;
+
+    // Range composition info
+    let rangeHtml = '';
+    const rc = rec.rangeComposition;
+    if (rc) {
+        const inRangeIcon = rc.heroInRange ? '✅' : '⚠️';
+        const inRangeText = rc.heroInRange ? '在翻前范围内' : '不在翻前范围内';
+        const inRangeColor = rc.heroInRange ? '#22c55e' : '#f59e0b';
+
+        rangeHtml = `
+        <div style="margin-top:8px; padding:8px; background:rgba(155,89,182,0.08); border-radius:6px; border-left:3px solid #bb86fc;">
+            <div style="font-size:11px; font-weight:600; color:#bb86fc; margin-bottom:4px;">📊 范围一致性分析</div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:3px; font-size:11px;">
+                <span>Hero手牌: <strong style="color:${inRangeColor};">${inRangeIcon} ${inRangeText}</strong></span>
+                <span>范围百分位: <strong style="color:var(--text-primary);">Top ${100 - rc.heroPercentile}%</strong></span>
+                <span>Villain范围: <strong style="color:var(--text-primary);">${rc.villainRangeSize}种(${rc.villainCombos}组合)</strong></span>
+                <span>胜过Hero: <strong style="color:${rc.beatsHeroPct > 40 ? '#e74c3c' : '#2ecc71'};">${rc.beatsHeroPct}%</strong></span>
+            </div>
+            <div style="display:flex; height:14px; border-radius:3px; overflow:hidden; margin-top:6px;">
+                <div style="width:${rc.villainPct.nuts || 0}%; background:#e74c3c;" title="坚果 ${rc.villainPct.nuts}%"></div>
+                <div style="width:${rc.villainPct.strongMade || 0}%; background:#e67e22;" title="强牌 ${rc.villainPct.strongMade}%"></div>
+                <div style="width:${rc.villainPct.mediumMade || 0}%; background:#f1c40f;" title="中等 ${rc.villainPct.mediumMade}%"></div>
+                <div style="width:${rc.villainPct.draw || 0}%; background:#3498db;" title="听牌 ${rc.villainPct.draw}%"></div>
+                <div style="width:${rc.villainPct.weakMade || 0}%; background:#9b59b6;" title="弱牌 ${rc.villainPct.weakMade}%"></div>
+                <div style="width:${rc.villainPct.air || 0}%; background:#95a5a6;" title="空气 ${rc.villainPct.air}%"></div>
+            </div>
+            <div style="display:flex; gap:6px; font-size:9px; margin-top:3px; flex-wrap:wrap; color:var(--text-muted);">
+                ${rc.villainPct.nuts > 0 ? '<span>🔴坚果'+rc.villainPct.nuts+'%</span>' : ''}
+                ${rc.villainPct.strongMade > 0 ? '<span>🟠强牌'+rc.villainPct.strongMade+'%</span>' : ''}
+                ${rc.villainPct.mediumMade > 0 ? '<span>🟡中等'+rc.villainPct.mediumMade+'%</span>' : ''}
+                ${rc.villainPct.draw > 0 ? '<span>🔵听牌'+rc.villainPct.draw+'%</span>' : ''}
+                ${rc.villainPct.weakMade > 0 ? '<span>🟣弱牌'+rc.villainPct.weakMade+'%</span>' : ''}
+                ${rc.villainPct.air > 0 ? '<span>⚪空气'+rc.villainPct.air+'%</span>' : ''}
+            </div>
+            ${!rc.heroInRange ? '<div style="margin-top:4px; padding:4px 6px; background:rgba(245,158,11,0.15); border-radius:4px; font-size:10px; color:#f59e0b;">⚠️ 当前手牌不在你的翻前范围(' + (currentState?.heroPosition || '') + ')中，实战中不应出现在此情况。策略仅供参考。</div>' : ''}
+        </div>`;
+    }
+
+    document.getElementById('inline-advice-body').innerHTML = adviceHtml + infoHtml + rangeHtml;
+}
+
+function toggleResultDetail() {
+    resultDetailOpen = !resultDetailOpen;
+    document.getElementById('inline-result-detail').style.display = resultDetailOpen ? 'block' : 'none';
+    document.getElementById('inline-result-toggle').textContent = resultDetailOpen ? '收起 ▲' : '详情 ▼';
+}
+
+// ============================================================
+// Villain Range Analysis — PioSolver-like panel
+// ============================================================
+let rangeAnalysisOpen = false;
+
+function showRangeAnalysis() {
+    const analysis = practice.analyzeVillainRange();
+    const panel = document.getElementById('range-analysis-panel');
+    if (!analysis) { panel.style.display = 'none'; return; }
+
+    panel.style.display = 'block';
+    rangeAnalysisOpen = false;
+    document.getElementById('range-analysis-body').style.display = 'none';
+    document.getElementById('range-analysis-toggle').textContent = '展开 ▼';
+
+    const act = analysis.villainAction;
+    const narrowPct = analysis.narrowingPct;
+    const origCombos = analysis.originalCombos;
+    const liveCombos = analysis.totalCombos;
+
+    // Summary text
+    const summaryEl = document.getElementById('range-analysis-summary');
+    if (act === 'bet') {
+        summaryEl.textContent = `下注 · 价值${analysis.valuePct}% / 半诈唬${analysis.semiBluffPct}% / 诈唬${analysis.bluffPct}%`;
+    } else if (act === 'check') {
+        summaryEl.textContent = `过牌 · ${liveCombos}组合 (范围${narrowPct}%)`;
+    } else {
+        summaryEl.textContent = `${liveCombos}个组合`;
+    }
+
+    // === Action History & Narrowing section ===
+    const actionSection = document.getElementById('range-action-section');
+    let actionHtml = '';
+
+    // Show range narrowing progress
+    if (analysis.actionHistory && analysis.actionHistory.length > 0) {
+        const streetNames = { flop: '翻牌', turn: '转牌', river: '河牌' };
+        actionHtml += `<div style="margin-bottom:8px; padding:6px 8px; background:rgba(187,134,252,0.08); border-radius:6px; border-left:3px solid #bb86fc;">`;
+        actionHtml += `<div style="font-size:11px; font-weight:600; color:#bb86fc; margin-bottom:4px;">📊 范围收窄轨迹</div>`;
+        actionHtml += `<div style="display:flex; align-items:center; gap:4px; flex-wrap:wrap; font-size:11px;">`;
+        actionHtml += `<span style="color:var(--text-muted);">初始${origCombos}组合</span>`;
+        for (const ah of analysis.actionHistory) {
+            const sn = streetNames[ah.street] || ah.street;
+            const actLabel = ah.action === 'bet' ? `下注${ah.betPctOfPot ? (ah.betPctOfPot*100).toFixed(0)+'%pot' : ''}` : (ah.action === 'call' ? '跟注' : '过牌');
+            const icon = ah.action === 'bet' ? '🔴' : '🟢';
+            actionHtml += `<span style="color:var(--text-muted);">→</span>`;
+            actionHtml += `<span>${icon} ${sn}${actLabel}</span>`;
+        }
+        actionHtml += `<span style="color:var(--text-muted);">→</span>`;
+        actionHtml += `<span style="color:#bb86fc; font-weight:600;">剩余${narrowPct}%</span>`;
+        actionHtml += `</div></div>`;
+    }
+
+    // Action-specific analysis
+    if (act === 'bet') {
+        actionHtml += `
+            <div style="font-weight:600; margin-bottom:6px; color:#bb86fc;">
+                对手下注范围 (${liveCombos}组合，权重${analysis.totalWeight}，占原始范围${narrowPct}%)
+            </div>
+            <div style="display:flex; height:22px; border-radius:4px; overflow:hidden; margin-bottom:8px;">
+                <div style="width:${analysis.valuePct}%; background:#e74c3c; display:flex; align-items:center; justify-content:center; font-size:9px; color:white; font-weight:600;">${analysis.valuePct > 8 ? analysis.valuePct+'%' : ''}</div>
+                <div style="width:${analysis.semiBluffPct}%; background:#3498db; display:flex; align-items:center; justify-content:center; font-size:9px; color:white; font-weight:600;">${analysis.semiBluffPct > 8 ? analysis.semiBluffPct+'%' : ''}</div>
+                <div style="width:${analysis.bluffPct}%; background:#95a5a6; display:flex; align-items:center; justify-content:center; font-size:9px; color:white; font-weight:600;">${analysis.bluffPct > 8 ? analysis.bluffPct+'%' : ''}</div>
+            </div>
+            <div style="display:flex; gap:12px; font-size:11px; flex-wrap:wrap;">
+                <span><span style="display:inline-block;width:8px;height:8px;background:#e74c3c;border-radius:2px;margin-right:3px;"></span>价值牌 ${analysis.valuePct}% (权重${analysis.valueWeight})</span>
+                <span><span style="display:inline-block;width:8px;height:8px;background:#3498db;border-radius:2px;margin-right:3px;"></span>半诈唬 ${analysis.semiBluffPct}% (权重${analysis.drawWeight})</span>
+                <span><span style="display:inline-block;width:8px;height:8px;background:#95a5a6;border-radius:2px;margin-right:3px;"></span>诈唬 ${analysis.bluffPct}% (权重${analysis.bluffWeight})</span>
+            </div>
+            <div style="margin-top:6px; padding:6px 8px; background:rgba(155,89,182,0.1); border-radius:4px; font-size:11px; color:var(--text-secondary);">
+                💡 GTO理论: 最优下注范围的价值:诈唬比应接近 ${getOptimalRatio(practice.villainBetSize, practice.potSize)}
+                ${analysis.villainStyle ? ` · 对手风格: ${analysis.villainStyle}` : ''}
+            </div>
+        `;
+    } else if (act === 'check') {
+        actionHtml += `
+            <div style="font-weight:600; margin-bottom:6px; color:#bb86fc;">
+                对手过牌范围 (${liveCombos}组合，权重${analysis.totalWeight}，占原始范围${narrowPct}%)
+            </div>
+            <div style="display:flex; height:22px; border-radius:4px; overflow:hidden; margin-bottom:8px;">
+                <div style="width:${analysis.valuePct}%; background:#e74c3c; display:flex; align-items:center; justify-content:center; font-size:9px; color:white; font-weight:600;">${analysis.valuePct > 8 ? analysis.valuePct+'%' : ''}</div>
+                <div style="width:${analysis.semiBluffPct}%; background:#3498db; display:flex; align-items:center; justify-content:center; font-size:9px; color:white; font-weight:600;">${analysis.semiBluffPct > 8 ? analysis.semiBluffPct+'%' : ''}</div>
+                <div style="width:${analysis.bluffPct}%; background:#95a5a6; display:flex; align-items:center; justify-content:center; font-size:9px; color:white; font-weight:600;">${analysis.bluffPct > 8 ? analysis.bluffPct+'%' : ''}</div>
+            </div>
+            <div style="display:flex; gap:12px; font-size:11px; flex-wrap:wrap;">
+                <span><span style="display:inline-block;width:8px;height:8px;background:#e74c3c;border-radius:2px;margin-right:3px;"></span>价值牌 ${analysis.valuePct}%</span>
+                <span><span style="display:inline-block;width:8px;height:8px;background:#3498db;border-radius:2px;margin-right:3px;"></span>听牌 ${analysis.semiBluffPct}%</span>
+                <span><span style="display:inline-block;width:8px;height:8px;background:#95a5a6;border-radius:2px;margin-right:3px;"></span>弱牌/空气 ${analysis.bluffPct}%</span>
+            </div>
+            <div style="margin-top:4px; padding:6px 8px; background:rgba(155,89,182,0.1); border-radius:4px; font-size:11px; color:var(--text-secondary);">
+                💡 过牌范围通常包含: 中等牌力控池、慢打陷阱、放弃的空气牌。可以针对性下注攻击弱范围。
+            </div>
+        `;
+    }
+    actionSection.innerHTML = actionHtml;
+
+    // === Full range breakdown bar (weighted) ===
+    const barSection = document.getElementById('range-bar-section');
+    const cats = analysis.categories;
+    barSection.innerHTML = `
+        <div style="font-weight:600; margin-bottom:4px; font-size:11px; color:var(--text-secondary);">
+            加权范围构成 (${liveCombos}组合${narrowPct < 100 ? '，已缩窄至' + narrowPct + '%' : ''})
+        </div>
+        <div style="display:flex; height:14px; border-radius:3px; overflow:hidden; margin-bottom:4px;">
+            ${Object.entries(cats).map(([k, c]) =>
+                c.pct > 0 ? `<div style="width:${c.pct}%; background:${c.color};" title="${c.label} ${c.pct}%"></div>` : ''
+            ).join('')}
+        </div>
+        <div style="display:flex; gap:8px; font-size:10px; flex-wrap:wrap;">
+            ${Object.entries(cats).map(([k, c]) =>
+                c.pct > 0 ? `<span><span style="display:inline-block;width:6px;height:6px;background:${c.color};border-radius:1px;margin-right:2px;"></span>${c.label} ${c.pct}%</span>` : ''
+            ).join('')}
+        </div>
+    `;
+
+    // === Category detail with hands ===
+    const detailSection = document.getElementById('range-detail-section');
+    detailSection.innerHTML = Object.entries(cats).filter(([k, c]) => c.combos > 0).map(([key, cat]) => {
+        const topHands = cat.uniqueHands.slice(0, 12);
+        const moreCount = cat.uniqueHands.length - 12;
+        return `
+            <div style="padding:6px 0; border-bottom:1px solid var(--border-color);">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span style="color:${cat.color}; font-weight:600;">${cat.label}</span>
+                    <span style="color:var(--text-muted); font-size:10px;">${cat.combos}组合 · 权重${cat.weightedCombos} (${cat.pct}%)</span>
+                </div>
+                <div style="font-size:10px; color:var(--text-secondary); margin-top:1px;">${cat.desc}</div>
+                <div style="display:flex; flex-wrap:wrap; gap:3px; margin-top:4px;">
+                    ${topHands.map(h => `<span style="padding:1px 4px; background:rgba(${hexToRgb(cat.color)},0.15); color:${cat.color}; border-radius:3px; font-size:10px; font-family:monospace;">${h}</span>`).join('')}
+                    ${moreCount > 0 ? `<span style="padding:1px 4px; color:var(--text-muted); font-size:10px;">+${moreCount}种</span>` : ''}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function getOptimalRatio(betSize, potSize) {
+    // Optimal value:bluff = (pot + bet) : bet, simplified
+    if (betSize <= 0) return '2:1';
+    const ratio = (potSize + betSize) / betSize;
+    return `${ratio.toFixed(1)}:1`;
+}
+
+function hexToRgb(hex) {
+    const r = parseInt(hex.slice(1,3), 16);
+    const g = parseInt(hex.slice(3,5), 16);
+    const b = parseInt(hex.slice(5,7), 16);
+    return `${r},${g},${b}`;
+}
+
+function toggleRangeAnalysis() {
+    rangeAnalysisOpen = !rangeAnalysisOpen;
+    document.getElementById('range-analysis-body').style.display = rangeAnalysisOpen ? 'block' : 'none';
+    document.getElementById('range-analysis-toggle').textContent = rangeAnalysisOpen ? '收起 ▲' : '展开 ▼';
+}
+
+function hideRangeAnalysis() {
+    document.getElementById('range-analysis-panel').style.display = 'none';
+    rangeAnalysisOpen = false;
+}
+
+function showPostButtons(mode) {
+    // Reuse action-buttons area for post-action navigation
+    const c = document.getElementById('action-buttons');
+    c.style.display = 'flex';
+
+    if (mode === 'end') {
+        // Hand ended (fold or showdown)
+        c.innerHTML = `
+            <button class="action-btn check-btn" onclick="undoAction()" style="flex:0.5;">← 撤回</button>
+            <button class="action-btn raise-btn" onclick="newHand()" style="flex:1; background:var(--accent-blue); border-color:var(--accent-blue);">下一手 →</button>
+        `;
+    } else {
+        // Street continues
+        const nextLabel = currentState.street === 'flop' ? '转牌 →' : currentState.street === 'turn' ? '河牌 →' : '继续';
+        c.innerHTML = `
+            <button class="action-btn check-btn" onclick="undoAction()" style="flex:0.4;">← 撤回</button>
+            <button class="action-btn raise-btn" onclick="nextStreet()" style="flex:0.6; background:var(--accent-blue); border-color:var(--accent-blue);">${nextLabel}</button>
+            <button class="action-btn fold-btn" onclick="newHand()" style="flex:0.4;">新手牌</button>
+        `;
+    }
+}
+
+// ============================================================
+// Showdown & Fold Result
+// ============================================================
+
+function renderShowdown() {
+    const state = practice.getState();
+    const heroEval = evaluateBest(state.heroCards, state.boardCards);
+    const villainEval = evaluateBest(state.villainCards, state.boardCards);
+
+    document.getElementById('showdown-area').style.display = 'block';
+    document.getElementById('showdown-hero-cards').innerHTML = state.heroCards.map(c => renderPlayingCard(c)).join('');
+    document.getElementById('showdown-hero-hand').textContent = heroEval ? heroEval.nameCN : '?';
+    document.getElementById('showdown-villain-cards').innerHTML = state.villainCards.map(c => renderPlayingCard(c)).join('');
+    document.getElementById('showdown-villain-hand').textContent = villainEval ? villainEval.nameCN : '?';
+
+    // Also reveal on table
+    document.getElementById('villain-cards-display').innerHTML = state.villainCards.map(c => renderPlayingCard(c)).join('');
+
+    const resultEl = document.getElementById('showdown-result');
+    const potEl = document.getElementById('showdown-pot');
+
+    if (heroEval.score > villainEval.score) {
+        resultEl.textContent = '🎉 Hero赢!';
+        resultEl.style.color = '#22c55e';
+    } else if (heroEval.score < villainEval.score) {
+        resultEl.textContent = '😈 Villain赢';
+        resultEl.style.color = '#e74c3c';
+    } else {
+        resultEl.textContent = '🤝 平分';
+        resultEl.style.color = '#f59e0b';
+    }
+    potEl.textContent = state.potSize.toFixed(1) + 'BB';
+}
+
+function renderFoldResult() {
+    const state = practice.getState();
+    document.getElementById('showdown-area').style.display = 'block';
+
+    document.getElementById('showdown-hero-cards').innerHTML = state.heroCards.map(c => renderPlayingCard(c)).join('');
+    document.getElementById('showdown-hero-hand').textContent = 'Fold';
+    document.getElementById('showdown-hero-hand').style.background = '#95a5a6';
+
+    document.getElementById('showdown-villain-cards').innerHTML = state.villainCards.map(c => renderPlayingCard(c)).join('');
+    const villainEval = evaluateBest(state.villainCards, state.boardCards);
+    document.getElementById('showdown-villain-hand').textContent = villainEval ? villainEval.nameCN : '?';
+
+    // Also reveal on table
+    document.getElementById('villain-cards-display').innerHTML = state.villainCards.map(c => renderPlayingCard(c)).join('');
+
+    const resultEl = document.getElementById('showdown-result');
+    resultEl.textContent = 'Fold → V赢';
+    resultEl.style.color = '#e74c3c';
+    document.getElementById('showdown-pot').textContent = state.potSize.toFixed(1) + 'BB';
+}
+
+// ============================================================
+// Undo
+// ============================================================
+
+function undoAction() {
+    const undoResult = practice.undo();
+    if (!undoResult) return;
+    actionLog = undoResult.actionLog;
+    currentState = undoResult.state;
+    renderPracticeHand();
+}
+
+// Deal remaining board cards when all-in (no more actions, just run out the board)
+function dealRemainingBoardCards() {
+    while (practice.boardCards.length < 5 && practice.deck.length > 0) {
+        practice.boardCards.push(practice.deck.pop());
+    }
+    practice.street = 'river'; // Set street to river for evaluation
+    // Update board display
+    document.getElementById('board-cards').innerHTML = practice.boardCards.map(c => renderPlayingCard(c)).join('');
+    // Add runout to timeline
+    if (practice.boardCards.length >= 4) {
+        actionLog.push({ street: 'Turn', position: '', action: '发牌', sizing: '', isVillain: false });
+    }
+    if (practice.boardCards.length >= 5) {
+        actionLog.push({ street: 'River', position: '', action: '发牌', sizing: '', isVillain: false });
+    }
+    currentState = practice.getState();
+}
+
+function nextStreet() {
+    currentState = practice.dealNextStreet();
+    addVillainPostflopAction();
+    renderPracticeHand();
+}
+
+function newHand() {
+    // Auto-deal with same position — no setup screen needed
+    startPracticeHand();
+}
+
+function goToSetup() {
+    if (currentPracticeMode === 'preflop') {
+        document.getElementById('preflop-hand').style.display = 'none';
+        document.getElementById('preflop-practice-setup').style.display = 'block';
+    } else {
+        document.getElementById('practice-hand').style.display = 'none';
+        document.getElementById('practice-setup').style.display = 'block';
+    }
+}
+
+function updateScoreDisplay() {
+    // Use the active mode's score
+    const score = currentPracticeMode === 'preflop' ? preflopPractice.getScore() : practice.getScore();
+    const avgScore = score.totalPoints && score.total > 0
+        ? Math.round(score.totalPoints / score.total) : 0;
+    document.getElementById('score-correct').textContent = avgScore;
+    document.getElementById('score-total').textContent = score.total;
+    document.getElementById('score-rate').textContent = avgScore > 0 ? avgScore + '分' : '-';
+    document.getElementById('score-hands').textContent = handsPlayed;
+}
+
+// ============================================================
+// Card Rendering Helpers
+// ============================================================
+
+function renderPlayingCard(card) {
+    const suitClass = {'♠':'spades','♥':'hearts','♦':'diamonds','♣':'clubs'}[card.suit];
+    return `<div class="playing-card ${suitClass}">
+        <span class="card-rank">${RANK_DISPLAY[card.rank]}</span>
+        <span class="card-suit">${card.suit}</span>
+    </div>`;
+}
+
+function getCategoryBadgeClass(cat) {
+    const map = {
+        'nuts':'badge-red','strongMade':'badge-orange','mediumMade':'badge-blue',
+        'weakMade':'badge-purple','strongDraw':'badge-green','weakDraw':'badge-blue','air':'badge-purple'
+    };
+    return map[cat] || 'badge-blue';
+}
+
+function getEquityColor(eq) {
+    if (eq >= 0.7) return '#22c55e';
+    if (eq >= 0.5) return '#f59e0b';
+    if (eq >= 0.3) return '#ef4444';
+    return '#95a5a6';
+}
+
+// ============================================================
+// Setup Wizard (first-time users)
+// ============================================================
+
+let wizardStep = 1;
+const WIZARD_TOTAL_STEPS = 5;
+const WIZARD_SKIPPABLE = [2, 4]; // range editing steps
+let wizardRangePos = 'BTN';
+let wizardRangeProfileId = null;
+
+function showWizard() {
+    wizardStep = 1;
+    document.getElementById('page-cover').classList.remove('active');
+    document.getElementById('main-nav').classList.add('hidden');
+    document.getElementById('page-wizard').classList.add('active');
+    renderWizardStep();
+}
+
+function renderWizardStep() {
+    // Progress bar
+    const pct = (wizardStep / WIZARD_TOTAL_STEPS) * 100;
+    document.getElementById('wizard-progress-bar').style.width = pct + '%';
+
+    // Step indicators
+    const indicators = document.getElementById('wizard-step-indicators');
+    indicators.innerHTML = '';
+    for (let i = 1; i <= WIZARD_TOTAL_STEPS; i++) {
+        const dot = document.createElement('div');
+        dot.className = 'wizard-step-dot' + (i === wizardStep ? ' active' : '') + (i < wizardStep ? ' done' : '');
+        dot.textContent = i < wizardStep ? '\u2713' : i;
+        indicators.appendChild(dot);
+    }
+
+    // Show active step
+    document.querySelectorAll('.wizard-step').forEach(s => s.classList.remove('active'));
+    const activeStep = document.getElementById('wizard-step-' + wizardStep);
+    if (activeStep) {
+        activeStep.classList.add('active');
+        activeStep.scrollTop = 0;
+    }
+
+    // Render step content
+    if (wizardStep === 1) renderWizardProfileList('wizard-hero-profiles', selectedHeroId, 'hero');
+    if (wizardStep === 2) renderWizardRange(selectedHeroId);
+    if (wizardStep === 3) renderWizardProfileList('wizard-villain-profiles', selectedVillainId, 'villain');
+    if (wizardStep === 4) renderWizardRange(selectedVillainId);
+    if (wizardStep === 5) renderWizardSummary();
+
+    // Nav buttons
+    document.getElementById('wizard-btn-back').style.display = wizardStep > 1 ? '' : 'none';
+    document.getElementById('wizard-btn-skip').style.display = WIZARD_SKIPPABLE.includes(wizardStep) ? '' : 'none';
+
+    const nextBtn = document.getElementById('wizard-btn-next');
+    if (wizardStep === WIZARD_TOTAL_STEPS) {
+        nextBtn.textContent = '开始训练 🎯';
+        nextBtn.onclick = finishWizard;
+    } else {
+        nextBtn.textContent = '下一步 →';
+        nextBtn.onclick = wizardNext;
+    }
+
+    // Disable next on profile steps if not selected
+    nextBtn.disabled = (wizardStep === 1 && !selectedHeroId) || (wizardStep === 3 && !selectedVillainId);
+}
+
+function wizardNext() {
+    if (wizardStep === 1 && !selectedHeroId) return;
+    if (wizardStep === 3 && !selectedVillainId) return;
+    if (wizardStep < WIZARD_TOTAL_STEPS) {
+        wizardStep++;
+        renderWizardStep();
+    }
+}
+
+function wizardBack() {
+    if (wizardStep > 1) {
+        wizardStep--;
+        renderWizardStep();
+    }
+}
+
+function wizardSkip() { wizardNext(); }
+
+function finishWizard() {
+    document.getElementById('page-wizard').classList.remove('active');
+    document.getElementById('main-nav').classList.remove('hidden');
+    localStorage.setItem('pokergto_onboarded', '1');
+    switchPage('practice');
+}
+
+function renderWizardProfileList(containerId, selectedId, side) {
+    const list = document.getElementById(containerId);
+    const profiles = pm.getAll();
+    list.innerHTML = profiles.map(p => `
+        <div class="profile-card ${selectedId === p.id ? 'selected' : ''}"
+             onclick="wizardSelectProfile('${side}', '${p.id}')">
+            <div class="profile-header">
+                <div class="avatar">${p.avatar}</div>
+                <div class="profile-info">
+                    <div class="profile-name">${p.name}</div>
+                    <span class="profile-style badge" style="background:${p.color}22; color:${p.color};">${p.style}</span>
+                </div>
+                ${selectedId === p.id ? '<span class="badge badge-green">已选</span>' : ''}
+            </div>
+            <div class="profile-desc">${p.description}</div>
+            <div class="profile-stats">
+                <div class="profile-stat">VPIP <span>${p.vpip}%</span></div>
+                <div class="profile-stat">PFR <span>${p.pfr}%</span></div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function wizardSelectProfile(side, id) {
+    if (side === 'hero') selectedHeroId = id;
+    else selectedVillainId = id;
+    renderWizardStep();
+}
+
+function renderWizardRange(profileId) {
+    wizardRangeProfileId = profileId;
+    const profile = pm.getById(profileId);
+    const containerId = wizardStep === 2 ? 'wizard-hero-range-area' : 'wizard-villain-range-area';
+    const container = document.getElementById(containerId);
+    if (!profile) { container.innerHTML = '<p style="text-align:center;color:var(--text-muted);">请先选择档案</p>'; return; }
+
+    const positions = ['UTG','HJ','CO','BTN','SB','BB'];
+    let html = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">'
+        + `<span style="font-size:24px;">${profile.avatar}</span>`
+        + `<strong>${profile.name}</strong></div>`;
+
+    // Position selector
+    html += '<div class="position-selector" style="margin-bottom:8px;">';
+    for (const pos of positions) {
+        html += `<button class="pos-btn ${pos === wizardRangePos ? 'active' : ''}" onclick="wizardSelectPos('${pos}')">${pos}</button>`;
+    }
+    html += '</div>';
+
+    // Matrix
+    const data = getScenarioRangeData(profileId, wizardRangePos, 'rfi', null);
+    const raiseSet = new Set(data.raise);
+    const callSet = new Set(data.call);
+    const matrix = getHandMatrix();
+
+    html += '<div class="matrix-container"><div class="hand-matrix" id="wizard-matrix">';
+    for (let i = 0; i < 13; i++) {
+        for (let j = 0; j < 13; j++) {
+            const hand = matrix[i][j];
+            let cls = 'fold';
+            if (raiseSet.has(hand)) cls = 'raise';
+            else if (callSet.has(hand)) cls = 'call';
+            html += `<div class="matrix-cell ${cls}" onclick="wizardToggleCell('${hand}')">${hand}</div>`;
+        }
+    }
+    html += '</div></div>';
+
+    // Legend
+    html += `<div class="matrix-legend" style="margin-top:6px;">
+        <div class="legend-item"><div class="legend-color" style="background:var(--accent-red);"></div>Raise</div>
+        <div class="legend-item"><div class="legend-color" style="background:var(--accent-green);"></div>Call</div>
+        <div class="legend-item"><div class="legend-color" style="background:var(--bg-elevated);"></div>Fold</div>
+    </div>`;
+
+    container.innerHTML = html;
+}
+
+function wizardSelectPos(pos) {
+    wizardRangePos = pos;
+    renderWizardRange(wizardRangeProfileId);
+}
+
+function wizardToggleCell(hand) {
+    const profileId = wizardRangeProfileId;
+    const data = getScenarioRangeData(profileId, wizardRangePos, 'rfi', null);
+    const inRaise = data.raise.includes(hand);
+    const inCall = data.call.includes(hand);
+    const newRaise = data.raise.filter(h => h !== hand);
+    const newCall = data.call.filter(h => h !== hand);
+    if (!inRaise && !inCall) newRaise.push(hand);       // fold -> raise
+    else if (inRaise) newCall.push(hand);                // raise -> call
+    // call -> fold: already removed from both
+    saveScenarioRange(profileId, wizardRangePos, 'rfi', null, newRaise, newCall);
+    renderWizardRange(profileId);
+}
+
+function renderWizardSummary() {
+    const hero = pm.getById(selectedHeroId);
+    const villain = pm.getById(selectedVillainId);
+    const container = document.getElementById('wizard-summary');
+    if (!hero || !villain) return;
+    container.innerHTML = `
+        <div class="ui-card" style="margin-bottom:12px;">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+                <span style="font-size:32px;">${hero.avatar}</span>
+                <div>
+                    <div style="font-weight:700;">🦸 Hero: ${hero.name}</div>
+                    <div style="font-size:12px;color:var(--text-secondary);">${hero.style} · VPIP ${hero.vpip}% · PFR ${hero.pfr}%</div>
+                </div>
+            </div>
+            <div style="text-align:center;font-size:20px;margin:8px 0;">⚔️ VS</div>
+            <div style="display:flex;align-items:center;gap:12px;">
+                <span style="font-size:32px;">${villain.avatar}</span>
+                <div>
+                    <div style="font-weight:700;">😈 Villain: ${villain.name}</div>
+                    <div style="font-size:12px;color:var(--text-secondary);">${villain.style} · VPIP ${villain.vpip}% · PFR ${villain.pfr}%</div>
+                </div>
+            </div>
+        </div>
+        <div style="padding:10px 12px;background:rgba(59,130,246,0.08);border-radius:8px;border-left:3px solid #3b82f6;font-size:12px;color:var(--text-secondary);line-height:1.6;">
+            <strong>💡 提示：</strong>你可以随时在「档案」页面更改选择，在「翻前范围」页面编辑范围。
+        </div>
+    `;
+}
+
+// Help page
+let helpReturnPage = 'profiles';
+
+function openHelp() {
+    // Remember current page
+    const activePage = document.querySelector('.page.active:not(.cover-page)');
+    if (activePage) helpReturnPage = activePage.id.replace('page-', '');
+
+    // Hide all pages, show help
+    document.querySelectorAll('.page').forEach(p => {
+        if (!p.classList.contains('cover-page')) p.classList.remove('active');
+    });
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('page-help').style.display = 'block';
+    document.getElementById('page-help').classList.add('active');
+    document.getElementById('nav-help').classList.add('active');
+    window.scrollTo(0, 0);
+}
+
+function closeHelp() {
+    document.getElementById('page-help').style.display = 'none';
+    document.getElementById('page-help').classList.remove('active');
+    switchPage(helpReturnPage);
+}
+
+</script>
+
+</body>
+</html>

@@ -1,0 +1,10 @@
+{
+  "name": "pokergto",
+  "version": "1.0.0",
+  "description": "PokerGTO - Texas Hold'em GTO Strategy Trainer with CFR+ Solver",
+  "private": true,
+  "scripts": {
+    "dev": "python3 -m http.server 8080 --directory web",
+    "test": "node lib/test-solver.js"
+  }
+}
