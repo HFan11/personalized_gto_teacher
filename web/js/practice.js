@@ -879,16 +879,110 @@ class PracticeSession {
     }
 
     // ============================================================
-    // GTO Recommendation - CFR solver with heuristic fallback
-    // Tries CFR+ first, falls back to rule-based if solver fails
+    // GTO Recommendation — async worker-first, sync fallback
     // ============================================================
     getRecommendation() {
-        // Try CFR solver first
+        // Check if worker pre-solved result is available (instant)
+        if (this._workerResult) {
+            const result = this._workerResult;
+            this._workerResult = null;
+            return result;
+        }
+
+        // Sync CFR (blocks main thread — only if worker not available)
         const cfrResult = this.getCFRRecommendation();
         if (cfrResult) return cfrResult;
 
-        // Fallback to heuristic method
         return this._getHeuristicRecommendation();
+    }
+
+    // Async version: waits for worker result, then falls back
+    async getRecommendationAsync() {
+        // Try to get pre-solved worker result
+        if (typeof solverCache !== 'undefined') {
+            const workerResult = await solverCache.getPreSolvedPostflop();
+            if (workerResult && workerResult.strategy) {
+                // Convert worker result to recommendation format
+                const formatted = this._formatWorkerResult(workerResult);
+                if (formatted) return formatted;
+            }
+        }
+
+        // Fallback to sync
+        return this.getRecommendation();
+    }
+
+    // Format worker solver result into recommendation format
+    _formatWorkerResult(workerResult) {
+        if (!workerResult || !workerResult.strategy) return null;
+
+        const state = this.getState();
+        const { equity, handCategory, boardTexture, spr } = state;
+        const strategy = workerResult.strategy;
+
+        const rangeComp = this.analyzeRangeComposition();
+
+        const actionLabels = {
+            check: { cn: '过牌', color: '#3498db' },
+            bet33: { cn: '下注 1/3底池', color: '#e74c3c', sizing: '1/3底池' },
+            bet66: { cn: '下注 2/3底池', color: '#e74c3c', sizing: '2/3底池' },
+            bet100: { cn: '下注 满池', color: '#e74c3c', sizing: '满池' },
+            fold: { cn: '弃牌', color: '#95a5a6' },
+            call: { cn: '跟注', color: '#2ecc71' },
+            raise: { cn: '加注', color: '#e74c3c', sizing: '2.5x' },
+            allin: { cn: '全压', color: '#e74c3c', sizing: '全压' },
+        };
+
+        const advice = [];
+        for (const [action, freq] of Object.entries(strategy)) {
+            const pct = Math.round(freq * 100);
+            if (pct < 1) continue;
+            const label = actionLabels[action] || { cn: action, color: '#666' };
+            const baseAction = action.startsWith('bet') ? 'bet' : action;
+            advice.push({
+                action: baseAction, actionCN: label.cn, frequency: pct,
+                sizing: label.sizing || '-', color: label.color,
+                reasoning: '',
+            });
+        }
+
+        if (advice.length === 0) return null;
+
+        // Normalize
+        const total = advice.reduce((s, a) => s + a.frequency, 0);
+        if (total > 0 && total !== 100) {
+            advice.forEach(a => a.frequency = Math.round(a.frequency / total * 100));
+            const rt = advice.reduce((s, a) => s + a.frequency, 0);
+            if (rt !== 100) advice[0].frequency += (100 - rt);
+        }
+        advice.sort((a, b) => b.frequency - a.frequency);
+
+        // Add reasoning only to best action
+        advice[0].reasoning = this._buildCFRReasoning(
+            Object.keys(strategy).reduce((best, k) => strategy[k] > (strategy[best] || 0) ? k : best, Object.keys(strategy)[0]),
+            advice[0].frequency, handCategory, equity, spr, boardTexture, rangeComp, this.facingBet, this.villainBetSize, this.potSize
+        );
+
+        const vStyle = this.currentProfile?.style || 'TAG';
+        const wetLabel = boardTexture ? (boardTexture.wetness === 'wet' ? '湿润' : boardTexture.wetness === 'dry' ? '干燥' : '中等') : '';
+        const boardStr = this.boardCards.map(c => c.rank + c.suit).join(' ');
+        const rcNarrative = rangeComp ? `对手范围: value ${rangeComp.valuePct || 0}% / draw ${rangeComp.drawPct || 0}% / air ${rangeComp.bluffPct || 0}%` : '';
+        const posLabel = this.heroIsIP ? 'IP' : 'OOP';
+        const sprLabel = spr < 2 ? '极浅筹码' : spr < 4 ? '浅筹码' : spr > 12 ? '深筹码' : '中等筹码';
+
+        return {
+            advice,
+            narrative: `${boardStr} ${wetLabel}牌面 | ${handCategory.categoryCN}(权益${(equity*100).toFixed(0)}%) ${posLabel} | ${rcNarrative} | SPR ${spr.toFixed(1)} ${sprLabel}`,
+            mdf: { halfPot: 66.7, twoThirdsPot: 60.0, fullPot: 50.0, description: 'MDF' },
+            potOdds: { halfPot: 25.0, twoThirdsPot: 28.6, fullPot: 33.3, description: '底池赔率' },
+            equity, handCategory, boardTexture,
+            inPosition: this.heroIsIP, facingBet: this.facingBet,
+            spr, villainStyle: vStyle,
+            rangeComposition: rangeComp,
+            solverUsed: true,
+            workerSolved: true,
+            solveTimeMs: workerResult.solveTimeMs,
+        };
     }
 
     // ============================================================

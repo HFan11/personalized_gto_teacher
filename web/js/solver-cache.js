@@ -124,14 +124,40 @@ class SolverCache {
         return { hero: heroBuckets, villain: villainBuckets };
     }
 
-    // Async version: pre-compute in background without blocking UI
+    // Async version: pre-compute in worker without blocking UI
     precomputeEquityBucketsAsync(board, heroRange, villainRange, numBuckets) {
+        // Try worker first (non-blocking)
+        if (typeof Worker !== 'undefined') {
+            return this.precomputeBucketsAsync(board, heroRange, villainRange, numBuckets);
+        }
+        // Fallback: setTimeout (still blocks but in next frame)
         return new Promise((resolve) => {
             setTimeout(() => {
                 const result = this.precomputeEquityBuckets(board, heroRange, villainRange, numBuckets);
                 resolve(result);
             }, 0);
         });
+    }
+
+    // Pre-solve the postflop in worker after board is dealt
+    // Stores result so getCFRRecommendation can use it instantly
+    preSolvePostflop(config) {
+        this._pendingPostflopSolve = this.solvePostflopAsync(config);
+        this._pendingPostflopConfig = config;
+        console.log('[Cache] Pre-solving postflop in worker...');
+    }
+
+    // Get pre-solved result (returns null if not ready yet)
+    async getPreSolvedPostflop() {
+        if (!this._pendingPostflopSolve) return null;
+        try {
+            const result = await this._pendingPostflopSolve;
+            this._pendingPostflopSolve = null;
+            return result;
+        } catch (e) {
+            this._pendingPostflopSolve = null;
+            return null;
+        }
     }
 
     // ============================================================
@@ -187,6 +213,76 @@ class SolverCache {
         this.preflopReady = false;
         this.preflopSolver = null;
         console.log('[Cache] All caches cleared');
+    }
+
+    // ============================================================
+    // Web Worker — non-blocking solver
+    // ============================================================
+    _initWorker() {
+        if (this._worker) return;
+        try {
+            this._worker = new Worker('js/solver-worker.js');
+            this._pendingJobs = new Map();
+            this._nextJobId = 0;
+            this._worker.onmessage = (e) => {
+                const { id, type, data, error } = e.data;
+                const job = this._pendingJobs.get(id);
+                if (!job) return;
+                this._pendingJobs.delete(id);
+                if (type === 'error') job.reject(new Error(error));
+                else job.resolve(data);
+            };
+            this._worker.onerror = (e) => {
+                console.warn('[Worker] Error:', e.message);
+            };
+        } catch (e) {
+            console.warn('[Worker] Failed to create:', e);
+            this._worker = null;
+        }
+    }
+
+    // Send a job to the worker and return a Promise
+    _workerJob(type, data) {
+        this._initWorker();
+        if (!this._worker) return Promise.reject(new Error('Worker not available'));
+
+        const id = this._nextJobId++;
+        return new Promise((resolve, reject) => {
+            this._pendingJobs.set(id, { resolve, reject });
+            this._worker.postMessage({ type, id, data });
+        });
+    }
+
+    // Async postflop solve — runs in worker, UI stays responsive
+    async solvePostflopAsync(config) {
+        try {
+            const result = await this._workerJob('solve-postflop', config);
+            return result;
+        } catch (e) {
+            console.warn('[Worker] Postflop solve failed:', e);
+            return null;
+        }
+    }
+
+    // Async bucket precompute — runs in worker
+    async precomputeBucketsAsync(board, heroRange, villainRange, numBuckets) {
+        try {
+            const result = await this._workerJob('precompute-buckets', {
+                board, heroRange, villainRange,
+                numBuckets: numBuckets || 50,
+                simsPerHand: 200,
+            });
+            if (result) {
+                const boardKey = board.map(c => c.id).sort().join(',');
+                this.equityBucketCache.set(boardKey + '|hero|' + (numBuckets || 50), result.heroBuckets);
+                this.equityBucketCache.set(boardKey + '|villain|' + (numBuckets || 50), result.villainBuckets);
+                console.log(`[Worker] Buckets pre-computed in ${result.precomputeTimeMs}ms`);
+            }
+            return result;
+        } catch (e) {
+            console.warn('[Worker] Bucket precompute failed:', e);
+            return null;
+        }
     }
 }
 

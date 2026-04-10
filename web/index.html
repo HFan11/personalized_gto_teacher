@@ -1748,12 +1748,28 @@ function startPracticeHand() {
         renderPracticeHand();
         if (dealBtn) dealBtn.textContent = '发牌开始';
 
-        // Pre-compute equity buckets in background (board is now known)
+        // Pre-solve postflop in Web Worker (board is now known)
+        // By the time user decides their action, result may already be ready
         if (typeof solverCache !== 'undefined' && currentState && currentState.boardCards) {
-            const heroRange = practice.heroRangeHands || practice.villainRangeHands || [];
-            const villainRange = practice.villainRangeHands || [];
-            if (heroRange.length > 0 && villainRange.length > 0) {
-                solverCache.precomputeEquityBucketsAsync(currentState.boardCards, heroRange, villainRange, 50);
+            const heroRangeHands = practice.heroRangeHands || [];
+            const villainRangeHands = practice.villainRangeHands || [];
+            if (heroRangeHands.length > 0 && villainRangeHands.length > 0) {
+                solverCache.preSolvePostflop({
+                    heroRange: heroRangeHands,
+                    villainRange: villainRangeHands,
+                    board: currentState.boardCards,
+                    holeCards: currentState.heroCards,
+                    pot: currentState.potSize,
+                    stack: currentState.effectiveStack,
+                    heroIsIP: currentState.heroIsIP || (POS_ORDER[currentState.heroPosition] > POS_ORDER[currentState.villainPosition]),
+                    street: 'flop',
+                    facingBet: practice.facingBet,
+                    betSizePct: practice.facingBet ? practice.villainBetSize / practice.potSize : 0,
+                    betSizes: [0.33, 0.66, 1.0],
+                    numBuckets: 30,
+                    iterations: 1500,
+                    simsPerHand: 150,
+                });
             }
         }
     }, 150);
@@ -1978,11 +1994,30 @@ function makeAction(action, sizingPct) {
     // Add hero action to timeline
     actionLog.push({ street: streetLabel, position: currentState.heroPosition, action: actionLabel, sizing: betSizeLabel, isVillain: false });
 
-    // Score the action through engine
-    const result = practice.processAction(action, actionLogSnapshot);
-    showInlineResult(result, actionLabel, betSizeLabel, facingBet);
-    showRangeAnalysis();
-    updateScoreDisplay();
+    // Score the action — try async worker result first, then sync fallback
+    // Show "计算中..." briefly while awaiting worker
+    const inlineStrip = document.getElementById('inline-result');
+    if (inlineStrip) { inlineStrip.style.display = 'block'; }
+    const inlineText = document.getElementById('inline-result-text');
+    if (inlineText) inlineText.innerHTML = '<span style="color:var(--text-muted);">计算中...</span>';
+
+    (async () => {
+        // Try to get worker pre-solved result (should already be computing since deal)
+        if (typeof solverCache !== 'undefined') {
+            const workerResult = await solverCache.getPreSolvedPostflop();
+            if (workerResult && workerResult.strategy) {
+                const formatted = practice._formatWorkerResult(workerResult);
+                if (formatted) {
+                    practice._workerResult = formatted;
+                }
+            }
+        }
+
+        const result = practice.processAction(action, actionLogSnapshot);
+        showInlineResult(result, actionLabel, betSizeLabel, facingBet);
+        showRangeAnalysis();
+        updateScoreDisplay();
+    })();
 
     // Hide action/sizing areas
     document.getElementById('action-buttons').style.display = 'none';
