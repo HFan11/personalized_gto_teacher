@@ -81,11 +81,17 @@ class PostflopSolver {
             return `${this.street}|p${player}|b${handBucket}|${this._getActionPath(node)}`;
         };
 
-        // Step 6: Run CFR+ with full traversal (buckets are small enough, no sampling needed)
-        // Use deterministic seed from board for reproducible results
+        // Step 6: Run CFR+ with seeded Monte Carlo sampling
+        // Seeded PRNG = deterministic (same board → same result)
+        // Monte Carlo sampling = better mixed strategies in bucket abstraction
+        // (full traversal over-converges to pure strategies in coarse buckets)
         const boardSeed = typeof hashSeed === 'function'
             ? hashSeed(this.board.map(c => c.id).join(','))
             : 42;
+
+        const totalPairs = oopBucketIds.length * ipBucketIds.length;
+        // Sample enough pairs for good coverage but cap at 500
+        const samplesPerIter = Math.min(totalPairs, Math.max(200, totalPairs));
 
         this.solver.reset();
         this.solvedStrategies = this.solver.solve(
@@ -96,7 +102,7 @@ class PostflopSolver {
                 iterations: iters,
                 conflictFn: (b0, b1) => false,
                 seed: boardSeed,
-                // No samplesPerIter → full traversal (deterministic)
+                samplesPerIter: samplesPerIter,
             }
         );
 
