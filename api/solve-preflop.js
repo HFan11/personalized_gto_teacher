@@ -14,7 +14,9 @@ module.exports = async (req, res) => {
     }
 
     try {
-        const { iterations = 2500, hand, position, scenario, villainPosition } = req.body;
+        // Vercel Hobby plan: 10s limit. Use 100 iterations (~4-5s solve time)
+        // Pro plan can use 2500 iterations with maxDuration: 60
+        const { iterations = 100, hand, position, scenario, villainPosition } = req.body;
 
         const t0 = Date.now();
 

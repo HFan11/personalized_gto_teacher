@@ -17,7 +17,8 @@ module.exports = async (req, res) => {
         const heroRange = expandRangeToComboCards(body.heroRange || []);
         const villainRange = expandRangeToComboCards(body.villainRange || []);
 
-        // Server defaults: higher precision than browser
+        // Vercel Hobby plan: 10s limit. Use conservative defaults
+        // Pro plan: increase to numBuckets:50, iterations:2500, simsPerHand:300
         const config = {
             heroRange,
             villainRange,
@@ -27,9 +28,9 @@ module.exports = async (req, res) => {
             heroIsIP: body.heroIsIP !== undefined ? body.heroIsIP : true,
             street: body.street || 'flop',
             betSizes: body.betSizes || [0.33, 0.66, 1.0],
-            numBuckets: body.numBuckets || 50,
-            iterations: body.iterations || 2500,
-            simsPerHand: body.simsPerHand || 300,
+            numBuckets: body.numBuckets || 25,
+            iterations: body.iterations || 800,
+            simsPerHand: body.simsPerHand || 100,
         };
 
         const t0 = Date.now();
