@@ -3,6 +3,26 @@
 // Counterfactual Regret Minimization Plus for Poker
 // ============================================================
 
+// Deterministic PRNG (mulberry32) — same seed = same results
+function seededRandom(seed) {
+    return function() {
+        seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+        let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+        t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+        return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+}
+
+// Hash a string to a 32-bit integer for seeding
+function hashSeed(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        hash = ((hash << 5) - hash) + str.charCodeAt(i);
+        hash |= 0;
+    }
+    return hash;
+}
+
 // Information Set: stores regret and strategy for one decision point
 class InfoSet {
     constructor(numActions) {
@@ -101,17 +121,18 @@ class CFRSolver {
     solve(root, hands, infoSetKeyFn, options = {}) {
         const iters = options.iterations || this.iterations;
         const earlyStop = options.earlyStopThreshold || 0;
-        // Monte Carlo sampling: limit hand pairs per iteration for speed
-        // If samplesPerIter is set, randomly sample that many pairs instead of full cross product
         const samplesPerIter = options.samplesPerIter || 0;
         const n0 = hands[0].length, n1 = hands[1].length;
 
+        // Use seeded PRNG for deterministic results (same seed = same output)
+        const seed = options.seed || 42;
+        const rng = seededRandom(seed);
+
         for (let t = 0; t < iters; t++) {
             if (samplesPerIter > 0 && n0 * n1 > samplesPerIter) {
-                // Monte Carlo CFR: sample random hand pairs
                 for (let s = 0; s < samplesPerIter; s++) {
-                    const h0 = hands[0][Math.floor(Math.random() * n0)];
-                    const h1 = hands[1][Math.floor(Math.random() * n1)];
+                    const h0 = hands[0][Math.floor(rng() * n0)];
+                    const h1 = hands[1][Math.floor(rng() * n1)];
                     if (options.conflictFn && options.conflictFn(h0, h1)) continue;
                     this._cfr(root, [h0, h1], [1.0, 1.0], infoSetKeyFn);
                 }

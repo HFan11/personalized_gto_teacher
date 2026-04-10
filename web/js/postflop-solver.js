@@ -81,7 +81,12 @@ class PostflopSolver {
             return `${this.street}|p${player}|b${handBucket}|${this._getActionPath(node)}`;
         };
 
-        // Step 6: Run CFR+
+        // Step 6: Run CFR+ with full traversal (buckets are small enough, no sampling needed)
+        // Use deterministic seed from board for reproducible results
+        const boardSeed = typeof hashSeed === 'function'
+            ? hashSeed(this.board.map(c => c.id).join(','))
+            : 42;
+
         this.solver.reset();
         this.solvedStrategies = this.solver.solve(
             root,
@@ -89,7 +94,9 @@ class PostflopSolver {
             infoSetKeyFn,
             {
                 iterations: iters,
-                conflictFn: (b0, b1) => false, // buckets don't conflict
+                conflictFn: (b0, b1) => false,
+                seed: boardSeed,
+                // No samplesPerIter → full traversal (deterministic)
             }
         );
 

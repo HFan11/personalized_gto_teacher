@@ -48,15 +48,29 @@ function combosForHand(handKey) {
 // ============================================================
 
 // Fast equity estimate: Monte Carlo with small sample for bucketing
-function fastEquityEstimate(holeCards, boardCards, villainRange, sims) {
-    sims = sims || 200; // fewer sims for bucketing (speed)
+// Uses seeded PRNG if available for deterministic results
+function fastEquityEstimate(holeCards, boardCards, villainRange, sims, rngFn) {
+    sims = sims || 200;
     const usedIds = new Set([...holeCards, ...boardCards].map(c => c.id));
     const deck = fullDeck().filter(c => !usedIds.has(c.id));
     const boardNeed = 5 - boardCards.length;
     let wins = 0, ties = 0, total = 0;
 
+    // Use seeded RNG if provided, else Math.random
+    const rng = rngFn || Math.random;
+
+    // Seeded shuffle function
+    function seededShuffle(arr) {
+        const d = [...arr];
+        for (let i = d.length - 1; i > 0; i--) {
+            const j = Math.floor(rng() * (i + 1));
+            [d[i], d[j]] = [d[j], d[i]];
+        }
+        return d;
+    }
+
     for (let i = 0; i < sims; i++) {
-        const shuffled = shuffleDeck(deck);
+        const shuffled = seededShuffle(deck);
         let idx = 0;
         const simBoard = [...boardCards];
         for (let j = 0; j < boardNeed; j++) simBoard.push(shuffled[idx++]);
@@ -67,7 +81,7 @@ function fastEquityEstimate(holeCards, boardCards, villainRange, sims) {
             const simUsed = new Set([...holeCards, ...simBoard].map(c => c.id));
             const avail = villainRange.filter(h => !simUsed.has(h[0].id) && !simUsed.has(h[1].id));
             if (avail.length === 0) continue;
-            vCards = avail[Math.floor(Math.random() * avail.length)];
+            vCards = avail[Math.floor(rng() * avail.length)];
         } else {
             vCards = [shuffled[idx++], shuffled[idx++]];
         }
@@ -88,15 +102,20 @@ function computeEquityBuckets(hands, boardCards, villainRange, numBuckets, simsP
     numBuckets = numBuckets || 30;
     simsPerHand = simsPerHand || 200;
 
+    // Create seeded RNG from board for deterministic bucketing
+    const boardSeed = boardCards.map(c => c.id).join(',');
+    const rng = (typeof seededRandom === 'function')
+        ? seededRandom((typeof hashSeed === 'function') ? hashSeed(boardSeed) : 42)
+        : null;
+
     const equities = new Map();
     const usedBoard = new Set(boardCards.map(c => c.id));
 
-    // Calculate equity for each hand
+    // Calculate equity for each hand (seeded = deterministic)
     for (const hand of hands) {
-        // Skip hands that conflict with board
         if (usedBoard.has(hand[0].id) || usedBoard.has(hand[1].id)) continue;
         const key = hand[0].id + '|' + hand[1].id;
-        const eq = fastEquityEstimate(hand, boardCards, villainRange, simsPerHand);
+        const eq = fastEquityEstimate(hand, boardCards, villainRange, simsPerHand, rng);
         equities.set(key, eq);
     }
 

@@ -587,6 +587,12 @@ class PracticeSession {
         if (!this.boardCards || this.boardCards.length < 3) return null;
         if (!this.villainRangeHands || this.villainRangeHands.length === 0) return null;
 
+        // Cache check: same board + street + position → reuse previous solve
+        const cacheKey = this.boardCards.map(c => c.id).sort().join(',') + '|' + this.street + '|' + (this.heroIsIP ? 'IP' : 'OOP');
+        if (this._cfrCacheKey === cacheKey && this._cfrCachedResult) {
+            return this._cfrCachedResult;
+        }
+
         // Determine hero range — use preflop range if available
         let heroRangeHands = [];
         if (this.heroProfile && this.pm) {
@@ -606,14 +612,22 @@ class PracticeSession {
             return null;
         }
 
-        // Determine bucket count and iterations based on range sizes
+        // Dynamic parameter tuning based on range size
+        // Smaller ranges = fewer buckets but more iterations → converges better
         const numHeroCombos = heroRangeHands.filter(h => !handConflictsWithBoard(h, this.boardCards)).length;
         const numVillainCombos = this.villainRangeHands.filter(h => !handConflictsWithBoard(h, this.boardCards)).length;
-        // More buckets = better hand distinction, but slower
-        // Target: 3-5 seconds solve time for real-time use
         const minCombos = Math.min(numHeroCombos, numVillainCombos);
-        const numBuckets = Math.min(30, Math.max(15, Math.floor(minCombos / 4)));
-        const iterations = Math.min(1500, Math.max(500, Math.floor(3500 / Math.sqrt(numBuckets))));
+        let numBuckets, iterations;
+        if (minCombos < 50) {
+            numBuckets = Math.min(15, Math.max(8, Math.floor(minCombos / 3)));
+            iterations = 2000; // small game → more iterations for convergence
+        } else if (minCombos < 200) {
+            numBuckets = Math.min(30, Math.max(15, Math.floor(minCombos / 5)));
+            iterations = 1200;
+        } else {
+            numBuckets = Math.min(40, Math.max(20, Math.floor(minCombos / 6)));
+            iterations = 800;
+        }
 
         try {
             // Check if we have pre-cached equity buckets from solver-cache
@@ -728,9 +742,14 @@ class PracticeSession {
                 villainStyle: vStyle,
                 rangeComposition: rangeComp,
                 solverUsed: true,
-                solverIterations: iterations,
-                solverBuckets: numBuckets,
+                solverIterations: effectiveIterations,
+                solverBuckets: effectiveBuckets,
             };
+
+            // Cache result for undo/redo consistency
+            this._cfrCacheKey = cacheKey;
+            this._cfrCachedResult = result;
+            return result;
         } catch (e) {
             console.warn('CFR solver failed, falling back to heuristics:', e);
             return null;
