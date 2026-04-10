@@ -319,13 +319,14 @@ class PreflopPracticeSession {
             for (const [action, freq] of Object.entries(strategy)) {
                 const pct = Math.round(freq * 100);
                 if (pct < 2) continue;
-
                 const label = actionLabels[action] || { label: action, cn: action };
-                actions.push({
-                    action: label.label,
-                    frequency: pct,
-                    reasoning: this._buildPreflopReasoning(handKey, heroPos, villainPos, label.label, pct, scenario),
-                });
+                actions.push({ action: label.label, frequency: pct, reasoning: '' });
+            }
+
+            // Sort by frequency descending, then build ONE reasoning for the whole hand
+            actions.sort((a, b) => b.frequency - a.frequency);
+            if (actions.length > 0) {
+                actions[0].reasoning = this._buildPreflopReasoning(handKey, heroPos, villainPos, actions, scenario);
             }
 
             if (actions.length === 0) return null;
@@ -416,97 +417,68 @@ class PreflopPracticeSession {
         return [{ action: 'fold', frequency: 100, reasoning: `${handKey}不值得防守。` }];
     }
 
-    // Build professional poker reasoning for preflop decisions
-    _buildPreflopReasoning(handKey, heroPos, villainPos, action, freq, scenario) {
+    // Build ONE summary reasoning for the whole hand (not per-action)
+    // actions: sorted array [{action, frequency}, ...] (highest freq first)
+    _buildPreflopReasoning(handKey, heroPos, villainPos, actions, scenario) {
         const rv = { 'A': 14, 'K': 13, 'Q': 12, 'J': 11, 'T': 10, '9': 9, '8': 8, '7': 7, '6': 6, '5': 5, '4': 4, '3': 3, '2': 2 };
         const r1 = rv[handKey[0]], r2 = rv[handKey[1] || handKey[0]];
         const isPair = handKey.length === 2;
         const isSuited = handKey.endsWith('s');
         const high = Math.max(r1, r2), low = Math.min(r1, r2);
-        const gap = high - low;
         const hasAce = high === 14;
-        const hasBroadway = high >= 10 && low >= 10;
+        const gap = high - low;
         const isConnected = gap <= 1 || (high === 14 && low === 2);
-
-        // Position analysis
-        const heroOrd = POS_ORDER[heroPos] || 0;
-        const villainOrd = POS_ORDER[villainPos] || 0;
-        const heroIsIP = heroOrd > villainOrd;
-        const posLabel = heroIsIP ? '有位置优势' : '无位置劣势';
-
-        // Villain range width estimate (based on position)
+        const heroIsIP = (POS_ORDER[heroPos] || 0) > (POS_ORDER[villainPos] || 0);
         const rangeWidths = { UTG: 15, HJ: 18, CO: 25, BTN: 40, SB: 35, BB: 100 };
-        const villainWidth = rangeWidths[villainPos] || 25;
 
-        // Blocker analysis
-        const blockers = [];
-        if (hasAce) blockers.push('阻断AA/AK');
-        if (high === 13) blockers.push('阻断KK/AK');
-        if (high === 12) blockers.push('阻断QQ');
-        const blockerText = blockers.length > 0 ? blockers.join('，') + '。' : '';
+        // Hand type label
+        let tier;
+        if (isPair && high >= 10) tier = '超强对子';
+        else if (isPair && high >= 7) tier = '中等对子';
+        else if (isPair) tier = '小对子';
+        else if (hasAce && isSuited) tier = '同花A';
+        else if (isSuited && isConnected) tier = '同花连牌';
+        else if (isSuited) tier = '同花牌';
+        else if (high >= 10 && low >= 10) tier = '百老汇牌';
+        else tier = '普通牌';
 
-        // Hand strength tier
-        let tierText;
-        if (isPair && high >= 10) tierText = '超强对子';
-        else if (isPair && high >= 7) tierText = '中等对子';
-        else if (isPair) tierText = '小对子';
-        else if (hasAce && isSuited && low >= 10) tierText = '同花高牌';
-        else if (hasBroadway && isSuited) tierText = '同花百老汇';
-        else if (hasAce && isSuited) tierText = '同花A';
-        else if (hasBroadway) tierText = '百老汇牌';
-        else if (isSuited && isConnected) tierText = '同花连牌';
-        else if (isSuited) tierText = '同花牌';
-        else tierText = '普通牌';
+        const best = actions[0];
+        const posTag = heroIsIP ? '有位置' : '无位置';
 
-        // Build reasoning by scenario + action
-        let reason = '';
+        // Build one-sentence summary describing the overall strategy
+        let summary = `${handKey}(${tier}) — `;
 
-        if (scenario === 'rfi') {
-            if (action === 'raise') {
-                reason = `${handKey}(${tierText})在${heroPos}开池加注(${freq}%)。`;
-                if (isPair && high >= 10) reason += `大对子在任何位置都是强开池手牌。`;
-                else if (isSuited && isConnected) reason += `同花连牌翻后可做性强，${heroPos}位置范围足够宽。`;
-                else if (hasAce && isSuited) reason += `同花A有坚果同花潜力和阻断效应。${blockerText}`;
-                else reason += `在${heroPos}范围内，翻后有足够的可玩性。`;
-            } else {
-                reason = `${handKey}(${tierText})在${heroPos}弃牌(${freq}%)。手牌不在${heroPos}的开池范围内，翻后可玩性不足。`;
-            }
-        } else if (scenario === 'vs_raise') {
-            const villainRangeDesc = `${villainPos}开池范围约${villainWidth}%`;
-            if (action === '3bet') {
-                reason = `面对${villainPos}开池，${handKey}(${tierText})3-Bet(${freq}%)。${blockerText}`;
-                if (heroIsIP) reason += `${posLabel}，3-Bet获取主动权并建立底池。`;
-                else reason += `${posLabel}，但3-Bet可以夺回主动权。`;
-                reason += `${villainRangeDesc}，你的${handKey}属于对抗范围顶部。`;
-            } else if (action === 'call') {
-                reason = `面对${villainPos}开池，${handKey}(${tierText})跟注(${freq}%)。`;
-                if (heroIsIP) reason += `${posLabel}，跟注看翻牌实现隐含赔率。`;
-                else reason += `手牌有足够权益跟注但不适合3-Bet(避免膨胀底池)。`;
-                reason += `${villainRangeDesc}。`;
-            } else {
-                reason = `面对${villainPos}开池，${handKey}(${tierText})弃牌(${freq}%)。${villainRangeDesc}，${handKey}权益不足以防守。`;
-            }
-        } else if (scenario === 'vs_3bet') {
-            if (action === '4bet') {
-                reason = `面对3-Bet，${handKey}(${tierText})4-Bet(${freq}%)。${blockerText}`;
-                reason += isPair && high >= 12 ? '顶级手牌直接4-Bet获取价值。' : '作为半诈唬4-Bet平衡范围。';
-            } else if (action === 'call') {
-                reason = `面对3-Bet，${handKey}(${tierText})跟注(${freq}%)。手牌够强但不适合4-Bet(避免面对5-Bet困境)。`;
-                if (isSuited) reason += '同花属性提供额外翻后权益。';
-            } else {
-                reason = `面对3-Bet，${handKey}(${tierText})弃牌(${freq}%)。对手3-Bet范围很强(约8-12%)，${handKey}权益不足。`;
-            }
-        } else if (scenario === 'vs_4bet') {
-            if (action === 'jam' || action === '5bet-jam') {
-                reason = `面对4-Bet，${handKey}(${tierText})全压(${freq}%)。${blockerText}底池已很大，SPR极低，承诺筹码是最优选择。`;
-            } else if (action === 'call') {
-                reason = `面对4-Bet，${handKey}(${tierText})跟注(${freq}%)。手牌够强跟注但全压风险太高(对手4-Bet范围极强)。`;
-            } else {
-                reason = `面对4-Bet，${handKey}(${tierText})弃牌(${freq}%)。对手4-Bet范围极窄(约3-5%)，${handKey}权益严重不足。`;
-            }
+        if (actions.length === 1 || best.frequency >= 90) {
+            // Pure strategy
+            summary += `纯${best.action}。`;
+        } else {
+            // Mixed strategy: describe primary + secondary
+            const second = actions[1];
+            summary += `以${best.action}为主(${best.frequency}%)`;
+            if (second) summary += `，${second.frequency >= 20 ? '混合' : '少量'}${second.action}(${second.frequency}%)`;
+            summary += '。';
         }
 
-        return reason;
+        // Add one key reason based on scenario
+        if (scenario === 'rfi') {
+            if (best.action === 'fold') summary += `不在${heroPos}开池范围内。`;
+            else if (isSuited && isConnected) summary += `同花连牌翻后可做性强。`;
+            else if (hasAce && isSuited) summary += `坚果同花潜力+阻断效应。`;
+            else if (isPair) summary += `暗三条隐含赔率。`;
+            else summary += `在${heroPos}范围内。`;
+        } else if (scenario === 'vs_raise') {
+            summary += `${posTag}，${villainPos}范围约${rangeWidths[villainPos] || 25}%。`;
+            if (hasAce) summary += '阻断对手顶级手牌。';
+        } else if (scenario === 'vs_3bet') {
+            if (best.action === 'fold') summary += '对手3-Bet范围很强(约8-12%)。';
+            else if (isSuited) summary += '同花属性提供额外翻后权益。';
+            else summary += '手牌权益足够继续。';
+        } else if (scenario === 'vs_4bet') {
+            if (best.action === 'fold') summary += '对手4-Bet范围极窄(约3-5%)。';
+            else summary += '底池已大，SPR极低。';
+        }
+
+        return summary;
     }
 
     _getAvailableActions(type) {
