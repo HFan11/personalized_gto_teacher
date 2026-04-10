@@ -766,6 +766,7 @@
      ============================================================ -->
 <script src="js/poker-core.js?v=20"></script>
 <script src="js/cfr-solver.js?v=1"></script>
+<script src="js/solver-cache.js?v=1"></script>
 <script src="js/hand-abstraction.js?v=1"></script>
 <script src="js/preflop-solver.js?v=1"></script>
 <script src="js/postflop-solver.js?v=1"></script>
@@ -903,6 +904,12 @@ function selectProfileFor(side, id) {
         selectedVillainId = id;
     }
     renderProfiles();
+
+    // Pre-warm solver cache when profiles are selected
+    if (typeof solverCache !== 'undefined') {
+        solverCache.setProfileManager(pm);
+        solverCache.onProfileSelected();
+    }
 
     // Auto collapse current accordion after selection
     const accId = side + '-accordion';
@@ -1739,6 +1746,15 @@ function startPracticeHand() {
         addVillainPostflopAction();
         renderPracticeHand();
         if (dealBtn) dealBtn.textContent = '发牌开始';
+
+        // Pre-compute equity buckets in background (board is now known)
+        if (typeof solverCache !== 'undefined' && currentState && currentState.boardCards) {
+            const heroRange = practice.heroRangeHands || practice.villainRangeHands || [];
+            const villainRange = practice.villainRangeHands || [];
+            if (heroRange.length > 0 && villainRange.length > 0) {
+                solverCache.precomputeEquityBucketsAsync(currentState.boardCards, heroRange, villainRange, 50);
+            }
+        }
     }, 150);
 }
 

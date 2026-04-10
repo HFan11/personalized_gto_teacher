@@ -616,6 +616,24 @@ class PracticeSession {
         const iterations = Math.min(1500, Math.max(500, Math.floor(3500 / Math.sqrt(numBuckets))));
 
         try {
+            // Check if we have pre-cached equity buckets from solver-cache
+            const cachedBuckets = (typeof solverCache !== 'undefined')
+                ? solverCache.getCachedBuckets(this.boardCards, 50)
+                : null;
+
+            const solveOptions = {};
+            let effectiveBuckets = numBuckets;
+            let effectiveIterations = iterations;
+
+            if (cachedBuckets) {
+                // Pre-cached buckets → skip bucketing, boost precision
+                solveOptions.precomputedHeroBuckets = this.heroIsIP ? cachedBuckets.hero : cachedBuckets.villain;
+                solveOptions.precomputedVillainBuckets = this.heroIsIP ? cachedBuckets.villain : cachedBuckets.hero;
+                effectiveBuckets = 50;
+                effectiveIterations = 2500;
+                console.log('[Practice] Using pre-cached buckets → boosted to 50 buckets, 2500 iterations');
+            }
+
             const solver = new PostflopSolver({
                 heroRange: heroRangeHands,
                 villainRange: this.villainRangeHands,
@@ -625,12 +643,12 @@ class PracticeSession {
                 heroIsIP: this.heroIsIP,
                 street: this.street,
                 betSizes: [0.33, 0.66, 1.0],
-                numBuckets: numBuckets,
-                iterations: iterations,
+                numBuckets: effectiveBuckets,
+                iterations: effectiveIterations,
                 simsPerHand: 150,
             });
 
-            solver.solve();
+            solver.solve(solveOptions);
 
             // Get strategy for hero's specific hand
             let strategy;

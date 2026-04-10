@@ -26,8 +26,10 @@ class PostflopSolver {
     }
 
     // Main solve method — returns strategies for the current street
+    // options.precomputedHeroBuckets / precomputedVillainBuckets: inject pre-cached buckets
+    // When buckets are injected, we skip the expensive bucketing step and use higher CFR iterations
     solve(options = {}) {
-        const iters = options.iterations || this.iterations;
+        let iters = options.iterations || this.iterations;
 
         // Step 1: Filter ranges to exclude hands conflicting with board
         const heroHands = this.heroRange.filter(h => !handConflictsWithBoard(h, this.board));
@@ -37,13 +39,25 @@ class PostflopSolver {
             return null;
         }
 
-        // Step 2: Compute equity buckets for both ranges
-        const heroBucketResult = computeEquityBuckets(
-            heroHands, this.board, villainHands, this.numBuckets, this.simsPerHand
-        );
-        const villainBucketResult = computeEquityBuckets(
-            villainHands, this.board, heroHands, this.numBuckets, this.simsPerHand
-        );
+        // Step 2: Use pre-computed buckets if available, otherwise compute
+        let heroBucketResult, villainBucketResult;
+
+        if (options.precomputedHeroBuckets && options.precomputedVillainBuckets) {
+            // Pre-cached buckets available → skip bucketing, invest time in more iterations
+            heroBucketResult = options.precomputedHeroBuckets;
+            villainBucketResult = options.precomputedVillainBuckets;
+            this.numBuckets = Math.max(heroBucketResult.numBuckets, villainBucketResult.numBuckets);
+            // Boost iterations since we saved bucketing time
+            iters = Math.max(iters, 2500);
+            console.log(`[Solver] Using pre-cached buckets (${this.numBuckets} buckets), boosted to ${iters} iterations`);
+        } else {
+            heroBucketResult = computeEquityBuckets(
+                heroHands, this.board, villainHands, this.numBuckets, this.simsPerHand
+            );
+            villainBucketResult = computeEquityBuckets(
+                villainHands, this.board, heroHands, this.numBuckets, this.simsPerHand
+            );
+        }
 
         this.heroBuckets = heroBucketResult;
         this.villainBuckets = villainBucketResult;

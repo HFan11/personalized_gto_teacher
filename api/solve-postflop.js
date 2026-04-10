@@ -1,6 +1,16 @@
 const { PostflopSolver } = require('../lib/postflop-engine');
 const { expandRangeToComboCards, makeCard } = require('../lib/hand-utils');
 
+// LRU cache for postflop solutions (survives across warm invocations)
+const POSTFLOP_CACHE = new Map();
+const MAX_CACHE = 30;
+
+function cacheKey(body) {
+    const bk = (body.board || []).map(c => c.rank + c.suit).sort().join('');
+    const hk = (body.heroRange || []).sort().join(',').substring(0, 50);
+    return `${bk}|${body.heroIsIP}|${body.pot}|${body.stack}|${hk}`;
+}
+
 module.exports = async (req, res) => {
     if (req.method === 'OPTIONS') return res.status(200).end();
     if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
@@ -33,6 +43,13 @@ module.exports = async (req, res) => {
             simsPerHand: body.simsPerHand || 100,
         };
 
+        // Check LRU cache
+        const ck = cacheKey(body);
+        if (POSTFLOP_CACHE.has(ck) && !body.holeCards) {
+            const cached = POSTFLOP_CACHE.get(ck);
+            return res.json({ ...cached, cached: true });
+        }
+
         const t0 = Date.now();
         const solver = new PostflopSolver(config);
         solver.solve();
@@ -49,9 +66,12 @@ module.exports = async (req, res) => {
             return res.json({ strategy, facingBetStrategy, solveTimeMs, config: { numBuckets: config.numBuckets, iterations: config.iterations } });
         }
 
-        // Return all strategies
+        // Return all strategies and cache result
         const allStrategies = solver.getAllStrategies();
-        return res.json({ strategies: allStrategies, solveTimeMs, config: { numBuckets: config.numBuckets, iterations: config.iterations } });
+        const result = { strategies: allStrategies, solveTimeMs, config: { numBuckets: config.numBuckets, iterations: config.iterations } };
+        if (POSTFLOP_CACHE.size >= MAX_CACHE) POSTFLOP_CACHE.delete(POSTFLOP_CACHE.keys().next().value);
+        POSTFLOP_CACHE.set(ck, result);
+        return res.json(result);
     } catch (err) {
         console.error('Postflop solver error:', err);
         return res.status(500).json({ error: err.message });
