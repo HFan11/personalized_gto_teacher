@@ -97,7 +97,7 @@ class PreflopSolver {
             this.solver.solve(root, [handIndices0, handIndices1], infoSetKeyFn, {
                 iterations,
                 conflictFn: () => false,
-                samplesPerIter: 300, // Monte Carlo: sample 300 pairs per iteration instead of 169²
+                samplesPerIter: 500, // Monte Carlo: sample 500 pairs per iteration
             });
         }
     }
@@ -249,32 +249,48 @@ class PreflopSolver {
     }
 
     // Vs 4-bet scenarios
+    // Realistic sizing: open 2.5BB → 3bet 8BB → 4bet 22BB
+    // Hero has invested 8BB (3bet), villain invested 22BB (4bet), blinds 1.5BB
+    // Pot = 8 + 22 + 1.5 = 31.5BB. Hero needs to call 14BB more or jam for ~78BB more
     _solveVs4BetScenarios(iterations) {
-        const fourBetSize = this.rfiSize * this.threeBetMultiplier * this.fourBetMultiplier;
-        const pot = fourBetSize + this.rfiSize * this.threeBetMultiplier + 1.5;
+        const heroInvested = 8;    // hero's 3bet
+        const villainInvested = 22; // villain's 4bet
+        const blinds = 1.5;
+        const pot = heroInvested + villainInvested + blinds; // 31.5BB
+        const callAmount = villainInvested - heroInvested;    // 14BB to call
+        const remainingStack = this.startingStack - heroInvested; // 92BB remaining
+        const jamAmount = remainingStack; // 92BB total to jam
 
         const root = new GameNode(NodeType.PLAYER, 0, ['fold', 'call', 'jam'], pot,
-            [this.startingStack, this.startingStack]);
+            [remainingStack, remainingStack]);
 
+        // Fold: lose the 8BB already invested
         const foldNode = new GameNode(NodeType.TERMINAL, -1, [], pot, null);
-        foldNode.payoffs = (h0, h1) => [-(this.rfiSize * this.threeBetMultiplier), this.rfiSize * this.threeBetMultiplier];
+        foldNode.payoffs = (h0, h1) => [-heroInvested, heroInvested];
 
-        const callNode = new GameNode(NodeType.TERMINAL, -1, [], pot * 2, null);
+        // Call: put in 14BB more. Total pot = 31.5 + 14 = 45.5BB. Showdown.
+        const callPot = pot + callAmount;
+        const callNode = new GameNode(NodeType.TERMINAL, -1, [], callPot, null);
         callNode.payoffs = (h0, h1) => {
             const eq0 = _preflopHandEquity(h0);
             const eq1 = _preflopHandEquity(h1);
-            const half = pot;
-            if (eq0 > eq1) return [half, -half];
-            if (eq0 < eq1) return [-half, half];
+            // Win: gain callPot - heroInvested - callAmount. Lose: lose heroInvested + callAmount
+            const heroTotal = heroInvested + callAmount; // 22BB total invested
+            if (eq0 > eq1) return [callPot - heroTotal, -(callPot - heroTotal)];
+            if (eq0 < eq1) return [-heroTotal, heroTotal];
             return [0, 0];
         };
 
+        // Jam: put in remaining 92BB. Opponent calls or folds.
+        // Simplified: opponent always calls (jam is terminal with showdown)
+        const jamPot = pot + jamAmount + (jamAmount - callAmount); // both players all-in
         const jamNode = new GameNode(NodeType.TERMINAL, -1, [], this.startingStack * 2, null);
         jamNode.payoffs = (h0, h1) => {
             const eq0 = _preflopHandEquity(h0);
             const eq1 = _preflopHandEquity(h1);
-            if (eq0 > eq1) return [this.startingStack, -this.startingStack];
-            if (eq0 < eq1) return [-this.startingStack, this.startingStack];
+            // Risk full stack
+            if (eq0 > eq1) return [this.startingStack - heroInvested, -(this.startingStack - heroInvested)];
+            if (eq0 < eq1) return [-(this.startingStack - heroInvested), this.startingStack - heroInvested];
             return [0, 0];
         };
 
@@ -286,6 +302,7 @@ class PreflopSolver {
         this.solver.solve(root, [handIndices, handIndices], infoSetKeyFn, {
             iterations: Math.floor(iterations * 0.5),
             conflictFn: () => false,
+            samplesPerIter: 300,
         });
     }
 

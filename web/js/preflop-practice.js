@@ -287,7 +287,7 @@ class PreflopPracticeSession {
                 this._preflopSolver = PreflopSolver.getInstance();
                 if (!this._preflopSolver.solved) {
                     console.time('Preflop CFR+ solve');
-                    this._preflopSolver.solve({ iterations: 50 });
+                    this._preflopSolver.solve({ iterations: 200 });
                     console.timeEnd('Preflop CFR+ solve');
                 }
             }
@@ -470,12 +470,24 @@ class PreflopPracticeSession {
             summary += `${posTag}，${villainPos}范围约${rangeWidths[villainPos] || 25}%。`;
             if (hasAce) summary += '阻断对手顶级手牌。';
         } else if (scenario === 'vs_3bet') {
-            if (best.action === 'fold') summary += '对手3-Bet范围很强(约8-12%)。';
-            else if (isSuited) summary += '同花属性提供额外翻后权益。';
-            else summary += '手牌权益足够继续。';
+            // SPR ~8.8, pot ~10.5BB, effective stack ~92BB
+            if (best.action === 'fold') summary += '对手3-Bet范围很强(约8-12%)，SPR 8.8仍有足够翻后空间弃牌不亏。';
+            else if (best.action === 'call') {
+                summary += `SPR 8.8，${posTag}。`;
+                if (isSuited) summary += '同花属性+隐含赔率支撑跟注。';
+                else if (isPair) summary += '暗三条隐含赔率。';
+                else summary += '手牌权益足够跟注，但不够4-Bet。';
+            } else {
+                summary += `SPR 8.8，`;
+                if (isPair && high >= 12) summary += '顶级对子4-Bet获取价值。';
+                else if (hasAce) summary += '阻断效应支撑4-Bet。';
+                else summary += '4-Bet平衡范围。';
+            }
         } else if (scenario === 'vs_4bet') {
-            if (best.action === 'fold') summary += '对手4-Bet范围极窄(约3-5%)。';
-            else summary += '底池已大，SPR极低。';
+            // SPR ~2.6, pot ~31.5BB, effective stack ~78BB
+            if (best.action === 'fold') summary += '对手4-Bet范围极窄(约3-5%)，SPR 2.6虽低但权益不足承诺筹码。';
+            else if (best.action === 'call') summary += 'SPR 2.6低，手牌够强跟注但全压风险太高(对手范围极强)。';
+            else summary += 'SPR 2.6已承诺底池，筹码浅全压最大化fold equity+showdown value。';
         }
 
         return summary;
@@ -496,8 +508,8 @@ class PreflopPracticeSession {
         const typeLabels = {
             rfi: `你在${heroPos}，前面所有人弃牌，你应该？`,
             vs_raise: `${villainPos}加注开池(2.5BB)，你在${heroPos} ${ipLabel}，你应该？`,
-            vs_3bet: `你在${heroPos}加注开池(2.5BB)，${villainPos} 3-Bet到8BB ${ipLabel}，你应该？`,
-            vs_4bet: `${villainPos}加注开池，你3-Bet到8BB，${villainPos} 4-Bet到22BB ${ipLabel}，你应该？`,
+            vs_3bet: `你在${heroPos}开池2.5BB，${villainPos} 3-Bet到8BB ${ipLabel}。底池10.5BB，有效筹码92BB (SPR 8.8)，你应该？`,
+            vs_4bet: `${villainPos}开池，你3-Bet到8BB，${villainPos} 4-Bet到22BB ${ipLabel}。底池30.5BB，有效筹码78BB (SPR 2.6)，你应该？`,
         };
         return typeLabels[type] || '选择你的行动';
     }
