@@ -784,17 +784,29 @@ class PracticeSession {
             // Determine round: 1=flop, 2=turn, 3=river
             const round = this.boardCards.length === 3 ? 1 : this.boardCards.length === 4 ? 2 : 3;
 
+            // Trim ranges to max 35 hands to keep solve under 10s
+            const maxRange = 35;
+            const ipRange = this.heroIsIP ? heroRangeKeys : villainRangeKeys;
+            const oopRange = this.heroIsIP ? villainRangeKeys : heroRangeKeys;
+            const trimmedIP = ipRange.length > maxRange ? ipRange.slice(0, maxRange) : ipRange;
+            const trimmedOOP = oopRange.length > maxRange ? oopRange.slice(0, maxRange) : oopRange;
+
+            // Ensure hero's actual hand is in the range
+            const heroCanonical = handToCanonical(this.heroCards[0], this.heroCards[1]);
+            if (this.heroIsIP && !trimmedIP.includes(heroCanonical)) trimmedIP.push(heroCanonical);
+            else if (!this.heroIsIP && !trimmedOOP.includes(heroCanonical)) trimmedOOP.push(heroCanonical);
+
             const body = {
-                range_ip: this.heroIsIP ? heroRangeKeys.join(',') : villainRangeKeys.join(','),
-                range_oop: this.heroIsIP ? villainRangeKeys.join(',') : heroRangeKeys.join(','),
+                range_ip: trimmedIP.join(','),
+                range_oop: trimmedOOP.join(','),
                 board: boardStr,
                 round: round,
                 oop_commit: this.potSize / 2,
                 ip_commit: this.potSize / 2,
                 stack: this.effectiveStack + this.potSize / 2,
-                iterations: 60, // Keep under Vercel 10s timeout
+                iterations: 50,
                 accuracy: 0.5,
-                threads: 2,
+                threads: 1, // Single thread to reduce memory
                 dump_depth: 1,
             };
 
