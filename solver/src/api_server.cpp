@@ -157,7 +157,9 @@ int main(int argc, char* argv[]) {
 
             // Get strategy as JSON
             auto solver = ps.get_solver();
-            json strategy_json = solver->dumps(true, dump_depth);
+            cout << "Dumping strategy..." << endl;
+            json strategy_json = solver->dumps(false, dump_depth);
+            cout << "Strategy dumped, keys: " << strategy_json.size() << endl;
 
             auto t_end = chrono::high_resolution_clock::now();
             double solve_ms = chrono::duration<double, milli>(t_end - t_start).count();
