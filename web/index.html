@@ -2038,7 +2038,7 @@ function makeAction(action, sizingPct) {
             try {
                 const remoteResult = await Promise.race([
                     practice._remotePromise,
-                    new Promise(resolve => setTimeout(() => resolve(null), 15000))
+                    new Promise(resolve => setTimeout(() => resolve(null), 45000))
                 ]);
                 if (remoteResult && remoteResult.strategy) {
                     practice._remoteStrategy = remoteResult.strategy;

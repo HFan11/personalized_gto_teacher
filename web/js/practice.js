@@ -784,15 +784,8 @@ class PracticeSession {
             // Determine round: 1=flop, 2=turn, 3=river
             const round = this.boardCards.length === 3 ? 1 : this.boardCards.length === 4 ? 2 : 3;
 
-            // Flop is too heavy for C++ solver on free tier (memory + time)
-            // Only use C++ for turn and river where it's fast and accurate
-            if (round === 1) {
-                console.log('Flop: using local JS solver (C++ too heavy for free tier)');
-                return null;
-            }
-
-            // Trim ranges: turn needs smaller, river can be larger
-            const maxRange = round === 2 ? 25 : 40;
+            // Railway Pro: 8GB RAM, 8 vCPU — all streets enabled
+            const maxRange = round === 1 ? 60 : round === 2 ? 80 : 100;
             const ipRange = this.heroIsIP ? heroRangeKeys : villainRangeKeys;
             const oopRange = this.heroIsIP ? villainRangeKeys : heroRangeKeys;
             const trimmedIP = ipRange.length > maxRange ? ipRange.slice(0, maxRange) : ipRange;
@@ -811,10 +804,10 @@ class PracticeSession {
                 oop_commit: this.potSize / 2,
                 ip_commit: this.potSize / 2,
                 stack: this.effectiveStack + this.potSize / 2,
-                iterations: 50,
-                accuracy: 0.5,
-                threads: 1, // Single thread to reduce memory
-                dump_depth: 1,
+                iterations: 200,
+                accuracy: 0.3,
+                threads: 4,
+                dump_depth: 2,
             };
 
             // Try Railway directly (no 10s timeout), fallback to Vercel proxy

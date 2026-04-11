@@ -92,9 +92,9 @@ int main(int argc, char* argv[]) {
             float allin_threshold = body.value("allin_threshold", 0.67f);
 
             // Solver parameters
-            int iterations = body.value("iterations", 200);
-            float accuracy = body.value("accuracy", 0.5f);
-            int threads = body.value("threads", 4);
+            int iterations = body.value("iterations", 300);
+            float accuracy = body.value("accuracy", 0.3f);
+            int threads = body.value("threads", 8);
             string algorithm = body.value("algorithm", "discounted_cfr");
             bool use_isomorphism = body.value("use_isomorphism", true);
             int dump_depth = body.value("dump_depth", 2);
