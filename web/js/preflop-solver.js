@@ -97,7 +97,7 @@ class PreflopSolver {
             this.solver.solve(root, [handIndices0, handIndices1], infoSetKeyFn, {
                 iterations,
                 conflictFn: () => false,
-                samplesPerIter: 500, // Monte Carlo: sample 500 pairs per iteration
+                samplesPerIter: 800, // Monte Carlo: sample 800 pairs per iteration
             });
         }
     }
@@ -180,7 +180,7 @@ class PreflopSolver {
                 this.solver.solve(root, [handIndices, handIndices], infoSetKeyFn, {
                     iterations: Math.floor(iterations * 0.7),
                     conflictFn: () => false,
-                    samplesPerIter: 300,
+                    samplesPerIter: 800,
                 });
             }
     }
@@ -302,7 +302,7 @@ class PreflopSolver {
         this.solver.solve(root, [handIndices, handIndices], infoSetKeyFn, {
             iterations: Math.floor(iterations * 0.5),
             conflictFn: () => false,
-            samplesPerIter: 300,
+            samplesPerIter: 800,
         });
     }
 

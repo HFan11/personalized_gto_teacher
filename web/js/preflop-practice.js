@@ -120,9 +120,19 @@ const GTO_PREFLOP = {
     },
 
     // ========== Facing a 4bet (after 3betting) ==========
+    // Mixed frequencies: QQ/JJ/AKo have significant call AND fold frequencies
     vs_4bet: {
         fivebet_jam: ["AA","KK","AKs"],
         call: ["QQ","JJ","AKo","AQs"],
+        // Hands with mixed call/fold (not in call or jam → fold)
+        mixed: {
+            "QQ": { call: 70, fold: 30 },
+            "JJ": { call: 45, fold: 55 },
+            "AKo": { call: 60, fold: 40 },
+            "AQs": { call: 35, fold: 65 },
+            "99": { fold: 100 },
+            "TT": { call: 20, fold: 80 },
+        }
     },
 
     // ========== Pot configurations ==========
@@ -271,7 +281,14 @@ class PreflopPracticeSession {
     }
 
     _getCorrectAction(type, heroPos, villainPos, handKey) {
-        // Try CFR solver first
+        // vs_3bet and vs_4bet: static ranges are MORE accurate than CFR solver
+        // because CFR uses vs-random equity which is wrong for narrow ranges
+        // Static ranges are derived from real PIO solutions
+        if (type === 'vs_3bet' || type === 'vs_4bet') {
+            return this._getStaticAction(type, heroPos, villainPos, handKey);
+        }
+
+        // RFI and vs_raise: CFR solver works well (wide ranges, vs-random equity is reasonable)
         const cfrResult = this._getCFRAction(type, heroPos, villainPos, handKey);
         if (cfrResult) return cfrResult;
 
@@ -287,7 +304,7 @@ class PreflopPracticeSession {
                 this._preflopSolver = PreflopSolver.getInstance();
                 if (!this._preflopSolver.solved) {
                     console.time('Preflop CFR+ solve');
-                    this._preflopSolver.solve({ iterations: 200 });
+                    this._preflopSolver.solve({ iterations: 500 });
                     console.timeEnd('Preflop CFR+ solve');
                 }
             }
@@ -378,18 +395,38 @@ class PreflopPracticeSession {
             case 'vs_3bet': {
                 const ranges = GTO_PREFLOP.vs_3bet[heroPos];
                 if (!ranges) {
-                    return [{ action: 'fold', frequency: 70, reasoning: `面对3bet，大部分范围应弃牌。` },
-                            { action: 'call', frequency: 30, reasoning: '部分手牌可以跟注。' }];
+                    return [{ action: 'fold', frequency: 70, reasoning: this._buildPreflopReasoning(handKey, heroPos, villainPos, 'fold', 70, 'vs_3bet') },
+                            { action: 'call', frequency: 30, reasoning: this._buildPreflopReasoning(handKey, heroPos, villainPos, 'call', 30, 'vs_3bet') }];
                 }
-                if (ranges.fourbet.includes(handKey)) return [{ action: '4bet', frequency: 100, reasoning: `${handKey}在4bet范围内。` }];
-                if (ranges.call.includes(handKey)) return [{ action: 'call', frequency: 100, reasoning: `${handKey}在跟注范围内。` }];
-                return [{ action: 'fold', frequency: 100, reasoning: `${handKey}不在防守范围内。` }];
+                const in4bet = ranges.fourbet.includes(handKey);
+                const inCall = ranges.call.includes(handKey);
+                if (in4bet && inCall) {
+                    return [
+                        { action: '4bet', frequency: 55, reasoning: this._buildPreflopReasoning(handKey, heroPos, villainPos, '4bet', 55, 'vs_3bet') },
+                        { action: 'call', frequency: 45, reasoning: this._buildPreflopReasoning(handKey, heroPos, villainPos, 'call', 45, 'vs_3bet') },
+                    ];
+                }
+                if (in4bet) return [{ action: '4bet', frequency: 100, reasoning: this._buildPreflopReasoning(handKey, heroPos, villainPos, '4bet', 100, 'vs_3bet') }];
+                if (inCall) return [{ action: 'call', frequency: 100, reasoning: this._buildPreflopReasoning(handKey, heroPos, villainPos, 'call', 100, 'vs_3bet') }];
+                return [{ action: 'fold', frequency: 100, reasoning: this._buildPreflopReasoning(handKey, heroPos, villainPos, 'fold', 100, 'vs_3bet') }];
             }
             case 'vs_4bet': {
                 const ranges = GTO_PREFLOP.vs_4bet;
-                if (ranges.fivebet_jam.includes(handKey)) return [{ action: '5bet-jam', frequency: 100, reasoning: `${handKey}面对4bet应全压。` }];
-                if (ranges.call.includes(handKey)) return [{ action: 'call', frequency: 100, reasoning: `${handKey}面对4bet可以跟注。` }];
-                return [{ action: 'fold', frequency: 100, reasoning: `${handKey}面对4bet应弃牌。` }];
+                if (ranges.fivebet_jam.includes(handKey)) {
+                    return [{ action: '5bet-jam', frequency: 100, reasoning: this._buildPreflopReasoning(handKey, heroPos, villainPos, '5bet-jam', 100, 'vs_4bet') }];
+                }
+                // Use mixed frequencies for borderline hands
+                const mixed = ranges.mixed && ranges.mixed[handKey];
+                if (mixed) {
+                    const actions = [];
+                    if (mixed.call) actions.push({ action: 'call', frequency: mixed.call, reasoning: this._buildPreflopReasoning(handKey, heroPos, villainPos, 'call', mixed.call, 'vs_4bet') });
+                    if (mixed.fold) actions.push({ action: 'fold', frequency: mixed.fold, reasoning: this._buildPreflopReasoning(handKey, heroPos, villainPos, 'fold', mixed.fold, 'vs_4bet') });
+                    return actions.sort((a, b) => b.frequency - a.frequency);
+                }
+                if (ranges.call.includes(handKey)) {
+                    return [{ action: 'call', frequency: 100, reasoning: this._buildPreflopReasoning(handKey, heroPos, villainPos, 'call', 100, 'vs_4bet') }];
+                }
+                return [{ action: 'fold', frequency: 100, reasoning: this._buildPreflopReasoning(handKey, heroPos, villainPos, 'fold', 100, 'vs_4bet') }];
             }
             default:
                 return [{ action: 'fold', frequency: 100, reasoning: '未知场景。' }];
