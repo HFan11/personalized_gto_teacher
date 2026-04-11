@@ -15,9 +15,10 @@ const DO_FLOP = process.argv.includes('--flop') || (!process.argv.includes('--tu
 const DO_TURN = process.argv.includes('--turn');
 const OUTPUT_DIR = path.join(__dirname, '../../web/data/precomputed');
 
-// LAG range (widest standard range)
-const RANGE_IP = 'AA,KK,QQ,JJ,TT,99,88,77,66,55,44,33,22,AKs,AQs,AJs,ATs,A9s,A8s,A7s,A5s,A4s,A3s,A2s,KQs,KJs,KTs,K9s,K8s,QJs,QTs,Q9s,Q8s,JTs,J9s,J8s,T9s,T8s,T7s,98s,97s,87s,86s,76s,75s,65s,64s,54s,53s,43s,AKo,AQo,AJo,ATo,A9o,KQo,KJo,KTo,QJo,QTo,JTo';
-const RANGE_OOP = 'AA,KK,QQ,JJ,TT,99,88,77,66,55,44,33,22,AKs,AQs,AJs,ATs,A9s,A8s,A7s,A6s,A5s,A4s,A3s,A2s,KQs,KJs,KTs,K9s,K8s,K7s,K6s,K5s,QJs,QTs,Q9s,Q8s,Q7s,JTs,J9s,J8s,T9s,T8s,T7s,98s,97s,96s,87s,86s,76s,75s,65s,64s,54s,53s,43s,AKo,AQo,AJo,ATo,KQo,KJo,QJo,JTo,T9o,98o';
+// Core ranges: covers all hands a serious player needs to study
+// Smaller than full LAG range → faster solve, still covers all important hands
+const RANGE_IP = 'AA,KK,QQ,JJ,TT,99,88,77,AKs,AKo,AQs,AJs,ATs,A9s,A5s,KQs,KJs,KTs,QJs,QTs,JTs,T9s,98s,87s,76s,65s,54s,AQo,AJo,KQo';
+const RANGE_OOP = 'AA,KK,QQ,JJ,TT,99,88,77,66,55,AKs,AKo,AQs,AJs,ATs,A9s,A5s,A4s,KQs,KJs,KTs,K9s,QJs,QTs,Q9s,JTs,J9s,T9s,98s,87s,76s,65s,54s,AQo,AJo,KQo,KJo';
 
 // Bet sizes (simplified for manageable tree size)
 const BET_SIZES = {
@@ -35,7 +36,7 @@ const BET_SIZES = {
     oop_river_raise: [100],
 };
 
-async function solveBoard(board, round, iterations, threads) {
+async function solveBoard(board, round, iterations, threads, retries = 2) {
     const body = {
         range_ip: RANGE_IP,
         range_oop: RANGE_OOP,
@@ -50,17 +51,34 @@ async function solveBoard(board, round, iterations, threads) {
         ...BET_SIZES,
     };
 
-    const resp = await fetch(API_URL + '/api/solve', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-    });
+    for (let attempt = 0; attempt <= retries; attempt++) {
+        try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 300000); // 5 min timeout
 
-    const data = await resp.json();
-    if (data.error || data.code) {
-        throw new Error(data.error || data.message || `HTTP ${data.code}`);
+            const resp = await fetch(API_URL + '/api/solve', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+                signal: controller.signal,
+            });
+            clearTimeout(timeout);
+
+            const data = await resp.json();
+            if (data.error || data.code) {
+                throw new Error(data.error || data.message || `HTTP ${data.code}`);
+            }
+            return data;
+        } catch (e) {
+            if (attempt < retries) {
+                console.log(`    Retry ${attempt + 1}/${retries}: ${e.message}`);
+                // Wait before retry (Railway may need to restart)
+                await new Promise(r => setTimeout(r, 10000));
+            } else {
+                throw e;
+            }
+        }
     }
-    return data;
 }
 
 function boardToFilename(board) {
