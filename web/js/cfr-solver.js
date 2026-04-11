@@ -115,8 +115,8 @@ class CFRSolver {
     }
 
     // Main solve loop: runs CFR+ for N iterations
-    // gameTreeBuilder: function(iteration) → root GameNode (can vary per iteration for chance sampling)
-    // infoSetKeyFn: function(node, playerHand) → string key for the information set
+    // NOTE: does NOT reset info sets — calling solve() multiple times
+    // continues from previous state (incremental iterations)
     // Returns: Map of infoSetKey → average strategy
     solve(root, hands, infoSetKeyFn, options = {}) {
         const iters = options.iterations || this.iterations;

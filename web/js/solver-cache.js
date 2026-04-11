@@ -147,17 +147,28 @@ class SolverCache {
         console.log('[Cache] Pre-solving postflop in worker...');
     }
 
-    // Get pre-solved result (returns null if not ready yet)
+    // Get pre-solved result (waits for initial solve, uses latest progress)
     async getPreSolvedPostflop() {
         if (!this._pendingPostflopSolve) return null;
         try {
+            // Wait for initial result
             const result = await this._pendingPostflopSolve;
             this._pendingPostflopSolve = null;
+            // Use latest progress if available (more iterations = better)
+            if (this._latestWorkerStrategy) {
+                result.strategy = this._latestWorkerStrategy;
+                result.totalIterations = this._latestWorkerIterations;
+            }
             return result;
         } catch (e) {
             this._pendingPostflopSolve = null;
             return null;
         }
+    }
+
+    // Get the most recent strategy from worker (even if still iterating)
+    getLatestWorkerStrategy() {
+        return this._latestWorkerStrategy || null;
     }
 
     // ============================================================
@@ -228,9 +239,22 @@ class SolverCache {
                 const { id, type, data, error } = e.data;
                 const job = this._pendingJobs.get(id);
                 if (!job) return;
+
+                if (type === 'progress') {
+                    // Incremental progress — update latest strategy without resolving promise
+                    this._latestWorkerStrategy = data.strategy;
+                    this._latestWorkerIterations = data.totalIterations;
+                    console.log(`[Worker] Progress: ${data.totalIterations} iterations`);
+                    return; // Don't resolve — more progress coming
+                }
+
                 this._pendingJobs.delete(id);
                 if (type === 'error') job.reject(new Error(error));
-                else job.resolve(data);
+                else {
+                    this._latestWorkerStrategy = data.strategy;
+                    this._latestWorkerIterations = data.totalIterations || 0;
+                    job.resolve(data);
+                }
             };
             this._worker.onerror = (e) => {
                 console.warn('[Worker] Error:', e.message);

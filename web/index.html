@@ -1815,9 +1815,23 @@ function renderPracticeHand() {
     document.getElementById('villain-cards-display').innerHTML =
         '<div class="playing-card facedown"></div><div class="playing-card facedown"></div>';
 
-    // Board & hero cards
-    document.getElementById('board-cards').innerHTML = state.boardCards.map(c => renderPlayingCard(c, 'card-reveal')).join('');
-    document.getElementById('hero-cards').innerHTML = state.heroCards.map(c => renderPlayingCard(c, 'card-dealing')).join('');
+    // Board & hero cards — start facedown, then flip to reveal
+    const boardEl = document.getElementById('board-cards');
+    const heroEl = document.getElementById('hero-cards');
+
+    // Step 1: show facedown cards
+    heroEl.innerHTML = '<div class="playing-card facedown"></div><div class="playing-card facedown"></div>';
+    boardEl.innerHTML = state.boardCards.map(() => '<div class="playing-card facedown"></div>').join('');
+
+    // Step 2: flip hero cards after 400ms
+    setTimeout(() => {
+        heroEl.innerHTML = state.heroCards.map(c => renderPlayingCard(c, 'card-flip-in')).join('');
+    }, 400);
+
+    // Step 3: flip board cards after 900ms
+    setTimeout(() => {
+        boardEl.innerHTML = state.boardCards.map(c => renderPlayingCard(c, 'card-flip-in')).join('');
+    }, 900);
 
     // Hand info (compact row)
     const cat = state.handCategory;

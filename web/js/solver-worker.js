@@ -30,22 +30,19 @@ self.onmessage = function(e) {
 
         } else if (type === 'solve-postflop') {
             const config = data;
-            // Reconstruct card objects from serialized data
-            const heroRange = config.heroRange; // already card objects from expandRangeToComboCards
+            const heroRange = config.heroRange;
             const villainRange = config.villainRange;
             const board = config.board;
 
+            // Initial solve with base iterations
+            const baseIters = config.iterations || 1000;
             const solver = new PostflopSolver({
-                heroRange,
-                villainRange,
-                board,
-                pot: config.pot,
-                stack: config.stack,
-                heroIsIP: config.heroIsIP,
-                street: config.street,
+                heroRange, villainRange, board,
+                pot: config.pot, stack: config.stack,
+                heroIsIP: config.heroIsIP, street: config.street,
                 betSizes: config.betSizes || [0.33, 0.66, 1.0],
                 numBuckets: config.numBuckets || 30,
-                iterations: config.iterations || 1500,
+                iterations: baseIters,
                 simsPerHand: config.simsPerHand || 150,
             });
 
@@ -59,18 +56,37 @@ self.onmessage = function(e) {
             solver.solve(solveOptions);
             const solveTimeMs = Math.round(performance.now() - t0);
 
-            // Get strategy for hero's hand
-            let strategy = null;
-            if (config.holeCards) {
+            // Get initial strategy
+            function getStrat() {
+                if (!config.holeCards) return null;
                 if (config.facingBet && config.betSizePct) {
-                    strategy = solver.getStrategyFacingBet(config.holeCards, config.betSizePct);
+                    const s = solver.getStrategyFacingBet(config.holeCards, config.betSizePct);
+                    if (s) return s;
                 }
-                if (!strategy) {
-                    strategy = solver.getStrategy(config.holeCards);
-                }
+                return solver.getStrategy(config.holeCards);
             }
 
-            self.postMessage({ id, type: 'result', data: { strategy, solveTimeMs } });
+            // Send initial result
+            self.postMessage({ id, type: 'result', data: { strategy: getStrat(), solveTimeMs, totalIterations: baseIters } });
+
+            // Continue incremental iterations while user thinks
+            // Each round adds 500 more iterations for better convergence
+            const extraRounds = 4;
+            const extraIters = 500;
+            for (let round = 0; round < extraRounds; round++) {
+                // Don't reset solver — continue from existing info sets
+                solver.solver.solve(
+                    solver._lastRoot, solver._lastHands, solver._lastKeyFn,
+                    { iterations: extraIters, seed: solver._lastSeed + round + 1, samplesPerIter: solver._lastSamples }
+                );
+                solver.solvedStrategies = solver.solver._extractStrategies();
+
+                const totalIters = baseIters + (round + 1) * extraIters;
+                self.postMessage({
+                    id, type: 'progress',
+                    data: { strategy: getStrat(), totalIterations: totalIters }
+                });
+            }
 
         } else if (type === 'precompute-buckets') {
             const { board, heroRange, villainRange, numBuckets, simsPerHand } = data;

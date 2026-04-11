@@ -93,6 +93,13 @@ class PostflopSolver {
         // Sample enough pairs for good coverage but cap at 500
         const samplesPerIter = Math.min(totalPairs, Math.max(200, totalPairs));
 
+        // Store for incremental iterations (worker can call solver.solve() again)
+        this._lastRoot = root;
+        this._lastHands = [oopBucketIds, ipBucketIds];
+        this._lastKeyFn = infoSetKeyFn;
+        this._lastSeed = boardSeed;
+        this._lastSamples = samplesPerIter;
+
         this.solver.reset();
         this.solvedStrategies = this.solver.solve(
             root,
