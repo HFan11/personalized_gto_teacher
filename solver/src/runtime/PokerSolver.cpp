@@ -119,7 +119,7 @@ void PokerSolver::train(string p1_range, string p2_range, string boards, string 
             , print_interval
             , logfile_name
             , algorithm
-            , Solver::MonteCarolAlg::PUBLIC
+            , Solver::MonteCarolAlg::NONE
             , warmup
             , accuracy
             , use_isomorphism
