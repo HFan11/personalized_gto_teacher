@@ -73,10 +73,10 @@ long long PokerSolver::estimate_tree_memory(std::string range1,std::string range
         return 0;
     }
     else{
-        string player1RangeStr = range1.toStdString();
-        string player2RangeStr = range2.toStdString();
+        string player1RangeStr = range1;
+        string player2RangeStr = range2;
 
-        vector<string> board_str_arr = string_split(board.toStdString(),',');
+        vector<string> board_str_arr = string_split(board,',');
         vector<int> initialBoard;
         for(string one_board_str:board_str_arr){
             initialBoard.push_back(Card::strCard2int(one_board_str));
@@ -136,7 +136,7 @@ void PokerSolver::dump_strategy(std::string dump_file,int dump_rounds) {
     json dump_json = this->solver->dumps(false,dump_rounds);
     //QFile ofile( dump_file);
     ofstream fileWriter;
-    fileWriter.open(dump_file.toLocal8Bit());
+    fileWriter.open(dump_file);
     if(!fileWriter.fail()){
         fileWriter << dump_json;
         fileWriter.flush();

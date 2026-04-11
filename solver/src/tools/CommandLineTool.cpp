@@ -172,7 +172,7 @@ void CommandLineTool::processCommand(string input) {
         );
     }else if(command == "dump_result"){
         string output_file = paramstr;
-        this->ps.dump_strategy(output_file),this->dump_rounds;
+        this->ps.dump_strategy(output_file, this->dump_rounds);
     }else if(command == "set_dump_rounds"){
         this->dump_rounds = stoi(paramstr);
     }else{

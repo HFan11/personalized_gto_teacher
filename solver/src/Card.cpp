@@ -74,9 +74,6 @@ uint64_t Card::boardCards2long(vector<Card>& cards){
     return Card::boardInts2long(board_int);
 }
 
-    for(auto one_card:cards){
-        if(one_card.empty())continue;
-
 uint64_t Card::boardInt2long(int board){
     // 这里hard code了一副扑克牌是52张
     if(board < 0 || board >= 52){
