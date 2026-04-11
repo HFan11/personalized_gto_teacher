@@ -108,7 +108,13 @@ int main(int argc, char* argv[]) {
             string compairer_file_bin = resource_dir + "/compairer/card5_dic_zipped.bin";
             int lines = 2598961;
 
+            cout << "Creating PokerSolver with resources from: " << resource_dir << endl;
+            cout << "Range IP: " << range_ip.substr(0, 50) << endl;
+            cout << "Range OOP: " << range_oop.substr(0, 50) << endl;
+            cout << "Board: " << board << " Round: " << current_round << endl;
+
             PokerSolver ps(ranks, suits, compairer_file, lines, compairer_file_bin);
+            cout << "PokerSolver created OK" << endl;
 
             // Street settings
             StreetSetting flop_ip(ip_flop_bet, ip_flop_raise, {}, allin);
@@ -121,14 +127,18 @@ int main(int argc, char* argv[]) {
             GameTreeBuildingSettings gtbs(flop_ip, turn_ip, river_ip, flop_oop, turn_oop, river_oop);
 
             // Build game tree
+            cout << "Building game tree..." << endl;
             ps.build_game_tree(oop_commit, ip_commit, current_round, raise_limit,
                              small_blind, big_blind, stack, gtbs, allin_threshold);
+            cout << "Game tree built OK" << endl;
 
             // Train (solve)
+            cout << "Starting train with " << iterations << " iterations, algo: " << algorithm << endl;
             string logfile = "";
             ps.train(range_ip, range_oop, board, logfile,
                     iterations, 50, algorithm, 0, accuracy,
                     use_isomorphism, 0, threads);
+            cout << "Training complete" << endl;
 
             // Get strategy as JSON
             auto solver = ps.get_solver();
@@ -146,8 +156,17 @@ int main(int argc, char* argv[]) {
             res.set_content(response.dump(), "application/json");
 
         } catch (const exception& e) {
+            string err_msg = e.what();
+            if (err_msg.empty()) err_msg = "Unknown exception during solve";
+            cerr << "Solver error: " << err_msg << endl;
             json error_resp;
-            error_resp["error"] = e.what();
+            error_resp["error"] = err_msg;
+            res.status = 500;
+            res.set_content(error_resp.dump(), "application/json");
+        } catch (...) {
+            cerr << "Unknown non-std exception during solve" << endl;
+            json error_resp;
+            error_resp["error"] = "Internal solver crash";
             res.status = 500;
             res.set_content(error_resp.dump(), "application/json");
         }
