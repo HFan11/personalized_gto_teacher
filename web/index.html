@@ -1753,6 +1753,14 @@ function startPracticeHand() {
         renderPracticeHand();
         if (dealBtn) dealBtn.textContent = '发牌开始';
 
+        // Immediately start C++ solver in background (PIO-level accuracy)
+        // Result will be ready by the time user decides their action
+        practice._remotePromise = practice.getRemoteRecommendation();
+        practice._remotePromise.then(r => {
+            if (r) console.log(`C++ solver ready: ${Math.round(r.solveTimeMs)}ms`);
+            else console.log('C++ solver: unavailable, will use JS fallback');
+        }).catch(() => {});
+
         // Pre-solve postflop in Web Worker (board is now known)
         // By the time user decides their action, result may already be ready
         if (typeof solverCache !== 'undefined' && currentState && currentState.boardCards) {
@@ -2025,14 +2033,28 @@ function makeAction(action, sizingPct) {
     if (inlineText) inlineText.innerHTML = '<span style="color:var(--text-muted);"><span class="spinner" style="display:inline-block;width:14px;height:14px;border:2px solid var(--text-muted);border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;vertical-align:middle;margin-right:6px;"></span>分析中...</span>';
 
     (async () => {
-        // Try to get worker pre-solved result (should already be computing since deal)
-        if (typeof solverCache !== 'undefined') {
+        // Wait for C++ solver result (max 15 seconds, usually ready in 5-13s)
+        if (practice._remotePromise) {
+            try {
+                const remoteResult = await Promise.race([
+                    practice._remotePromise,
+                    new Promise(resolve => setTimeout(() => resolve(null), 15000))
+                ]);
+                if (remoteResult && remoteResult.strategy) {
+                    practice._remoteStrategy = remoteResult.strategy;
+                    console.log('Using C++ solver result for scoring');
+                }
+            } catch(e) {
+                console.warn('C++ solver error:', e.message);
+            }
+        }
+
+        // Also try JS worker result as second option
+        if (!practice._remoteStrategy && typeof solverCache !== 'undefined') {
             const workerResult = await solverCache.getPreSolvedPostflop();
             if (workerResult && workerResult.strategy) {
                 const formatted = practice._formatWorkerResult(workerResult);
-                if (formatted) {
-                    practice._workerResult = formatted;
-                }
+                if (formatted) practice._workerResult = formatted;
             }
         }
 

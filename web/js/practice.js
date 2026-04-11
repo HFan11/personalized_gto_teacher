@@ -937,18 +937,96 @@ class PracticeSession {
     // GTO Recommendation — async worker-first, sync fallback
     // ============================================================
     getRecommendation() {
-        // Check if worker pre-solved result is available (instant)
+        // Priority 1: C++ TexasSolver result (PIO-level accuracy)
+        if (this._remoteStrategy) {
+            const formatted = this._formatRemoteStrategy(this._remoteStrategy);
+            this._remoteStrategy = null;
+            if (formatted) return formatted;
+        }
+
+        // Priority 2: JS Worker pre-solved result
         if (this._workerResult) {
             const result = this._workerResult;
             this._workerResult = null;
             return result;
         }
 
-        // Sync CFR (blocks main thread — only if worker not available)
+        // Priority 3: Sync JS CFR (blocks main thread)
         const cfrResult = this.getCFRRecommendation();
         if (cfrResult) return cfrResult;
 
+        // Priority 4: Rule-based heuristic
         return this._getHeuristicRecommendation();
+    }
+
+    // Format C++ TexasSolver strategy into recommendation format
+    _formatRemoteStrategy(strategy) {
+        const state = this.getState();
+        const { equity, handCategory, boardTexture, spr } = state;
+        const rangeComp = this.analyzeRangeComposition();
+
+        const advice = [];
+        const actionMap = {
+            'check': { cn: '过牌', color: '#3498db', sizing: '-', base: 'check' },
+            'fold': { cn: '弃牌', color: '#95a5a6', sizing: '-', base: 'fold' },
+            'call': { cn: '跟注', color: '#2ecc71', sizing: '-', base: 'call' },
+        };
+
+        for (const [key, freq] of Object.entries(strategy)) {
+            const pct = Math.round(freq * 100);
+            if (pct < 1) continue;
+
+            let label;
+            if (actionMap[key]) {
+                label = actionMap[key];
+            } else if (key.startsWith('bet_BET')) {
+                const amount = parseFloat(key.replace('bet_BET ', ''));
+                const potPct = Math.round(amount / this.potSize * 100);
+                label = { cn: `下注 ${potPct}%底池`, color: '#e74c3c', sizing: `${potPct}%底池`, base: 'bet' };
+            } else if (key.startsWith('raise_RAISE')) {
+                const amount = parseFloat(key.replace('raise_RAISE ', ''));
+                label = { cn: `加注到 ${amount.toFixed(0)}BB`, color: '#e74c3c', sizing: `${amount.toFixed(0)}BB`, base: 'raise' };
+            } else {
+                label = { cn: key, color: '#666', sizing: '-', base: key };
+            }
+
+            advice.push({
+                action: label.base,
+                actionCN: label.cn,
+                frequency: pct,
+                sizing: label.sizing,
+                reasoning: this._buildCFRReasoning(label.base, pct, handCategory, equity, spr, boardTexture, rangeComp, this.facingBet, this.villainBetSize, this.potSize),
+                color: label.color,
+            });
+        }
+
+        if (advice.length === 0) return null;
+
+        // Normalize to 100%
+        const total = advice.reduce((s, a) => s + a.frequency, 0);
+        if (total > 0 && total !== 100) {
+            advice.forEach(a => a.frequency = Math.round(a.frequency / total * 100));
+            const rt = advice.reduce((s, a) => s + a.frequency, 0);
+            if (rt !== 100) advice[0].frequency += (100 - rt);
+        }
+
+        const vStyle = this.currentProfile?.style || 'TAG';
+        const wetLabel = boardTexture ? (boardTexture.wetness === 'wet' ? '湿润' : boardTexture.wetness === 'dry' ? '干燥' : '中等') : '';
+        const boardStr = this.boardCards.map(c => c.rank + c.suit).join(' ');
+        const rcNarr = rangeComp ? `对手范围: value ${rangeComp.valuePct || 0}% / draw ${rangeComp.drawPct || 0}% / air ${rangeComp.bluffPct || 0}%` : '';
+
+        return {
+            advice: advice.sort((a, b) => b.frequency - a.frequency),
+            narrative: `${boardStr} ${wetLabel}牌面 | ${handCategory.categoryCN}(权益${(equity*100).toFixed(0)}%) ${this.heroIsIP ? 'IP' : 'OOP'} | ${rcNarr} | SPR ${spr.toFixed(1)}`,
+            mdf: { halfPot: 66.7, twoThirdsPot: 60.0, fullPot: 50.0 },
+            potOdds: { halfPot: 25.0, twoThirdsPot: 28.6, fullPot: 33.3 },
+            equity, handCategory, boardTexture,
+            inPosition: this.heroIsIP,
+            facingBet: this.facingBet,
+            spr, villainStyle: vStyle,
+            rangeComposition: rangeComp,
+            solverUsed: 'cpp',
+        };
     }
 
     // Async version: waits for worker result, then falls back
