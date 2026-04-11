@@ -5,8 +5,7 @@
     "dockerfilePath": "Dockerfile"
   },
   "deploy": {
-    "startCommand": "./build/solver_api --port $PORT --resources ./resources",
-    "healthcheckPath": "/health",
+    "startCommand": "./build/solver_api --resources ./resources",
     "restartPolicyType": "ON_FAILURE"
   }
 }

@@ -17,7 +17,11 @@ int main(int argc, char* argv[]) {
     string resource_dir = "./resources";
     int port = 8080;
 
-    // Parse args
+    // Railway sets PORT env var
+    const char* env_port = getenv("PORT");
+    if (env_port) port = stoi(env_port);
+
+    // Parse args (override env)
     for (int i = 1; i < argc; i++) {
         string arg = argv[i];
         if (arg == "--port" && i + 1 < argc) port = stoi(argv[++i]);

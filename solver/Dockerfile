@@ -10,4 +10,4 @@ COPY . .
 RUN cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j$(nproc)
 
 EXPOSE 8080
-CMD ["./build/solver_api", "--port", "8080", "--resources", "./resources"]
+CMD ["./build/solver_api", "--resources", "./resources"]
