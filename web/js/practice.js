@@ -756,38 +756,47 @@ class PracticeSession {
         }
     }
 
-    // Remote solver API call (async, for higher precision when server is available)
-    // Called by UI after showing local result to upgrade precision
+    // C++ Solver API call (TexasSolver on Railway)
+    // Returns PIO-level accurate strategy for hero's specific hand
+    static SOLVER_API_URL = 'https://personalizedgtoteacher-production.up.railway.app';
+
     async getRemoteRecommendation() {
         try {
             const state = this.getState();
             if (!this.boardCards || this.boardCards.length < 3) return null;
 
-            // Build request body with canonical range keys
+            // Build range strings in TexasSolver format (comma-separated canonical hands)
             const heroRangeKeys = this.heroProfile && this.pm
                 ? (this.pm.getRange(this.heroProfile.id, this.heroPosition) || [])
                 : [];
             const villainRangeKeys = this.currentProfile && this.pm
                 ? (this.pm.getRange(this.currentProfile.id, this.villainPosition) || [])
                 : [];
-
             if (heroRangeKeys.length === 0 || villainRangeKeys.length === 0) return null;
 
+            // Convert board to TexasSolver format: "Ts,Th,8d,7c"
+            const suitMap = { '♠': 's', '♥': 'h', '♦': 'd', '♣': 'c' };
+            const boardStr = this.boardCards.map(c => c.rank + suitMap[c.suit]).join(',');
+            const heroHandStr = this.heroCards.map(c => c.rank + suitMap[c.suit]);
+
+            // Determine round: 1=flop, 2=turn, 3=river
+            const round = this.boardCards.length === 3 ? 1 : this.boardCards.length === 4 ? 2 : 3;
+
             const body = {
-                heroRange: heroRangeKeys,
-                villainRange: villainRangeKeys,
-                board: this.boardCards.map(c => ({ rank: c.rank, suit: c.suit })),
-                holeCards: this.heroCards.map(c => ({ rank: c.rank, suit: c.suit })),
-                pot: this.potSize,
-                stack: this.effectiveStack,
-                heroIsIP: this.heroIsIP,
-                street: this.street,
-                betSizes: [0.33, 0.66, 1.0],
-                facingBet: this.facingBet,
-                betSizePct: this.facingBet ? this.villainBetSize / this.potSize : 0,
+                range_ip: this.heroIsIP ? heroRangeKeys.join(',') : villainRangeKeys.join(','),
+                range_oop: this.heroIsIP ? villainRangeKeys.join(',') : heroRangeKeys.join(','),
+                board: boardStr,
+                round: round,
+                oop_commit: this.potSize / 2,
+                ip_commit: this.potSize / 2,
+                stack: this.effectiveStack + this.potSize / 2,
+                iterations: 80,
+                accuracy: 0.5,
+                threads: 2,
+                dump_depth: 1,
             };
 
-            const resp = await fetch('/api/solve-postflop', {
+            const resp = await fetch(PracticeSession.SOLVER_API_URL + '/api/solve', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body),
@@ -795,12 +804,39 @@ class PracticeSession {
 
             if (!resp.ok) return null;
             const data = await resp.json();
-            if (!data.strategy) return null;
+            if (data.error || !data.strategy) return null;
 
-            console.log(`Remote solver: ${data.solveTimeMs}ms, ${data.config?.iterations} iters, ${data.config?.numBuckets} buckets`);
-            return data;
+            // Extract hero's hand strategy from the root node
+            const rootStrategy = data.strategy?.strategy;
+            if (!rootStrategy || !rootStrategy.strategy) return null;
+
+            const actions = rootStrategy.actions || [];
+            const handStrategies = rootStrategy.strategy;
+
+            // Find hero's specific hand combos
+            const heroKey1 = heroHandStr[0] + heroHandStr[1]; // e.g. "AsKh"
+            const heroKey2 = heroHandStr[1] + heroHandStr[0]; // reversed
+            const heroStrat = handStrategies[heroKey1] || handStrategies[heroKey2];
+            if (!heroStrat) return null;
+
+            // Convert to our format: {check: 0.94, bet33: 0.06, ...}
+            const strategy = {};
+            for (let i = 0; i < actions.length; i++) {
+                const action = actions[i];
+                const freq = heroStrat[i] || 0;
+                if (action === 'CHECK') strategy.check = freq;
+                else if (action === 'FOLD') strategy.fold = freq;
+                else if (action === 'CALL') strategy.call = freq;
+                else if (action.startsWith('BET')) strategy['bet_' + action] = freq;
+                else if (action.startsWith('RAISE')) strategy['raise_' + action] = freq;
+            }
+
+            console.log(`C++ solver: ${Math.round(data.solve_time_ms)}ms, ${data.iterations} iters, hand: ${heroKey1}`);
+            console.log('Strategy:', strategy);
+
+            return { strategy, solveTimeMs: data.solve_time_ms, iterations: data.iterations };
         } catch (e) {
-            // Server not available — no problem, local solver is fine
+            console.warn('C++ solver unavailable:', e.message);
             return null;
         }
     }
