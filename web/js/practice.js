@@ -617,16 +617,17 @@ class PracticeSession {
         const numHeroCombos = heroRangeHands.filter(h => !handConflictsWithBoard(h, this.boardCards)).length;
         const numVillainCombos = this.villainRangeHands.filter(h => !handConflictsWithBoard(h, this.boardCards)).length;
         const minCombos = Math.min(numHeroCombos, numVillainCombos);
+        // JS solver params — optimized for best accuracy within browser constraints
         let numBuckets, iterations;
         if (minCombos < 50) {
-            numBuckets = Math.min(15, Math.max(8, Math.floor(minCombos / 3)));
-            iterations = 2000; // small game → more iterations for convergence
+            numBuckets = Math.min(20, Math.max(10, Math.floor(minCombos / 2)));
+            iterations = 2500;
         } else if (minCombos < 200) {
-            numBuckets = Math.min(30, Math.max(15, Math.floor(minCombos / 5)));
-            iterations = 1200;
+            numBuckets = Math.min(40, Math.max(20, Math.floor(minCombos / 4)));
+            iterations = 1500;
         } else {
-            numBuckets = Math.min(40, Math.max(20, Math.floor(minCombos / 6)));
-            iterations = 800;
+            numBuckets = Math.min(50, Math.max(25, Math.floor(minCombos / 5)));
+            iterations = 1000;
         }
 
         try {
@@ -784,10 +785,15 @@ class PracticeSession {
             // Determine round: 1=flop, 2=turn, 3=river
             const round = this.boardCards.length === 3 ? 1 : this.boardCards.length === 4 ? 2 : 3;
 
-            // All streets use C++ solver with Public Chance Sampling for speed
-            // Flop: uses Monte Carlo sampling of turn/river cards (fast but slightly less precise)
-            // Turn/River: fast and precise (fewer chance nodes)
-            const maxRange = round === 1 ? 40 : round === 2 ? 80 : 100;
+            // Flop C++ tree is too large (millions of nodes across 3 streets)
+            // Even with MC sampling, tree BUILDING takes minutes
+            // Solution: use JS solver for flop, C++ for turn/river
+            if (round === 1) {
+                console.log('Flop: using enhanced JS solver (C++ tree too large)');
+                return null;
+            }
+            // Turn/River: C++ solver is fast and PIO-accurate
+            const maxRange = round === 2 ? 80 : 100;
             const ipRange = this.heroIsIP ? heroRangeKeys : villainRangeKeys;
             const oopRange = this.heroIsIP ? villainRangeKeys : heroRangeKeys;
             const trimmedIP = ipRange.length > maxRange ? ipRange.slice(0, maxRange) : ipRange;
