@@ -839,20 +839,54 @@ class PracticeSession {
             const data = await resp.json();
             if (data.error || !data.strategy) return null;
 
-            // Extract hero's hand strategy from the root node
-            const rootStrategy = data.strategy?.strategy;
-            if (!rootStrategy || !rootStrategy.strategy) return null;
+            // Navigate the strategy tree to find hero's decision node
+            // Root = OOP's first action (CHECK/BET)
+            // If hero is IP and NOT facing bet → hero's node is root.childrens["CHECK"]
+            // If hero is IP and facing bet → hero decides at root (OOP bet, IP responds)
+            // If hero is OOP → hero decides at root
+            const heroIsIP = this.heroIsIP;
+            let strategyNode = data.strategy?.strategy;
 
-            const actions = rootStrategy.actions || [];
-            const handStrategies = rootStrategy.strategy;
+            if (heroIsIP && !this.facingBet) {
+                // IP after OOP checks → find CHECK child
+                strategyNode = data.strategy?.childrens?.['CHECK']?.strategy
+                            || strategyNode;
+            } else if (!heroIsIP && this.facingBet) {
+                // OOP facing IP's bet → need to find the bet child
+                // Find the closest bet size in children
+                const children = data.strategy?.childrens || {};
+                for (const [key, child] of Object.entries(children)) {
+                    if (key.startsWith('BET')) {
+                        strategyNode = child?.strategy || strategyNode;
+                        break;
+                    }
+                }
+            }
+            // If hero is OOP not facing bet → root is correct (OOP acts first)
+            // If hero is IP facing bet → root is OOP's bet action, hero responds
+            //   → need the bet child node
+            if (heroIsIP && this.facingBet) {
+                const children = data.strategy?.childrens || {};
+                for (const [key, child] of Object.entries(children)) {
+                    if (key.startsWith('BET')) {
+                        strategyNode = child?.strategy || strategyNode;
+                        break;
+                    }
+                }
+            }
+
+            if (!strategyNode || !strategyNode.strategy) return null;
+
+            const actions = strategyNode.actions || [];
+            const handStrategies = strategyNode.strategy;
 
             // Find hero's specific hand combos
-            const heroKey1 = heroHandStr[0] + heroHandStr[1]; // e.g. "AsKh"
-            const heroKey2 = heroHandStr[1] + heroHandStr[0]; // reversed
+            const heroKey1 = heroHandStr[0] + heroHandStr[1];
+            const heroKey2 = heroHandStr[1] + heroHandStr[0];
             const heroStrat = handStrategies[heroKey1] || handStrategies[heroKey2];
             if (!heroStrat) return null;
 
-            // Convert to our format: {check: 0.94, bet33: 0.06, ...}
+            // Convert to our format
             const strategy = {};
             for (let i = 0; i < actions.length; i++) {
                 const action = actions[i];
