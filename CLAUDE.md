@@ -40,11 +40,28 @@ PokerGTO is a dual-platform poker GTO (Game Theory Optimal) training application
 - **js/profiles.js**: Player profile management with betting tendencies
 - **index.html**: Single-page app entry point (script load order matters: poker-core → cfr-solver → hand-abstraction → preflop-solver → postflop-solver → profiles → preflop-practice → practice)
 
+### C++ Solver (`solver/`)
+- **Forked from**: [TexasSolver](https://github.com/bupticybee/TexasSolver) — Qt dependencies stripped
+- **Algorithm**: Discounted CFR with OpenMP parallelization, suit isomorphism
+- **Hand evaluation**: Pre-computed 7462-rank lookup table (resources/compairer/card5_dic_zipped.bin)
+- **API server**: `src/api_server.cpp` using cpp-httplib, POST `/api/solve`
+- **Deployed**: Railway at `personalizedgtoteacher-production.up.railway.app`
+- **Build**: `cmake -B build && cmake --build build` (Dockerfile provided)
+
+### Server-Side API (`api/`)
+- **api/solve-preflop.js**: Vercel Serverless — JS-based preflop solver (fallback)
+- **api/solve-postflop.js**: Vercel Serverless — JS-based postflop solver (fallback)
+- **C++ API (primary)**: Railway `POST /api/solve` — PIO-level accuracy
+
+### Shared Solver Lib (`lib/`)
+- CommonJS modules extracted from web/js/ for Node.js Serverless Functions
+- `test-solver.js`: Automated quality tests (`node lib/test-solver.js`)
+
 ### Key Design Decisions
-- Zero external dependencies on both platforms — everything is self-contained
+- Zero external dependencies on web frontend — everything is self-contained
 - UI strings are in Chinese; code comments are in English
 - GTO strategy uses 6 positions: UTG, HJ, CO, BTN, SB, BB
-- All computation runs client-side (no backend API)
-- CFR solver uses Monte Carlo sampling (`samplesPerIter: 300`) to keep preflop solve under 1s
-- Postflop uses equity-based hand abstraction (30 buckets) + action abstraction (3 bet sizes: 33%/66%/100% pot)
-- `SolverBackend` interface allows future migration to server-side C++/Rust solver for higher precision
+- **Dual solver architecture**: JS solver (browser, instant, ~80% accuracy) + C++ solver (server, 5-15s, PIO-level accuracy)
+- Preflop: JS CFR with real equity table, Monte Carlo sampling, ~800ms solve
+- Postflop: C++ TexasSolver API for PIO-level precision, JS solver as fallback
+- Frontend calls `getRemoteRecommendation()` → C++ API, falls back to local `getCFRRecommendation()`
