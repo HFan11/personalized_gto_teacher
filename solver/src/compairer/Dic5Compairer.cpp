@@ -138,7 +138,7 @@ bool FiveCardsStrength::check(unordered_map<uint64_t, int>& strength_map) {
 Dic5Compairer::Dic5Compairer(string dic_dir,int lines,string dic_dir_bin):Compairer(std::move(dic_dir),lines){
     if(fcs.load(dic_dir_bin.c_str())) return;
     std::ifstream infile(this->dic_dir);
-    if (!infile.open(QIODevice::ReadOnly)){
+    if (!infile.is_open()){
         throw runtime_error("unable to load compairer file");
     }
     

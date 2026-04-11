@@ -3,11 +3,12 @@ project(TexasSolverAPI CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+add_compile_options(-O2)
 
 # Find OpenMP (optional but recommended for performance)
 find_package(OpenMP)
 
-# Core solver library (no Qt, no GUI)
+# Core solver library (no Qt, no GUI, no experimental)
 set(SOLVER_SOURCES
     src/Card.cpp
     src/Deck.cpp
@@ -24,7 +25,6 @@ set(SOLVER_SOURCES
     src/ranges/RiverRangeManager.cpp
     src/compairer/Dic5Compairer.cpp
     src/solver/Solver.cpp
-    src/solver/CfrSolver.cpp
     src/solver/PCfrSolver.cpp
     src/solver/BestResponse.cpp
     src/trainable/Trainable.cpp
@@ -38,7 +38,6 @@ set(SOLVER_SOURCES
     src/tools/Rule.cpp
     src/tools/StreetSetting.cpp
     src/tools/lookup8.cpp
-    src/tools/progressbar.cpp
     src/tools/utils.cpp
     src/runtime/PokerSolver.cpp
 )
