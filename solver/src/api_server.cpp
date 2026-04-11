@@ -46,6 +46,21 @@ int main(int argc, char* argv[]) {
         res.status = 204;
     });
 
+    // Debug: test solver init on startup
+    cout << "Testing PokerSolver init..." << endl;
+    try {
+        string test_ranks = "2,3,4,5,6,7,8,9,T,J,Q,K,A";
+        string test_suits = "c,d,h,s";
+        string test_cf = resource_dir + "/compairer/card5_dic_sorted.txt";
+        string test_cfb = resource_dir + "/compairer/card5_dic_zipped.bin";
+        PokerSolver test_ps(test_ranks, test_suits, test_cf, 2598961, test_cfb);
+        cout << "PokerSolver init OK!" << endl;
+    } catch (const exception& e) {
+        cerr << "PokerSolver init FAILED: " << e.what() << endl;
+    } catch (...) {
+        cerr << "PokerSolver init FAILED: unknown exception" << endl;
+    }
+
     // Main solve endpoint
     svr.Post("/api/solve", [&resource_dir](const httplib::Request& req, httplib::Response& res) {
         res.set_header("Access-Control-Allow-Origin", "*");
