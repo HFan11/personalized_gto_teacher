@@ -505,13 +505,37 @@ class PreflopPracticeSession {
 
     _buildDescription(type, heroPos, villainPos) {
         const ipLabel = POS_ORDER[heroPos] > POS_ORDER[villainPos] ? '(IP 有位置)' : '(OOP 无位置)';
-        const typeLabels = {
-            rfi: `你在${heroPos}，前面所有人弃牌，你应该？`,
-            vs_raise: `${villainPos}加注开池(2.5BB)，你在${heroPos} ${ipLabel}，你应该？`,
-            vs_3bet: `你在${heroPos}开池2.5BB，${villainPos} 3-Bet到8BB ${ipLabel}。底池10.5BB，有效筹码92BB (SPR 8.8)，你应该？`,
-            vs_4bet: `${villainPos}开池，你3-Bet到8BB，${villainPos} 4-Bet到22BB ${ipLabel}。底池30.5BB，有效筹码78BB (SPR 2.6)，你应该？`,
-        };
-        return typeLabels[type] || '选择你的行动';
+
+        // Dynamic SPR calculation based on actual sizing
+        const open = 2.5, threebet = 8, fourbet = 22, blinds = 1.5, stack = 100;
+
+        if (type === 'rfi') {
+            return `你在${heroPos}，前面所有人弃牌，你应该？`;
+        }
+        if (type === 'vs_raise') {
+            const pot = open + blinds; // 4BB in pot before hero acts
+            return `${villainPos}加注开池(${open}BB)，你在${heroPos} ${ipLabel}，你应该？`;
+        }
+        if (type === 'vs_3bet') {
+            // Hero opened, villain 3bet. Pot = open + 3bet + blinds
+            const pot = open + threebet + blinds;       // 12BB
+            const heroRemaining = stack - open;          // 97.5BB (hero put in open)
+            const toCall = threebet - open;              // 5.5BB to call
+            const callPot = pot + toCall;                // 17.5BB if hero calls
+            const spr = ((heroRemaining - toCall) / callPot).toFixed(1); // SPR after calling
+            return `你在${heroPos}开池${open}BB，${villainPos} 3-Bet到${threebet}BB ${ipLabel}。底池${pot}BB，跟注后SPR ${spr}，你应该？`;
+        }
+        if (type === 'vs_4bet') {
+            // Villain opened, hero 3bet, villain 4bet
+            const pot = open + threebet + fourbet + blinds; // 34BB
+            const heroRemaining = stack - threebet;          // 92BB (hero put in 3bet)
+            const toCall = fourbet - threebet;               // 14BB to call
+            const callPot = pot + toCall;                    // 48BB if hero calls
+            const spr = ((heroRemaining - toCall) / callPot).toFixed(1);
+            return `${villainPos}开池，你3-Bet到${threebet}BB，${villainPos} 4-Bet到${fourbet}BB ${ipLabel}。底池${pot}BB，跟注后SPR ${spr}，你应该？`;
+        }
+
+        return '选择你的行动';
     }
 
     // Process player's answer

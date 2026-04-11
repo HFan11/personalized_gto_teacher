@@ -1453,7 +1453,7 @@ function startPreflopHand() {
         document.getElementById('preflop-scenario-desc').textContent = scenario.description;
         document.getElementById('preflop-hero-badge').textContent = scenario.heroPos;
         document.getElementById('preflop-ip-label').textContent = scenario.heroIsIP ? '(IP 有位置)' : '(OOP 无位置)';
-        document.getElementById('preflop-hero-cards').innerHTML = scenario.heroCards.map(c => renderPlayingCard(c)).join('');
+        document.getElementById('preflop-hero-cards').innerHTML = scenario.heroCards.map(c => renderPlayingCard(c, 'card-dealing')).join('');
         document.getElementById('preflop-hand-label').textContent = scenario.heroHandKey;
 
         // Render action buttons
@@ -1816,8 +1816,8 @@ function renderPracticeHand() {
         '<div class="playing-card facedown"></div><div class="playing-card facedown"></div>';
 
     // Board & hero cards
-    document.getElementById('board-cards').innerHTML = state.boardCards.map(c => renderPlayingCard(c)).join('');
-    document.getElementById('hero-cards').innerHTML = state.heroCards.map(c => renderPlayingCard(c)).join('');
+    document.getElementById('board-cards').innerHTML = state.boardCards.map(c => renderPlayingCard(c, 'card-reveal')).join('');
+    document.getElementById('hero-cards').innerHTML = state.heroCards.map(c => renderPlayingCard(c, 'card-dealing')).join('');
 
     // Hand info (compact row)
     const cat = state.handCategory;
@@ -2593,9 +2593,9 @@ function updateScoreDisplay() {
 // Card Rendering Helpers
 // ============================================================
 
-function renderPlayingCard(card) {
+function renderPlayingCard(card, animClass) {
     const suitClass = {'♠':'spades','♥':'hearts','♦':'diamonds','♣':'clubs'}[card.suit];
-    return `<div class="playing-card ${suitClass}">
+    return `<div class="playing-card ${suitClass} ${animClass || ''}">
         <span class="card-rank">${RANK_DISPLAY[card.rank]}</span>
         <span class="card-suit">${card.suit}</span>
     </div>`;
