@@ -784,14 +784,10 @@ class PracticeSession {
             // Determine round: 1=flop, 2=turn, 3=river
             const round = this.boardCards.length === 3 ? 1 : this.boardCards.length === 4 ? 2 : 3;
 
-            // Flop: C++ solver too slow (expands all turn+river chance nodes, like PIO needs minutes)
-            // Turn/River: C++ solver fast and PIO-accurate on Railway Pro
-            if (round === 1) {
-                console.log('Flop: C++ solver needs minutes (like PIO), using JS solver');
-                return null;
-            }
-            // Railway Pro: full ranges for turn/river
-            const maxRange = round === 2 ? 80 : 100;
+            // All streets use C++ solver with Public Chance Sampling for speed
+            // Flop: uses Monte Carlo sampling of turn/river cards (fast but slightly less precise)
+            // Turn/River: fast and precise (fewer chance nodes)
+            const maxRange = round === 1 ? 40 : round === 2 ? 80 : 100;
             const ipRange = this.heroIsIP ? heroRangeKeys : villainRangeKeys;
             const oopRange = this.heroIsIP ? villainRangeKeys : heroRangeKeys;
             const trimmedIP = ipRange.length > maxRange ? ipRange.slice(0, maxRange) : ipRange;
@@ -810,9 +806,9 @@ class PracticeSession {
                 oop_commit: this.potSize / 2,
                 ip_commit: this.potSize / 2,
                 stack: this.effectiveStack + this.potSize / 2,
-                iterations: 200,
+                iterations: round === 1 ? 300 : 200, // Flop needs more iters for MC sampling
                 accuracy: 0.3,
-                threads: 4,
+                threads: round === 1 ? 8 : 4, // Flop uses all 8 vCPU
                 dump_depth: 2,
             };
 
