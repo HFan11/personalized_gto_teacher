@@ -792,8 +792,9 @@ class PracticeSession {
                 console.log('Flop: using enhanced JS solver (C++ tree too large)');
                 return null;
             }
-            // Turn/River: C++ solver is fast and PIO-accurate
-            const maxRange = round === 2 ? 80 : 100;
+            // Turn/River: C++ solver via Railway Pro
+            // Keep ranges small enough for Vercel proxy 10s timeout
+            const maxRange = round === 2 ? 25 : 40;
             const ipRange = this.heroIsIP ? heroRangeKeys : villainRangeKeys;
             const oopRange = this.heroIsIP ? villainRangeKeys : heroRangeKeys;
             const trimmedIP = ipRange.length > maxRange ? ipRange.slice(0, maxRange) : ipRange;
