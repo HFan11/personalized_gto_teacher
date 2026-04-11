@@ -2033,12 +2033,16 @@ function makeAction(action, sizingPct) {
     if (inlineText) inlineText.innerHTML = '<span style="color:var(--text-muted);"><span class="spinner" style="display:inline-block;width:14px;height:14px;border:2px solid var(--text-muted);border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;vertical-align:middle;margin-right:6px;"></span>分析中...</span>';
 
     (async () => {
-        // Wait for C++ solver result (max 15 seconds, usually ready in 5-13s)
+        // Wait for C++ solver result — but with smart timeout
+        // Check/both-checked: show result quickly (5s max, user wants to move to next street)
+        // Bet/raise/call/fold: can wait longer (user is done with this street)
+        const maxWait = (action === 'check') ? 5000 : 30000;
+
         if (practice._remotePromise) {
             try {
                 const remoteResult = await Promise.race([
                     practice._remotePromise,
-                    new Promise(resolve => setTimeout(() => resolve(null), 45000))
+                    new Promise(resolve => setTimeout(() => resolve(null), maxWait))
                 ]);
                 if (remoteResult && remoteResult.strategy) {
                     practice._remoteStrategy = remoteResult.strategy;
@@ -2051,11 +2055,13 @@ function makeAction(action, sizingPct) {
 
         // Also try JS worker result as second option
         if (!practice._remoteStrategy && typeof solverCache !== 'undefined') {
-            const workerResult = await solverCache.getPreSolvedPostflop();
-            if (workerResult && workerResult.strategy) {
-                const formatted = practice._formatWorkerResult(workerResult);
-                if (formatted) practice._workerResult = formatted;
-            }
+            try {
+                const workerResult = await solverCache.getPreSolvedPostflop();
+                if (workerResult && workerResult.strategy) {
+                    const formatted = practice._formatWorkerResult(workerResult);
+                    if (formatted) practice._workerResult = formatted;
+                }
+            } catch(e) {}
         }
 
         const result = practice.processAction(action, actionLogSnapshot);
