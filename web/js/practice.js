@@ -758,7 +758,9 @@ class PracticeSession {
 
     // C++ Solver API call (TexasSolver on Railway)
     // Returns PIO-level accurate strategy for hero's specific hand
-    static SOLVER_API_URL = 'https://personalizedgtoteacher-production.up.railway.app';
+    // Use Vercel proxy (/api/solve-cpp) to avoid CORS/proxy issues
+    // Vercel → Railway C++ solver
+    static SOLVER_API_URL = '';
 
     async getRemoteRecommendation() {
         try {
@@ -790,13 +792,13 @@ class PracticeSession {
                 oop_commit: this.potSize / 2,
                 ip_commit: this.potSize / 2,
                 stack: this.effectiveStack + this.potSize / 2,
-                iterations: 80,
+                iterations: 60, // Keep under Vercel 10s timeout
                 accuracy: 0.5,
                 threads: 2,
                 dump_depth: 1,
             };
 
-            const resp = await fetch(PracticeSession.SOLVER_API_URL + '/api/solve', {
+            const resp = await fetch('/api/solve-cpp', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body),
