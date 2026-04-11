@@ -5,3 +5,6 @@ node_modules/
 *.xcodeproj/
 PokerGTO/
 test_core.swift
+solver/resources/compairer/card5_dic_sorted.txt
+solver/resources/compairer/card5_dic_sorted_shortdeck.txt
+solver/build/
