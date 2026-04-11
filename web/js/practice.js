@@ -813,9 +813,9 @@ class PracticeSession {
                 oop_commit: this.potSize / 2,
                 ip_commit: this.potSize / 2,
                 stack: this.effectiveStack + this.potSize / 2,
-                iterations: round === 1 ? 300 : 200, // Flop needs more iters for MC sampling
-                accuracy: 0.3,
-                threads: round === 1 ? 8 : 4, // Flop uses all 8 vCPU
+                iterations: 50, // Fit within Vercel proxy 10s timeout (~3s solve + 4s overhead)
+                accuracy: 0.5,
+                threads: 2,
                 dump_depth: 2,
             };
 
