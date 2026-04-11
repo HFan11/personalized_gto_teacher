@@ -213,6 +213,5 @@ string Card::toString() {
 }
 
 string Card::toFormattedString() {
-}
-
+    return this->card;
 }
