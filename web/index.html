@@ -1824,17 +1824,21 @@ function renderPracticeHand() {
     const boardEl = document.getElementById('board-cards');
     const heroEl = document.getElementById('hero-cards');
 
+    // Cancel any pending board flip from previous render
+    if (window._boardFlipTimer) clearTimeout(window._boardFlipTimer);
+    if (window._heroFlipTimer) clearTimeout(window._heroFlipTimer);
+
     // Step 1: show facedown cards
     heroEl.innerHTML = '<div class="playing-card facedown"></div><div class="playing-card facedown"></div>';
     boardEl.innerHTML = state.boardCards.map(() => '<div class="playing-card facedown"></div>').join('');
 
     // Step 2: flip hero cards after 400ms
-    setTimeout(() => {
+    window._heroFlipTimer = setTimeout(() => {
         heroEl.innerHTML = state.heroCards.map(c => renderPlayingCard(c, 'card-flip-in')).join('');
     }, 400);
 
-    // Step 3: flip board cards after 900ms
-    setTimeout(() => {
+    // Step 3: flip board cards after 900ms (may be overridden by nextStreet)
+    window._boardFlipTimer = setTimeout(() => {
         boardEl.innerHTML = state.boardCards.map(c => renderPlayingCard(c, 'card-flip-in')).join('');
     }, 900);
 
@@ -2581,51 +2585,43 @@ function nextStreet() {
     currentState = practice.dealNextStreet();
     addVillainPostflopAction();
 
-    // Only animate the NEW card — keep existing board cards static
-    const boardEl = document.getElementById('board-cards');
-    const existingCards = practice.boardCards.slice(0, prevBoardCount).map(c => renderPlayingCard(c)).join('');
-    const newCard = practice.boardCards.slice(prevBoardCount).map(c => {
-        // Show facedown first, flip after delay
-        return '<div class="playing-card facedown card-new-street"></div>';
-    }).join('');
-    boardEl.innerHTML = existingCards + newCard;
+    // Use standard renderPracticeHand (handles action buttons, villain action, etc.)
+    renderPracticeHand();
 
-    // Flip new card after 300ms
+    // Cancel the full-board flip timer from renderPracticeHand
+    if (window._boardFlipTimer) clearTimeout(window._boardFlipTimer);
+    // Also don't re-flip hero cards on turn/river
+    if (window._heroFlipTimer) {
+        clearTimeout(window._heroFlipTimer);
+        // Show hero cards immediately (already known)
+        document.getElementById('hero-cards').innerHTML = practice.heroCards.map(c => renderPlayingCard(c)).join('');
+    }
+
+    // Override board: existing cards shown immediately, only new card flips
     setTimeout(() => {
-        const newCards = practice.boardCards.slice(prevBoardCount);
-        boardEl.innerHTML = existingCards + newCards.map(c => renderPlayingCard(c, 'card-flip-in')).join('');
-    }, 300);
+        const boardEl = document.getElementById('board-cards');
+        const existingHtml = practice.boardCards.slice(0, prevBoardCount).map(c => renderPlayingCard(c)).join('');
+        const newHtml = practice.boardCards.slice(prevBoardCount).map(c => '<div class="playing-card facedown"></div>').join('');
+        boardEl.innerHTML = existingHtml + newHtml;
 
-    // Update rest of the display (without re-rendering board)
-    const state = currentState;
-    document.getElementById('pot-display').textContent = state.potSize.toFixed(1) + 'BB';
-    document.getElementById('spr-display').textContent = state.spr.toFixed(1);
-    document.getElementById('street-display').textContent = state.street.charAt(0).toUpperCase() + state.street.slice(1);
-    const cat = state.handCategory;
-    const eqPct = (state.equity * 100).toFixed(0);
-    document.getElementById('hand-category-badge').textContent = cat.categoryCN;
-    document.getElementById('hand-category-badge').className = 'badge ' + getCategoryBadgeClass(cat.category);
-    document.getElementById('equity-text').textContent = eqPct + '%';
-    document.getElementById('equity-fill').style.width = eqPct + '%';
-    document.getElementById('equity-fill').style.background = getEquityColor(state.equity);
-    document.getElementById('action-buttons').style.display = 'flex';
-    document.getElementById('sizing-area').style.display = 'none';
-    document.getElementById('confirm-bet-area').style.display = 'none';
-    document.getElementById('inline-result').style.display = 'none';
-    renderTimeline();
-    showRangeAnalysis();
+        // Flip only the new card
+        setTimeout(() => {
+            const newCards = practice.boardCards.slice(prevBoardCount);
+            boardEl.innerHTML = existingHtml + newCards.map(c => renderPlayingCard(c, 'card-flip-in')).join('');
+        }, 300);
+    }, 50); // Override right after renderPracticeHand's initial facedown render
 
     // Pre-solve new street in worker
-    if (typeof solverCache !== 'undefined' && state.boardCards) {
+    if (typeof solverCache !== 'undefined' && currentState && currentState.boardCards) {
         const heroRange = practice.heroRangeHands || [];
         const villainRange = practice.villainRangeHands || [];
         if (heroRange.length > 0 && villainRange.length > 0) {
             solverCache.preSolvePostflop({
-                heroRange, villainRange, board: state.boardCards,
-                holeCards: state.heroCards,
-                pot: state.potSize, stack: state.effectiveStack,
-                heroIsIP: state.heroIsIP || state.inPosition,
-                street: state.street,
+                heroRange, villainRange, board: currentState.boardCards,
+                holeCards: currentState.heroCards,
+                pot: currentState.potSize, stack: currentState.effectiveStack,
+                heroIsIP: currentState.heroIsIP || currentState.inPosition,
+                street: currentState.street,
                 facingBet: practice.facingBet,
                 betSizePct: practice.facingBet ? practice.villainBetSize / practice.potSize : 0,
                 betSizes: [0.33, 0.66, 1.0], numBuckets: 30, iterations: 1000, simsPerHand: 150,
