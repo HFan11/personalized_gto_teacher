@@ -758,9 +758,9 @@ class PracticeSession {
 
     // C++ Solver API call (TexasSolver on Railway)
     // Returns PIO-level accurate strategy for hero's specific hand
-    // Use Vercel proxy (/api/solve-cpp) to avoid CORS/proxy issues
-    // Vercel → Railway C++ solver
-    static SOLVER_API_URL = '';
+    // Try Railway directly first (faster, no 10s Vercel timeout)
+    // Falls back to Vercel proxy if direct fails (Zscaler etc)
+    static SOLVER_API_URL = 'https://personalizedgtoteacher-production.up.railway.app';
 
     async getRemoteRecommendation() {
         try {
@@ -812,13 +812,25 @@ class PracticeSession {
                 dump_depth: 1,
             };
 
-            const resp = await fetch('/api/solve-cpp', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body),
-            });
+            // Try Railway directly (no 10s timeout), fallback to Vercel proxy
+            let resp;
+            try {
+                resp = await fetch(PracticeSession.SOLVER_API_URL + '/api/solve', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                });
+            } catch(directErr) {
+                // Direct failed (CORS/proxy) — try Vercel proxy
+                console.log('Direct Railway failed, trying Vercel proxy');
+                resp = await fetch('/api/solve-cpp', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                });
+            }
 
-            if (!resp.ok) return null;
+            if (!resp || !resp.ok) return null;
             const data = await resp.json();
             if (data.error || !data.strategy) return null;
 
