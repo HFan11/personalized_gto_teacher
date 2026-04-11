@@ -40,6 +40,7 @@ set(SOLVER_SOURCES
     src/tools/lookup8.cpp
     src/tools/utils.cpp
     src/runtime/PokerSolver.cpp
+    src/library.cpp
 )
 
 add_library(solver_core STATIC ${SOLVER_SOURCES})
