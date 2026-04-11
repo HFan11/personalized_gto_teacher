@@ -784,10 +784,15 @@ class PracticeSession {
             // Determine round: 1=flop, 2=turn, 3=river
             const round = this.boardCards.length === 3 ? 1 : this.boardCards.length === 4 ? 2 : 3;
 
-            // Trim ranges to fit within Vercel 10s timeout
-            // Flop: more complex (chance nodes for turn+river), need smaller range
-            // Turn: moderate, River: simple
-            const maxRange = round === 1 ? 15 : round === 2 ? 25 : 40;
+            // Flop is too heavy for C++ solver on free tier (memory + time)
+            // Only use C++ for turn and river where it's fast and accurate
+            if (round === 1) {
+                console.log('Flop: using local JS solver (C++ too heavy for free tier)');
+                return null;
+            }
+
+            // Trim ranges: turn needs smaller, river can be larger
+            const maxRange = round === 2 ? 25 : 40;
             const ipRange = this.heroIsIP ? heroRangeKeys : villainRangeKeys;
             const oopRange = this.heroIsIP ? villainRangeKeys : heroRangeKeys;
             const trimmedIP = ipRange.length > maxRange ? ipRange.slice(0, maxRange) : ipRange;
