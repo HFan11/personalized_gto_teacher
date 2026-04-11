@@ -2610,6 +2610,13 @@ function nextStreet() {
     // Use standard renderPracticeHand (handles action buttons, villain action, etc.)
     renderPracticeHand();
 
+    // Fire C++ solver for turn/river (the key integration!)
+    practice._remotePromise = practice.getRemoteRecommendation();
+    practice._remotePromise.then(r => {
+        if (r) console.log(`C++ solver ready for ${practice.street}: ${Math.round(r.solveTimeMs)}ms`);
+        else console.log(`C++ solver: not used for ${practice.street}`);
+    }).catch(() => {});
+
     // Cancel the full-board flip timer from renderPracticeHand
     if (window._boardFlipTimer) clearTimeout(window._boardFlipTimer);
     // Also don't re-flip hero cards on turn/river
