@@ -784,8 +784,14 @@ class PracticeSession {
             // Determine round: 1=flop, 2=turn, 3=river
             const round = this.boardCards.length === 3 ? 1 : this.boardCards.length === 4 ? 2 : 3;
 
-            // Railway Pro: 8GB RAM, 8 vCPU — all streets enabled
-            const maxRange = round === 1 ? 60 : round === 2 ? 80 : 100;
+            // Flop: C++ solver too slow (expands all turn+river chance nodes, like PIO needs minutes)
+            // Turn/River: C++ solver fast and PIO-accurate on Railway Pro
+            if (round === 1) {
+                console.log('Flop: C++ solver needs minutes (like PIO), using JS solver');
+                return null;
+            }
+            // Railway Pro: full ranges for turn/river
+            const maxRange = round === 2 ? 80 : 100;
             const ipRange = this.heroIsIP ? heroRangeKeys : villainRangeKeys;
             const oopRange = this.heroIsIP ? villainRangeKeys : heroRangeKeys;
             const trimmedIP = ipRange.length > maxRange ? ipRange.slice(0, maxRange) : ipRange;
