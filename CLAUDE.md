@@ -30,15 +30,18 @@ PokerGTO is a dual-platform poker GTO (Game Theory Optimal) training application
 #### Core Engine
 - **js/poker-core.js**: Card evaluation, hand ranking, Monte Carlo equity calculation
 - **js/cfr-solver.js**: CFR+ (Counterfactual Regret Minimization Plus) core engine — `InfoSet`, `GameNode`, `CFRSolver` classes. Supports Monte Carlo sampling via `samplesPerIter` option. Includes `LocalSolverBackend`/`RemoteSolverBackend` interface for future server deployment.
+- **js/solver-cache.js**: Caching layer for solver results
 - **js/hand-abstraction.js**: Equity bucketing for hand abstraction — `computeEquityBuckets()`, `handToCanonical()`, range expansion utilities
 - **js/preflop-solver.js**: Preflop game tree builder + CFR+ solver. Singleton `PreflopSolver.getInstance()`. Solves RFI, vs-raise, vs-3bet, vs-4bet scenarios. ~800ms for full solve with Monte Carlo sampling.
+- **js/precomputed-lookup.js**: Pre-computed lookup tables for solver performance
 - **js/postflop-solver.js**: Postflop per-street CFR+ solver. Takes hero/villain ranges + board, computes equity buckets, builds bet/check/raise tree, solves in ~1-2s.
+- **js/solver-worker.js**: Web Worker for running solver off main thread
 
 #### Application Logic
 - **js/practice.js**: Postflop practice mode. `getRecommendation()` tries CFR solver first (`getCFRRecommendation()`), falls back to heuristic method (`_getHeuristicRecommendation()`).
 - **js/preflop-practice.js**: Preflop training. `_getCorrectAction()` tries CFR solver (`_getCFRAction()`), falls back to static ranges (`_getStaticAction()`).
 - **js/profiles.js**: Player profile management with betting tendencies
-- **index.html**: Single-page app entry point (script load order matters: poker-core → cfr-solver → hand-abstraction → preflop-solver → postflop-solver → profiles → preflop-practice → practice)
+- **index.html**: Single-page app entry point (script load order matters: poker-core → cfr-solver → solver-cache → hand-abstraction → preflop-solver → precomputed-lookup → postflop-solver → profiles → preflop-practice → practice)
 
 ### C++ Solver (`solver/`)
 - **Forked from**: [TexasSolver](https://github.com/bupticybee/TexasSolver) — Qt dependencies stripped
@@ -51,6 +54,7 @@ PokerGTO is a dual-platform poker GTO (Game Theory Optimal) training application
 ### Server-Side API (`api/`)
 - **api/solve-preflop.js**: Vercel Serverless — JS-based preflop solver (fallback)
 - **api/solve-postflop.js**: Vercel Serverless — JS-based postflop solver (fallback)
+- **api/solve-cpp.js**: Vercel Serverless — proxy to C++ solver API
 - **C++ API (primary)**: Railway `POST /api/solve` — PIO-level accuracy
 
 ### Shared Solver Lib (`lib/`)

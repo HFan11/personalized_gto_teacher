@@ -1081,14 +1081,20 @@ class PracticeSession {
                 label = { cn: key, color: '#666', sizing: '-', base: key };
             }
 
-            advice.push({
-                action: label.base,
-                actionCN: label.cn,
-                frequency: pct,
-                sizing: label.sizing,
-                reasoning: this._buildCFRReasoning(label.base, pct, handCategory, equity, spr, boardTexture, rangeComp, this.facingBet, this.villainBetSize, this.potSize),
-                color: label.color,
-            });
+            // Merge into existing action with same display name (e.g., two BET sizes both "1/3底池")
+            const existing = advice.find(a => a.actionCN === label.cn);
+            if (existing) {
+                existing.frequency += pct;
+            } else {
+                advice.push({
+                    action: label.base,
+                    actionCN: label.cn,
+                    frequency: pct,
+                    sizing: label.sizing,
+                    reasoning: this._buildCFRReasoning(label.base, pct, handCategory, equity, spr, boardTexture, rangeComp, this.facingBet, this.villainBetSize, this.potSize),
+                    color: label.color,
+                });
+            }
         }
 
         if (advice.length === 0) return null;
