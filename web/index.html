@@ -6,7 +6,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Personalized Poker Teacher</title>
-    <link rel="stylesheet" href="css/style.css?v=26">
+    <link rel="stylesheet" href="css/style.css?v=27">
 </head>
 <body>
 
@@ -296,6 +296,21 @@
                         <span style="font-size:11px;" id="setup-villain-range-info"></span>
                     </div>
                     <div style="font-size:11px; color:var(--text-muted); margin-top:4px;" id="pot-type-summary"></div>
+
+                    <!-- Hand Picker -->
+                    <div class="hand-picker-section">
+                        <div class="hand-picker-toggle" onclick="toggleHandPicker()">
+                            <span>🃏 选择起手牌（可选）</span>
+                            <span id="hand-picker-arrow">▼</span>
+                        </div>
+                        <div id="hand-picker-panel" style="display:none;">
+                            <div class="hand-picker-grid">
+                                <div class="hand-matrix" id="postflop-hand-matrix" style="font-size:9px;"></div>
+                            </div>
+                            <div class="hand-picker-status" id="hand-picker-status"></div>
+                        </div>
+                    </div>
+
                     <button class="btn btn-primary btn-block" style="margin-top:12px;" onclick="startPracticeHand()" id="deal-btn">
                         发牌开始
                     </button>
@@ -1566,6 +1581,7 @@ function selectPotType(type, el) {
     if (el) el.classList.add('active');
     updatePotTypeSummary();
     updateSetupRangeInfo();
+    if (document.getElementById('hand-picker-panel')?.style.display !== 'none') renderPostflopHandPicker();
 }
 
 function selectAggressor(who, el) {
@@ -1574,6 +1590,7 @@ function selectAggressor(who, el) {
     if (el) el.classList.add('active');
     updatePotTypeSummary();
     updateSetupRangeInfo();
+    if (document.getElementById('hand-picker-panel')?.style.display !== 'none') renderPostflopHandPicker();
 }
 
 function updatePotTypeSummary() {
@@ -1623,6 +1640,7 @@ function renderPracticePage() {
 
     // Show range info for selected positions
     updateSetupRangeInfo();
+    if (document.getElementById('hand-picker-panel')?.style.display !== 'none') renderPostflopHandPicker();
     updateScoreDisplay();
 }
 
@@ -1646,6 +1664,7 @@ function selectPracticePos(pos, el) {
         });
     }
     updateSetupRangeInfo();
+    if (document.getElementById('hand-picker-panel')?.style.display !== 'none') renderPostflopHandPicker();
 }
 
 function selectPracticeVillainPos(pos, el) {
@@ -1663,6 +1682,77 @@ function selectPracticeVillainPos(pos, el) {
         });
     }
     updateSetupRangeInfo();
+    if (document.getElementById('hand-picker-panel')?.style.display !== 'none') renderPostflopHandPicker();
+}
+
+// ============================================================
+// Hand Picker for Postflop Practice
+// ============================================================
+let selectedHeroHand = null; // canonical key like "AKo" or null for random
+
+function toggleHandPicker() {
+    const panel = document.getElementById('hand-picker-panel');
+    const arrow = document.getElementById('hand-picker-arrow');
+    if (panel.style.display === 'none') {
+        panel.style.display = 'block';
+        arrow.textContent = '▲';
+        renderPostflopHandPicker();
+    } else {
+        panel.style.display = 'none';
+        arrow.textContent = '▼';
+    }
+}
+
+function renderPostflopHandPicker() {
+    const matrix = getHandMatrix();
+    const container = document.getElementById('postflop-hand-matrix');
+    if (!container) return;
+
+    // Get hero's range for current position
+    const heroRange = selectedHeroId && currentPracticePos
+        ? (pm.getRange(selectedHeroId, currentPracticePos) || [])
+        : [];
+    const rangeSet = new Set(heroRange);
+
+    let html = '';
+    for (let i = 0; i < 13; i++) {
+        for (let j = 0; j < 13; j++) {
+            const hand = matrix[i][j];
+            const inRange = rangeSet.has(hand);
+            const isSelected = selectedHeroHand === hand;
+            const cls = isSelected ? 'hand-selected' : (inRange ? 'in-range' : 'out-range');
+            html += `<div class="matrix-cell ${cls}" onclick="selectHeroHand('${hand}')" title="${hand}${inRange ? '' : ' (范围外)'}">${hand}</div>`;
+        }
+    }
+    container.innerHTML = html;
+    updateHandPickerStatus();
+}
+
+function selectHeroHand(handKey) {
+    if (selectedHeroHand === handKey) {
+        // Deselect
+        selectedHeroHand = null;
+    } else {
+        selectedHeroHand = handKey;
+    }
+    renderPostflopHandPicker();
+}
+
+function updateHandPickerStatus() {
+    const el = document.getElementById('hand-picker-status');
+    if (!el) return;
+
+    if (selectedHeroHand) {
+        const heroRange = selectedHeroId && currentPracticePos
+            ? (pm.getRange(selectedHeroId, currentPracticePos) || [])
+            : [];
+        const inRange = heroRange.includes(selectedHeroHand);
+        el.innerHTML = `<strong style="color:var(--accent-blue);">${selectedHeroHand}</strong>` +
+            (inRange ? ' <span style="color:#2ecc71;">✓ 范围内</span>' : ' <span style="color:#e67e22;">⚠ 范围外</span>') +
+            ` <button onclick="selectedHeroHand=null;renderPostflopHandPicker();" style="margin-left:8px;font-size:11px;color:var(--text-muted);background:none;border:1px solid var(--border-color);border-radius:4px;padding:2px 8px;cursor:pointer;">清除</button>`;
+    } else {
+        el.innerHTML = '<span style="color:var(--text-muted);">未选择 — 将随机发牌</span>';
+    }
 }
 
 function updateSetupRangeInfo() {
@@ -1703,7 +1793,7 @@ function startPracticeHand() {
 
         currentState = practice.startNewHand(
             selectedVillainId, currentPracticePos, selectedHeroId, currentPracticeVillainPos,
-            currentPotType, isVillainAggressor
+            currentPotType, isVillainAggressor, selectedHeroHand
         );
         if (!currentState) {
             if (dealBtn) dealBtn.textContent = '发牌开始';

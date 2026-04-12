@@ -94,7 +94,7 @@ class PracticeSession {
     // Start a new practice hand
     // potType: 'srp' | 'threebet' | 'fourbet'
     // isVillainAggressor: true if villain was the last raiser preflop
-    startNewHand(profileId, heroPos, heroProfileId, villainPos, potType, isVillainAggressor) {
+    startNewHand(profileId, heroPos, heroProfileId, villainPos, potType, isVillainAggressor, heroHandOverride) {
         this.currentProfile = this.pm.getById(profileId);
         if (!this.currentProfile) return null;
 
@@ -141,9 +141,14 @@ class PracticeSession {
         }
         this.villainRangeHands = this.pm.rangeToHands(villainRange);
 
-        // Deal hero from their range (if available), else random
+        // Deal hero cards
         this.deck = shuffleDeck(fullDeck());
-        if (heroRangeHands.length > 0) {
+        if (heroHandOverride) {
+            // User selected a specific hand (e.g., "AKo") — deal that hand
+            const combos = expandHandToComboCards(heroHandOverride);
+            const shuffledCombos = combos.sort(() => Math.random() - 0.5);
+            this.heroCards = shuffledCombos[0]; // random suit combo of selected hand
+        } else if (heroRangeHands.length > 0) {
             this.heroCards = heroRangeHands[Math.floor(Math.random() * heroRangeHands.length)];
         } else {
             this.heroCards = [this.deck.pop(), this.deck.pop()];

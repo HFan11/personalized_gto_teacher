@@ -553,6 +553,38 @@ body {
     color: white;
 }
 
+/* Hand picker for postflop practice */
+.matrix-cell.in-range {
+    background: rgba(46, 204, 113, 0.25);
+    color: var(--text-primary);
+    border: 1px solid rgba(46, 204, 113, 0.4);
+}
+.matrix-cell.out-range {
+    background: var(--bg-secondary);
+    color: var(--text-muted);
+    opacity: 0.5;
+}
+.matrix-cell.hand-selected {
+    background: var(--accent-blue) !important;
+    color: white !important;
+    opacity: 1 !important;
+    box-shadow: 0 0 0 2px white, 0 0 0 4px var(--accent-blue);
+    transform: scale(1.1);
+    z-index: 2;
+}
+.hand-picker-section {
+    margin-top: 12px;
+}
+.hand-picker-toggle {
+    display: flex; align-items: center; justify-content: space-between;
+    cursor: pointer; padding: 8px 0; color: var(--text-secondary); font-size: 13px;
+}
+.hand-picker-toggle:hover { color: var(--text-primary); }
+.hand-picker-grid { margin-top: 8px; }
+.hand-picker-status {
+    margin-top: 6px; font-size: 12px; display: flex; align-items: center; gap: 8px;
+}
+
 .matrix-legend {
     display: flex;
     gap: 16px;
