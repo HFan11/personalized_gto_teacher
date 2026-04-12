@@ -1006,6 +1006,13 @@ class PracticeSession {
     // GTO Recommendation — async worker-first, sync fallback
     // ============================================================
     getRecommendation() {
+        // Priority 0: Precomputed lookup (PIO-level, zero latency)
+        if (this._precomputedResult) {
+            const result = this._precomputedResult;
+            this._precomputedResult = null;
+            return result;
+        }
+
         // Priority 1: C++ TexasSolver result (PIO-level accuracy)
         if (this._remoteStrategy) {
             const formatted = this._formatRemoteStrategy(this._remoteStrategy);

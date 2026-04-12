@@ -769,6 +769,7 @@
 <script src="js/solver-cache.js?v=1"></script>
 <script src="js/hand-abstraction.js?v=4"></script>
 <script src="js/preflop-solver.js?v=2"></script>
+<script src="js/precomputed-lookup.js?v=1"></script>
 <script src="js/postflop-solver.js?v=2"></script>
 <script src="js/profiles.js?v=20"></script>
 <script src="js/preflop-practice.js?v=23"></script>
@@ -802,6 +803,12 @@ let actionLog = []; // action history for timeline
 
 function enterApp() {
     document.getElementById('page-cover').classList.remove('active');
+    // Load precomputed strategy index in background
+    if (typeof precomputedLookup !== 'undefined') {
+        precomputedLookup.loadIndex().then(ok => {
+            if (ok) console.log('Precomputed strategies loaded');
+        });
+    }
     if (!localStorage.getItem('pokergto_onboarded')) {
         showWizard();
     } else {
@@ -2033,9 +2040,22 @@ function makeAction(action, sizingPct) {
     if (inlineText) inlineText.innerHTML = '<span style="color:var(--text-muted);"><span class="spinner" style="display:inline-block;width:14px;height:14px;border:2px solid var(--text-muted);border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;vertical-align:middle;margin-right:6px;"></span>分析中...</span>';
 
     (async () => {
-        // Wait for C++ solver result — but with smart timeout
-        // Check/both-checked: show result quickly (5s max, user wants to move to next street)
-        // Bet/raise/call/fold: can wait longer (user is done with this street)
+        // Priority 0: Try precomputed lookup (instant, PIO-level)
+        if (typeof precomputedLookup !== 'undefined' && currentState?.boardCards) {
+            const precomp = await precomputedLookup.getStrategy(
+                currentState.boardCards, practice.heroCards,
+                practice.heroIsIP, practice.facingBet
+            );
+            if (precomp) {
+                const formatted = practice._formatRemoteStrategy(precomp.strategy);
+                if (formatted) {
+                    practice._precomputedResult = formatted;
+                    console.log(`Precomputed: matched ${precomp.matchedBoard} (${precomp.matchCategory})`);
+                }
+            }
+        }
+
+        // Priority 1: C++ solver result — smart timeout
         const maxWait = (action === 'check') ? 5000 : 30000;
 
         if (practice._remotePromise) {
