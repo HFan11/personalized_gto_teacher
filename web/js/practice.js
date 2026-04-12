@@ -939,12 +939,22 @@ class PracticeSession {
 
         let desc = `${catCN}(权益${eqPct}%)`;
 
-        // Add board context for specific situations
-        if (paired && (cat === 'mediumMade' || cat === 'weakMade')) {
-            desc += '——公牌有对子，你的成牌可能被trips压制';
+        // Board-aware context (avoid generic statements)
+        if (paired) {
+            if (cat === 'nuts' || cat === 'strongMade' || str >= 0.7) {
+                // Strong hand on paired board — you benefit from the pair
+                desc += '——强牌在配对面';
+            } else if (cat === 'air' || str < 0.15) {
+                desc += '——公牌有对子，你没有connect';
+            } else {
+                // Medium/weak hand — the pair could mean opponent has trips
+                desc += '——公牌有对子，对手可能有暗三';
+            }
         } else if (mono && cat !== 'nuts' && !handCategory.blockerInfo?.blocksNutFlush) {
-            desc += '——单色面没有同花';
-        } else if (cat === 'air' || cat === 'weakDraw') {
+            desc += '——单色面你没有同花';
+        } else if (connected && (cat === 'air' || cat === 'weakDraw')) {
+            desc += '——连接面你没有顺子';
+        } else if (cat === 'air') {
             desc += '——当前没有成牌';
         }
         return desc + '。';
