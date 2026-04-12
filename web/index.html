@@ -2002,6 +2002,9 @@ function confirmBet() {
 // ============================================================
 
 function makeAction(action, sizingPct) {
+    // Unique ID to prevent stale async results from overwriting current action
+    const thisActionId = Date.now();
+    practice._pendingActionId = thisActionId;
     const actionLogSnapshot = [...actionLog];
     const streetLabel = currentState.street.charAt(0).toUpperCase() + currentState.street.slice(1);
     let betSizeLabel = '';
@@ -2083,6 +2086,10 @@ function makeAction(action, sizingPct) {
                 }
             } catch(e) {}
         }
+
+        // Guard: only process if this action hasn't been superseded
+        // (e.g., user quickly moved to next street while async was pending)
+        if (practice._pendingActionId !== thisActionId) return;
 
         const result = practice.processAction(action, actionLogSnapshot);
         showInlineResult(result, actionLabel, betSizeLabel, facingBet);
