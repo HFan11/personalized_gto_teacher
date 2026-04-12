@@ -918,117 +918,141 @@ class PracticeSession {
         }
     }
 
-    // Build professional poker reasoning (like Linus/Limitless analysis)
+    // Data-driven poker reasoning — answers: what do you have, why this action, key insight
     _buildCFRReasoning(action, freq, handCategory, equity, spr, boardTexture, rangeComp, facingBet, villainBetSize, potSize) {
-        const eqPct = (equity * 100).toFixed(0);
+        const parts = [];
+        parts.push(this._describeHand(handCategory, equity, boardTexture));
+        parts.push(this._explainAction(action, freq, handCategory, equity, spr, boardTexture, rangeComp, facingBet, villainBetSize, potSize));
+        const insight = this._keyInsight(action, handCategory, rangeComp, spr, boardTexture);
+        if (insight) parts.push(insight);
+        return parts.join('');
+    }
+
+    // Part 1: What do you have on this board?
+    _describeHand(handCategory, equity, boardTexture) {
         const catCN = handCategory.categoryCN;
+        const eqPct = (equity * 100).toFixed(0);
         const cat = handCategory.category;
+        const paired = boardTexture?.isPaired;
+        const connected = boardTexture?.connectedness === 'connected';
+        const mono = boardTexture?.isMonotone;
+
+        let desc = `${catCN}(权益${eqPct}%)`;
+
+        // Add board context for specific situations
+        if (paired && (cat === 'mediumMade' || cat === 'weakMade')) {
+            desc += '——公牌有对子，你的成牌可能被trips压制';
+        } else if (mono && cat !== 'nuts' && !handCategory.blockerInfo?.blocksNutFlush) {
+            desc += '——单色面没有同花';
+        } else if (cat === 'air' || cat === 'weakDraw') {
+            desc += '——当前没有成牌';
+        }
+        return desc + '。';
+    }
+
+    // Part 2: Why this action? (data-driven, not template)
+    _explainAction(action, freq, handCategory, equity, spr, boardTexture, rangeComp, facingBet, villainBetSize, potSize) {
         const str = handCategory.strength;
-        const wet = boardTexture ? boardTexture.wetness : 'medium';
-        const wetCN = wet === 'wet' ? '湿润' : wet === 'dry' ? '干燥' : '中等';
-        const blockers = handCategory.blockerInfo || {};
-
-        // Villain range context
-        let rangeCtx = '';
-        if (rangeComp) {
-            const vp = rangeComp.valuePct || 0;
-            const bp = rangeComp.bluffPct || 0;
-            const dp = rangeComp.drawPct || 0;
-            const beats = rangeComp.beatsHeroPct || 0;
-            const heroTop = rangeComp.heroPercentile || 50;
-            rangeCtx = `对手范围中value ${vp}%/draw ${dp}%/air ${bp}%`;
-            if (beats > 0) rangeCtx += `，${beats}%的combo强于你`;
-        }
-
-        // Pot odds if facing bet
-        let oddsCtx = '';
-        if (facingBet && villainBetSize > 0 && potSize > 0) {
-            const potOdds = Math.round(villainBetSize / (potSize + villainBetSize) * 100);
-            oddsCtx = `底池赔率需要${potOdds}%权益`;
-        }
-
-        // SPR context
-        const sprCtx = spr < 2 ? '筹码极浅(SPR<2)已承诺底池' : spr < 4 ? '筹码较浅(SPR<4)' : spr > 12 ? '深筹码' : '';
-
+        const cat = handCategory.category;
         const isRiver = this.street === 'river';
         const isIP = this.heroIsIP;
+        const beats = rangeComp?.beatsHeroPct || 0;
+        const loses = rangeComp?.losesToHeroPct || 0;
+        const heroTop = rangeComp?.heroPercentile || 50;
+        const vAir = rangeComp?.bluffPct || 0;
+        const vValue = rangeComp?.valuePct || 0;
 
-        switch (action) {
-            case 'check':
-                if (isRiver && isIP) {
-                    // IP river check = showdown. No "trap" possible.
-                    if (str >= 0.6) {
-                        return `${catCN}(权益${eqPct}%)过牌摊牌——虽然牌力不错，但下注后对手只会用更强的牌跟注(更差的弃牌)，过牌摊牌锁定权益。${rangeCtx || ''}`;
-                    }
-                    return `${catCN}(权益${eqPct}%)过牌摊牌。${rangeCtx ? rangeCtx + '。' : ''}有showdown value但下注价值不足。`;
-                }
-                if (isRiver && !isIP) {
-                    // OOP river check: either give up or check-raise trap
-                    if (cat === 'nuts' || cat === 'strongMade') {
-                        return `${catCN}(权益${eqPct}%)过牌陷阱——河牌OOP强牌过牌诱导IP下注，然后check-raise获取最大价值。${rangeCtx || ''}`;
-                    }
-                    return `${catCN}(权益${eqPct}%)过牌。${str > 0.3 ? '有一定摊牌价值，等待对手过牌摊牌。' : '放弃，手牌无价值。'}`;
-                }
-                // Flop/Turn check
-                if (cat === 'nuts' || cat === 'strongMade') {
-                    if (isIP) {
-                        return `${catCN}(权益${eqPct}%)过牌控速——IP强牌过牌平衡范围，为后续街保留下注机会。${rangeCtx || ''}`;
-                    }
-                    return `${catCN}(权益${eqPct}%)过牌——OOP强牌混入过牌范围，准备check-raise或在后续街下注。${rangeCtx || ''}`;
-                }
-                if (cat === 'mediumMade' || cat === 'weakMade') {
-                    return `${catCN}(权益${eqPct}%)过牌控池。${wetCN}牌面中等牌力避免膨胀底池——下注后只会被更好的牌跟注或被更差的牌弃牌。${rangeCtx || ''}`;
-                }
-                if (cat === 'strongDraw' || cat === 'weakDraw') {
-                    return `${catCN}(权益${eqPct}%)过牌看免费牌。听牌过牌保留改进机会，避免被加注赶出底池。`;
-                }
-                return `${catCN}(权益${eqPct}%)过牌。${rangeCtx ? rangeCtx + '。' : ''}手牌无足够权益下注。`;
-
-            case 'bet33':
-                if (str >= 0.6) {
-                    return `小注1/3底池(${freq}%)——${catCN}使用merged下注策略。${wetCN === '干燥' ? '干燥牌面' : '此牌面'}结构性优势明显，小注迫使对手范围的大量中等牌付出代价。${rangeCtx || ''}`;
-                }
-                return `小注1/3底池(${freq}%)——${catCN}保护性下注。${wetCN}牌面上小注denial对手的权益实现，同时控制底池大小。`;
-
-            case 'bet66':
-                if (str >= 0.7) {
-                    return `标准下注2/3底池(${freq}%)——${catCN}(权益${eqPct}%)获取价值。${rangeComp && rangeComp.beatsHeroPct < 30 ? '你的牌力压制对手范围大部分combo，' : ''}对手的中等牌力手牌(顶对弱踢脚、中对)很难弃牌。${sprCtx ? sprCtx + '。' : ''}`;
-                }
-                return `2/3底池下注(${freq}%)——${catCN}。${cat === 'air' ? '作为诈唬平衡下注范围，' : ''}${wetCN}牌面上的标准下注尺度。${rangeCtx || ''}`;
-
-            case 'bet100':
-                if (str >= 0.8) {
-                    return `满池下注(${freq}%)——${catCN}(权益${eqPct}%)极化价值下注。${blockers.blocksNutFlush ? '持有同花阻断牌。' : ''}坚果牌追求最大价值，对手的强牌(两对+)无法弃牌。${sprCtx ? sprCtx + '。' : ''}`;
-                }
-                return `满池下注(${freq}%)——极化策略。${cat === 'air' ? `${catCN}作为诈唬选择大尺度最大化弃牌权益。` : `${catCN}在${wetCN}牌面上需要保护和获取价值。`}${blockers.blocksNutFlush ? '阻断对手坚果同花。' : ''}`;
-
-            case 'fold':
-                if (oddsCtx) {
-                    return `${catCN}(权益${eqPct}%)弃牌(${freq}%)。${oddsCtx}，你的权益不足以跟注。${rangeComp && rangeComp.beatsHeroPct > 50 ? `对手范围${rangeComp.beatsHeroPct}%的combo强于你，继续亏损。` : ''}`;
-                }
-                return `${catCN}(权益${eqPct}%)弃牌。手牌无足够权益继续。`;
-
-            case 'call':
-                if (oddsCtx) {
-                    return `${catCN}(权益${eqPct}%)跟注(${freq}%)。${oddsCtx}——你的权益${parseInt(eqPct) > 35 ? '充足' : '刚好满足'}跟注条件。${spr > 8 && (cat === 'strongDraw' || cat === 'weakDraw') ? '深筹码下听牌有良好的隐含赔率。' : ''}${rangeCtx || ''}`;
-                }
-                return `${catCN}(权益${eqPct}%)跟注。权益足够继续但加注缺乏价值。`;
-
-            case 'raise':
-                if (str >= 0.7) {
-                    return `${catCN}(权益${eqPct}%)加注(${freq}%)——价值加注。${rangeComp && rangeComp.beatsHeroPct < 25 ? '你的牌力处于范围顶部，' : ''}加注建立更大底池获取最大价值。${blockers.blocksNutFlush ? '阻断对手坚果牌。' : ''}`;
-                }
-                if (cat === 'strongDraw') {
-                    return `${catCN}(权益${eqPct}%)半诈唬加注(${freq}%)。强听牌有足够权益支撑激进线路——即使被跟注仍有大量outs改进。`;
-                }
-                return `${catCN}加注(${freq}%)——平衡加注范围。${blockers.blocksNutFlush || blockers.blocksFlush ? '持有阻断牌增加弃牌权益。' : ''}`;
-
-            case 'allin':
-                return `${catCN}(权益${eqPct}%)全压。${sprCtx || 'SPR ' + spr.toFixed(1)}——${str >= 0.6 ? '筹码浅，手牌够强承诺全部筹码获取最大价值。' : '全压施加最大压力，迫使对手做困难决定。'}`;
-
-            default:
-                return `${catCN}(权益${eqPct}%)${action}(${freq}%)。${rangeCtx || ''}`;
+        // Pot odds context
+        let potOdds = 0;
+        if (facingBet && villainBetSize > 0 && potSize > 0) {
+            potOdds = Math.round(villainBetSize / (potSize + villainBetSize) * 100);
         }
+
+        if (action === 'check') {
+            if (isRiver && isIP) {
+                if (loses > 60) return `对手范围${loses}%的combo不如你，但这些弱牌不会跟注你的下注——过牌摊牌是最优选择。`;
+                if (beats > 40) return `对手范围${beats}%的combo强于你。下注会被更好的牌跟注，更差的弃牌，过牌摊牌锁定权益。`;
+                return `下注后能获得跟注的手牌几乎都赢你，过牌摊牌更优。`;
+            }
+            if (isRiver && !isIP) {
+                if (str >= 0.7) return `OOP强牌过牌——诱导IP下注，准备check-raise获取最大价值。`;
+                if (str < 0.2) return `手牌无摊牌价值，放弃。`;
+                return `有摊牌价值但不足以lead下注，过牌等待。`;
+            }
+            // Flop/Turn
+            if (str >= 0.6 && isIP) return `IP强牌过牌控速——后续街还有下注机会，过牌保持范围平衡。`;
+            if (str >= 0.6 && !isIP) return `OOP强牌过牌——保护过牌范围，后续可以check-raise。`;
+            if (str >= 0.3) return `中等牌力过牌控池，避免膨胀底池后被迫弃牌。`;
+            if (cat === 'strongDraw' || cat === 'weakDraw') return `听牌过牌看免费牌，保留改进机会。`;
+            return `牌力不足以下注，过牌等待。`;
+        }
+
+        if (action === 'fold') {
+            if (potOdds > 0) {
+                let reason = `底池赔率需要${potOdds}%权益，你只有${(equity*100).toFixed(0)}%`;
+                if (beats > 50) reason += `。对手下注范围中${beats}%的combo强于你`;
+                return reason + '，弃牌止损。';
+            }
+            return `权益不足以继续，弃牌止损。`;
+        }
+
+        if (action === 'call') {
+            if (potOdds > 0) {
+                let reason = `底池赔率需要${potOdds}%权益`;
+                if (equity * 100 > potOdds + 10) {
+                    reason += `，你有${(equity*100).toFixed(0)}%权益(充足)`;
+                } else if (equity * 100 > potOdds) {
+                    reason += `，你有${(equity*100).toFixed(0)}%权益(刚好满足)`;
+                }
+                if (spr > 6 && (cat === 'strongDraw' || cat === 'weakDraw') && !isRiver) {
+                    reason += '。深筹码听牌有隐含赔率';
+                }
+                return reason + '，跟注继续。';
+            }
+            return `权益足够跟注，但加注缺乏价值。`;
+        }
+
+        // bet/raise/allin — aggressive actions
+        if (action === 'allin') {
+            if (spr < 2) return `SPR仅${spr.toFixed(1)}，筹码浅已接近承诺——${str >= 0.5 ? '手牌够强，全压获取最大价值。' : '全压施加最大压力。'}`;
+            return `全压——${str >= 0.6 ? '手牌强度支撑承诺全部筹码。' : '极化全压施压。'}`;
+        }
+
+        // bet (including bet33, bet66, bet100, bet_BET X)
+        if (heroTop > 70) {
+            return `你的牌在范围顶部(top ${100 - heroTop}%)。${vAir > 40 ? `对手范围空气${vAir}%，下注从弱牌中获取价值。` : `对手有足够跟注的中等牌(value ${vValue}%)。`}`;
+        }
+        if (cat === 'air' || str < 0.2) {
+            return `作为诈唬下注——${vAir < 30 ? '平衡下注范围中需要一定诈唬频率。' : `对手范围弱牌多(air ${vAir}%)，下注拿走底池。`}`;
+        }
+        if (str >= 0.6) {
+            return `${loses > 50 ? `你打对手${loses}%的范围，` : ''}下注从对手的中等牌和听牌中获取价值。`;
+        }
+        return `下注获取薄价值/保护权益。`;
+    }
+
+    // Part 3: One key insight (only when relevant)
+    _keyInsight(action, handCategory, rangeComp, spr, boardTexture) {
+        const blockers = handCategory.blockerInfo || {};
+        const vStyle = this.currentProfile?.style;
+
+        // Blocker effects
+        if (blockers.blocksNutFlush && (action === 'bet' || action === 'raise' || action.startsWith('bet'))) {
+            return `持有${blockers.flushSuit || ''}同花阻断牌，增加对手弃牌概率。`;
+        }
+
+        // Opponent type
+        if (vStyle === 'NIT' && action === 'fold') return '对手NIT风格下注代表强牌，弃牌是正确的。';
+        if (vStyle === 'FISH' && (action === 'bet' || action.startsWith('bet'))) return '对手FISH跟注站，加大下注尺度获取更多价值。';
+        if (vStyle === 'LAG' && action === 'call') return '对手LAG诈唬频率高，宽跟注利用其过度激进。';
+
+        // SPR
+        if (spr < 1.5 && spr > 0) return `SPR ${spr.toFixed(1)}极低，已承诺底池。`;
+
+        // Board texture
+        if (boardTexture?.isPaired && action === 'check') return '公牌有对子，对手可能有trips，谨慎行事。';
+
+        return '';
     }
 
     // ============================================================
