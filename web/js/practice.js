@@ -1058,10 +1058,13 @@ class PracticeSession {
             } else if (key.startsWith('bet_BET')) {
                 const amount = parseFloat(key.replace('bet_BET ', ''));
                 const potPct = Math.round(amount / this.potSize * 100);
-                label = { cn: `下注 ${potPct}%底池`, color: '#e74c3c', sizing: `${potPct}%底池`, base: 'bet' };
+                const sizeLabel = potPct <= 40 ? '1/3底池' : potPct <= 55 ? '1/2底池' : potPct <= 80 ? '2/3底池' : potPct <= 120 ? '满池' : `${potPct}%底池`;
+                label = { cn: `下注 ${sizeLabel}`, color: '#e74c3c', sizing: sizeLabel, base: 'bet' };
             } else if (key.startsWith('raise_RAISE')) {
                 const amount = parseFloat(key.replace('raise_RAISE ', ''));
-                label = { cn: `加注到 ${amount.toFixed(0)}BB`, color: '#e74c3c', sizing: `${amount.toFixed(0)}BB`, base: 'raise' };
+                const potPct = Math.round(amount / this.potSize * 100);
+                const sizeLabel = potPct >= 200 ? '全压' : `${amount.toFixed(0)}BB`;
+                label = { cn: `加注 ${sizeLabel}`, color: '#e74c3c', sizing: sizeLabel, base: 'raise' };
             } else {
                 label = { cn: key, color: '#666', sizing: '-', base: key };
             }
