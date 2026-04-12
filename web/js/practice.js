@@ -245,7 +245,10 @@ class PracticeSession {
                 const sizing = villainStr >= 0.7
                     ? sizingOptions[2 + Math.floor(Math.random() * 3)]  // bigger with strong hands
                     : sizingOptions[Math.floor(Math.random() * 3)];      // smaller otherwise
-                this.villainBetSize = Math.round(this.potSize * sizing * 10) / 10;
+                this.villainBetSize = Math.min(
+                    Math.round(this.potSize * sizing * 10) / 10,
+                    this.effectiveStack // Can't bet more than remaining stack
+                );
                 this.villainAction = 'bet';
                 this.facingBet = true;
                 this._updateVillainRangeWeights('bet', sizing);
@@ -496,7 +499,10 @@ class PracticeSession {
             const sizing = villainStr >= 0.7
                 ? sizingOptions[2 + Math.floor(Math.random() * 3)]
                 : sizingOptions[Math.floor(Math.random() * 3)];
-            this.villainBetSize = Math.round(this.potSize * sizing * 10) / 10;
+            this.villainBetSize = Math.min(
+                Math.round(this.potSize * sizing * 10) / 10,
+                this.effectiveStack
+            );
             this.villainAction = 'bet';
             this.facingBet = true;
             this._updateVillainRangeWeights('bet', sizing);
@@ -549,7 +555,13 @@ class PracticeSession {
         const equity = this.villainRangeWeights && this.villainActionHistory.length > 0
             ? this._calcWeightedEquity()
             : calcEquity(this.heroCards, this.boardCards, this.villainRangeHands, 1500);
-        const spr = this.effectiveStack / this.potSize;
+
+        // Safety: clamp pot and stack to valid range (100BB game)
+        const startingStack = 100; // TODO: make configurable
+        const maxTotalChips = startingStack * 2 + 1.5; // 2 players + blinds
+        if (this.potSize > maxTotalChips) this.potSize = maxTotalChips;
+        if (this.effectiveStack < 0) this.effectiveStack = 0;
+        const spr = this.potSize > 0 ? this.effectiveStack / this.potSize : 0;
 
         return {
             heroPosition: this.heroPosition,

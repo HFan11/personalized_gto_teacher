@@ -2102,10 +2102,13 @@ function makeAction(action, sizingPct) {
     } else if (action === 'check') {
         handleCheckFlow(streetLabel, isRiver, heroIsIP);
     } else if (action === 'call') {
-        // Hero calls villain's bet — add both to pot
-        practice.potSize += practice.villainBetSize * 2;
-        practice.effectiveStack -= practice.villainBetSize;
-        // Check if all-in: either river or no more chips left → showdown
+        // Hero calls villain's bet
+        // Pot model: villain's bet is "pending" (not yet in pot), hero matches it
+        const callAmount = Math.min(practice.villainBetSize, practice.effectiveStack);
+        practice.potSize += callAmount * 2; // Both villain's and hero's money enter pot
+        practice.effectiveStack -= callAmount;
+        // Clamp stack to 0
+        practice.effectiveStack = Math.max(0, practice.effectiveStack);
         const isAllInCall = practice.effectiveStack <= 0.5;
         if (isRiver || isAllInCall) {
             if (isAllInCall && !isRiver) {
@@ -2185,13 +2188,23 @@ function handleCheckFlow(streetLabel, isRiver, heroIsIP) {
 
 // Handle bet/raise — villain responds (call or fold)
 function handleBetFlow(streetLabel, isRiver, heroBetAmount, wasFacingBet) {
-    // Hero puts in their bet
-    practice.effectiveStack -= heroBetAmount;
-    practice.potSize += heroBetAmount;
+    // Clamp bet to remaining stack
+    heroBetAmount = Math.min(heroBetAmount, practice.effectiveStack);
 
-    // If hero was facing a bet, add villain's original bet to pot too
+    // Hero puts in their bet/raise
+    practice.effectiveStack -= heroBetAmount;
+    practice.effectiveStack = Math.max(0, practice.effectiveStack);
+
+    // Calculate total pot after hero's action
+    // If facing bet: pot already excludes villain's pending bet
+    // Hero's total investment = heroBetAmount
+    // Villain's pending investment = villainBetSize (if facing bet)
     if (wasFacingBet) {
-        practice.potSize += practice.villainBetSize;
+        // Hero raises: both villain's original bet and hero's raise go in
+        practice.potSize += practice.villainBetSize + heroBetAmount;
+    } else {
+        // Hero bets: only hero's bet goes in
+        practice.potSize += heroBetAmount;
     }
 
     // Villain decides
@@ -2202,16 +2215,12 @@ function handleBetFlow(streetLabel, isRiver, heroBetAmount, wasFacingBet) {
         renderHeroWinResult();
         showPostButtons('end');
     } else {
-        // Villain calls — match hero's bet; update Bayesian range weights
+        // Villain calls — matches hero's bet amount
+        const villainCallAmount = wasFacingBet ? (heroBetAmount - practice.villainBetSize) : heroBetAmount;
         const callBetPct = heroBetAmount / practice.potSize;
         practice._updateVillainRangeWeights('call', callBetPct);
         actionLog.push({ street: streetLabel, position: currentState.villainPosition, action: 'Call', sizing: '', isVillain: true });
-        if (wasFacingBet) {
-            // Villain needs to match hero's raise (raise - original bet already in)
-            practice.potSize += (heroBetAmount - practice.villainBetSize);
-        } else {
-            practice.potSize += heroBetAmount;
-        }
+        practice.potSize += Math.max(0, villainCallAmount);
         // Check if all-in: either river or no more chips left → showdown
         const isAllIn = practice.effectiveStack <= 0.5;
         if (isRiver || isAllIn) {
