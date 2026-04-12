@@ -556,10 +556,6 @@ class PracticeSession {
             ? this._calcWeightedEquity()
             : calcEquity(this.heroCards, this.boardCards, this.villainRangeHands, 1500);
 
-        // Safety: clamp pot and stack to valid range (100BB game)
-        const startingStack = 100; // TODO: make configurable
-        const maxTotalChips = startingStack * 2 + 1.5; // 2 players + blinds
-        if (this.potSize > maxTotalChips) this.potSize = maxTotalChips;
         if (this.effectiveStack < 0) this.effectiveStack = 0;
         const spr = this.potSize > 0 ? this.effectiveStack / this.potSize : 0;
 
@@ -954,18 +950,39 @@ class PracticeSession {
         // SPR context
         const sprCtx = spr < 2 ? '筹码极浅(SPR<2)已承诺底池' : spr < 4 ? '筹码较浅(SPR<4)' : spr > 12 ? '深筹码' : '';
 
+        const isRiver = this.street === 'river';
+        const isIP = this.heroIsIP;
+
         switch (action) {
             case 'check':
+                if (isRiver && isIP) {
+                    // IP river check = showdown. No "trap" possible.
+                    if (str >= 0.6) {
+                        return `${catCN}(权益${eqPct}%)过牌摊牌——虽然牌力不错，但下注后对手只会用更强的牌跟注(更差的弃牌)，过牌摊牌锁定权益。${rangeCtx || ''}`;
+                    }
+                    return `${catCN}(权益${eqPct}%)过牌摊牌。${rangeCtx ? rangeCtx + '。' : ''}有showdown value但下注价值不足。`;
+                }
+                if (isRiver && !isIP) {
+                    // OOP river check: either give up or check-raise trap
+                    if (cat === 'nuts' || cat === 'strongMade') {
+                        return `${catCN}(权益${eqPct}%)过牌陷阱——河牌OOP强牌过牌诱导IP下注，然后check-raise获取最大价值。${rangeCtx || ''}`;
+                    }
+                    return `${catCN}(权益${eqPct}%)过牌。${str > 0.3 ? '有一定摊牌价值，等待对手过牌摊牌。' : '放弃，手牌无价值。'}`;
+                }
+                // Flop/Turn check
                 if (cat === 'nuts' || cat === 'strongMade') {
-                    return `${catCN}(权益${eqPct}%)过牌设陷阱——${wetCN}牌面上强牌混入过牌范围，防止对手永远在面对下注时弃牌。${rangeCtx ? rangeCtx + '，诱导对手诈唬。' : ''}`;
+                    if (isIP) {
+                        return `${catCN}(权益${eqPct}%)过牌控速——IP强牌过牌平衡范围，为后续街保留下注机会。${rangeCtx || ''}`;
+                    }
+                    return `${catCN}(权益${eqPct}%)过牌——OOP强牌混入过牌范围，准备check-raise或在后续街下注。${rangeCtx || ''}`;
                 }
                 if (cat === 'mediumMade' || cat === 'weakMade') {
-                    return `${catCN}(权益${eqPct}%)过牌控池。${wetCN}牌面上中等牌力避免膨胀底池——下注后只会被更好的牌跟注或被更差的牌弃牌。${rangeCtx || ''}`;
+                    return `${catCN}(权益${eqPct}%)过牌控池。${wetCN}牌面中等牌力避免膨胀底池——下注后只会被更好的牌跟注或被更差的牌弃牌。${rangeCtx || ''}`;
                 }
                 if (cat === 'strongDraw' || cat === 'weakDraw') {
                     return `${catCN}(权益${eqPct}%)过牌看免费牌。听牌过牌保留改进机会，避免被加注赶出底池。`;
                 }
-                return `${catCN}(权益${eqPct}%)过牌放弃。${rangeCtx ? rangeCtx + '。' : ''}手牌无足够权益下注。`;
+                return `${catCN}(权益${eqPct}%)过牌。${rangeCtx ? rangeCtx + '。' : ''}手牌无足够权益下注。`;
 
             case 'bet33':
                 if (str >= 0.6) {
