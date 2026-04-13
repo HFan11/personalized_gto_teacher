@@ -854,42 +854,61 @@ class PracticeSession {
             const data = await resp.json();
             if (data.error || !data.strategy) return null;
 
-            // Navigate the strategy tree to find hero's decision node
-            // Root = OOP's first action (CHECK/BET)
-            // If hero is IP and NOT facing bet → hero's node is root.childrens["CHECK"]
-            // If hero is IP and facing bet → hero decides at root (OOP bet, IP responds)
-            // If hero is OOP → hero decides at root
+            // Navigate strategy tree to hero's decision node
+            // Tree structure: root = OOP's action (CHECK / BET X / BET Y)
+            //   root.childrens.CHECK = IP's action after OOP checks
+            //   root.childrens["BET X"] = IP's response to OOP bet X
             const heroIsIP = this.heroIsIP;
-            let strategyNode = data.strategy?.strategy;
+            let strategyNode = null;
+            const rootNode = data.strategy;
+            const children = rootNode?.childrens || {};
 
-            if (heroIsIP && !this.facingBet) {
-                // IP after OOP checks → find CHECK child
-                strategyNode = data.strategy?.childrens?.['CHECK']?.strategy
-                            || strategyNode;
-            } else if (!heroIsIP && this.facingBet) {
-                // OOP facing IP's bet → need to find the bet child
-                // Find the closest bet size in children
-                const children = data.strategy?.childrens || {};
-                for (const [key, child] of Object.entries(children)) {
-                    if (key.startsWith('BET')) {
-                        strategyNode = child?.strategy || strategyNode;
-                        break;
+            if (this.facingBet && this.villainBetSize > 0) {
+                // Hero faces a bet — find the child matching villain's bet size
+                const targetBet = this.villainBetSize;
+                let bestMatch = null;
+                let bestDiff = Infinity;
+
+                // Also check one level deeper: if root is OOP action,
+                // OOP might have checked, then IP bet → root.childrens.CHECK.childrens["BET X"]
+                const searchNodes = [children];
+                if (children['CHECK']?.childrens) {
+                    searchNodes.push(children['CHECK'].childrens);
+                }
+
+                for (const nodeSet of searchNodes) {
+                    for (const [key, child] of Object.entries(nodeSet)) {
+                        if (key.startsWith('BET')) {
+                            const betAmt = parseFloat(key.replace('BET ', ''));
+                            const diff = Math.abs(betAmt - targetBet);
+                            if (diff < bestDiff) {
+                                bestDiff = diff;
+                                bestMatch = child;
+                            }
+                        }
                     }
                 }
-            }
-            // If hero is OOP not facing bet → root is correct (OOP acts first)
-            // If hero is IP facing bet → root is OOP's bet action, hero responds
-            //   → need the bet child node
-            if (heroIsIP && this.facingBet) {
-                const children = data.strategy?.childrens || {};
-                for (const [key, child] of Object.entries(children)) {
-                    if (key.startsWith('BET')) {
-                        strategyNode = child?.strategy || strategyNode;
-                        break;
-                    }
+
+                if (bestMatch?.strategy) {
+                    strategyNode = bestMatch.strategy;
+                    console.log(`C++ tree: matched bet ${targetBet.toFixed(1)} → node (diff ${bestDiff.toFixed(1)})`);
                 }
+            } else if (heroIsIP) {
+                // IP not facing bet → OOP checked, find CHECK child
+                const checkChild = children['CHECK'];
+                if (checkChild?.strategy) {
+                    strategyNode = checkChild.strategy;
+                } else if (checkChild?.childrens) {
+                    // CHECK child might be a chance node, look deeper
+                    strategyNode = checkChild.strategy || rootNode?.strategy;
+                }
+            } else {
+                // OOP not facing bet → root is hero's decision
+                strategyNode = rootNode?.strategy;
             }
 
+            // Fallback to root if navigation failed
+            if (!strategyNode) strategyNode = rootNode?.strategy;
             if (!strategyNode || !strategyNode.strategy) return null;
 
             const actions = strategyNode.actions || [];
@@ -1072,33 +1091,6 @@ class PracticeSession {
         return '';
     }
 
-    // Sanity check: reject C++ results that are obviously wrong
-    // (e.g., weak hand 99% raise, or 100% single action with no mixing)
-    _sanityCheck(rec) {
-        if (!rec || !rec.advice || rec.advice.length === 0) return false;
-        const best = rec.advice[0];
-        const state = this.getState();
-        const str = state.handCategory?.strength || 0.5;
-        const facingBet = this.facingBet;
-
-        // Red flag: weak hand (str < 0.4) with 90%+ raise/bet when facing a bet
-        if (facingBet && str < 0.4 && best.frequency > 85 && (best.action === 'raise' || best.action === 'bet')) {
-            console.warn(`C++ sanity fail: ${state.handCategory?.categoryCN}(${str}) facing bet → ${best.action} ${best.frequency}%`);
-            return false;
-        }
-
-        // Red flag: only 1 action with 100% (solver probably read wrong node)
-        if (rec.advice.length === 1 && best.frequency >= 99 && best.action !== 'fold') {
-            // 100% single action is suspicious unless it's a clear nuts or clear fold
-            if (str < 0.8 && str > 0.15) {
-                console.warn(`C++ sanity fail: 100% ${best.action} for ${state.handCategory?.categoryCN}(${str})`);
-                return false;
-            }
-        }
-
-        return true;
-    }
-
     // ============================================================
     // GTO Recommendation — async worker-first, sync fallback
     // ============================================================
@@ -1114,7 +1106,7 @@ class PracticeSession {
         if (this._remoteStrategy) {
             const formatted = this._formatRemoteStrategy(this._remoteStrategy);
             this._remoteStrategy = null;
-            if (formatted && this._sanityCheck(formatted)) return formatted;
+            if (formatted) return formatted;
         }
 
         // Priority 2: JS Worker pre-solved result
