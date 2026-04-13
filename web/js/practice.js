@@ -807,7 +807,9 @@ class PracticeSession {
             }
             // Turn/River: C++ solver via Railway Pro
             // Keep ranges small enough for Vercel proxy 10s timeout
-            const maxRange = round === 2 ? 25 : 40;
+            // Turn: 18 hands fits within Vercel 10s proxy (~3-4s solve)
+            // River: 40 hands is fast (<1s solve)
+            const maxRange = round === 2 ? 18 : 40;
             const ipRange = this.heroIsIP ? heroRangeKeys : villainRangeKeys;
             const oopRange = this.heroIsIP ? villainRangeKeys : heroRangeKeys;
             const trimmedIP = ipRange.length > maxRange ? ipRange.slice(0, maxRange) : ipRange;
@@ -826,7 +828,7 @@ class PracticeSession {
                 oop_commit: this.potSize / 2,
                 ip_commit: this.potSize / 2,
                 stack: this.effectiveStack + this.potSize / 2,
-                iterations: 50, // Fit within Vercel proxy 10s timeout (~3s solve + 4s overhead)
+                iterations: 30, // 30 iters + 18 hands = ~2s solve, fits Vercel 10s proxy
                 accuracy: 0.5,
                 threads: 2,
                 dump_depth: 2,
