@@ -15,8 +15,9 @@ const RESOURCES = path.join(__dirname, '../resources');
 const OUTPUT_DIR = path.join(__dirname, '../../web/data/precomputed/flop');
 const PORT = 9090;
 
-const RANGE_IP = 'AA,KK,QQ,JJ,TT,99,88,77,AKs,AKo,AQs,AJs,ATs,A9s,A5s,KQs,KJs,KTs,QJs,QTs,JTs,T9s,98s,87s,76s,65s,54s,AQo,AJo,KQo';
-const RANGE_OOP = 'AA,KK,QQ,JJ,TT,99,88,77,66,55,AKs,AKo,AQs,AJs,ATs,A9s,A5s,A4s,KQs,KJs,KTs,K9s,QJs,QTs,Q9s,JTs,J9s,T9s,98s,87s,76s,65s,54s,AQo,AJo,KQo,KJo';
+// Max range with 1 bet size per street: 50 IP + 59 OOP — verified on M2 Pro 32GB
+const RANGE_IP = 'AA,KK,QQ,JJ,TT,99,88,77,66,55,44,AKs,AQs,AJs,ATs,A9s,A8s,A7s,A5s,A4s,KQs,KJs,KTs,K9s,QJs,QTs,Q9s,JTs,J9s,J8s,T9s,T8s,98s,97s,87s,86s,76s,75s,65s,64s,54s,43s,AKo,AQo,AJo,ATo,A9o,KQo,KJo,QJo,JTo';
+const RANGE_OOP = 'AA,KK,QQ,JJ,TT,99,88,77,66,55,44,33,22,AKs,AQs,AJs,ATs,A9s,A8s,A7s,A6s,A5s,A4s,A3s,KQs,KJs,KTs,K9s,K8s,QJs,QTs,Q9s,Q8s,JTs,J9s,J8s,T9s,T8s,98s,97s,87s,86s,76s,75s,65s,64s,54s,53s,43s,AKo,AQo,AJo,ATo,KQo,KJo,QJo,JTo,T9o';
 
 fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 
@@ -78,12 +79,14 @@ async function solveOneBoard(board, category, index, total) {
                 board, round: 1,
                 oop_commit: 3, ip_commit: 3, stack: 100,
                 iterations: 50, threads: 1,
-                ip_flop_bet: [33,66], ip_flop_raise: [100],
-                oop_flop_bet: [33,66], oop_flop_raise: [100],
-                ip_turn_bet: [50], ip_turn_raise: [100],
-                oop_turn_bet: [50], oop_turn_raise: [100],
+                // 1 bet size per street = smaller tree = more hands fit in RAM
+                ip_flop_bet: [50], ip_flop_raise: [100],
+                oop_flop_bet: [50], oop_flop_raise: [100],
+                ip_turn_bet: [66], ip_turn_raise: [100],
+                oop_turn_bet: [66], oop_turn_raise: [100],
                 ip_river_bet: [66], ip_river_raise: [100],
                 oop_river_bet: [66], oop_river_raise: [100],
+                allin_threshold: 0.8,
                 dump_depth: 1,
             }),
         });
