@@ -262,10 +262,25 @@ function categorizeHand(holeCards, boardCards) {
             return { category: 'nuts', categoryCN: '坚果牌', strength: 1.0, eval: eval_, blockerInfo };
         case 6:
             return { category: 'nuts', categoryCN: '坚果牌', strength: 0.95, eval: eval_, blockerInfo };
-        case 5:
-            return eval_.primary >= 13
-                ? { category: 'nuts', categoryCN: '坚果牌', strength: 0.92, eval: eval_, blockerInfo }
-                : { category: 'strongMade', categoryCN: '强成牌', strength: 0.85, eval: eval_, blockerInfo };
+        case 5: {
+            // Flush — check if hero holds the highest card of the flush
+            // If board has the A/K of flush suit, hero's flush is NOT the nut flush
+            const heroHighFlush = Math.max(...holeRanks.filter((_, i) => {
+                // Find which hole cards contribute to the flush
+                const flushSuitCards = [...holeCards, ...boardCards].filter(c => c.suit === holeCards[0].suit || c.suit === holeCards[1].suit);
+                return true; // simplified
+            }));
+            const heroHoldsAceOfFlush = holeCards.some(c => c.rank === 'A' &&
+                [...boardCards, ...holeCards].filter(x => x.suit === c.suit).length >= 5);
+            if (heroHoldsAceOfFlush) {
+                return { category: 'nuts', categoryCN: '坚果同花', strength: 0.92, eval: eval_, blockerInfo };
+            }
+            const heroHighInFlush = Math.max(...holeRanks);
+            if (heroHighInFlush >= 13) { // K or A in flush
+                return { category: 'strongMade', categoryCN: '强同花', strength: 0.87, eval: eval_, blockerInfo };
+            }
+            return { category: 'strongMade', categoryCN: '同花', strength: 0.83, eval: eval_, blockerInfo };
+        }
         case 4:
             return { category: 'strongMade', categoryCN: '强成牌', strength: 0.82, eval: eval_, blockerInfo };
         case 3: {
@@ -303,7 +318,15 @@ function categorizeHand(holeCards, boardCards) {
             }
 
             if (tp_holeContribHi && tp_holeContribLo) {
-                return { category: 'strongMade', categoryCN: '两对(双暗)', strength: 0.80, eval: eval_, blockerInfo };
+                // Both hole cards pair with the board
+                // "Top two pair" = hero's pairs are the TOP TWO ranks on board (consecutive top)
+                // "Top + bottom" = hero has top pair but second pair is NOT the 2nd highest board card
+                if (tp_lo >= secondHighestBoard) {
+                    // Hero's low pair is at or above 2nd board card → true top two (e.g., AK on AK7)
+                    return { category: 'strongMade', categoryCN: '两对(双暗)', strength: 0.80, eval: eval_, blockerInfo };
+                }
+                // Hero's low pair is below 2nd board card → top + bottom (e.g., A7 on AK7)
+                return { category: 'strongMade', categoryCN: '顶底两对', strength: 0.73, eval: eval_, blockerInfo };
             }
             if (tp_holeContribHi) {
                 return { category: 'strongMade', categoryCN: '顶两对', strength: 0.75, eval: eval_, blockerInfo };
@@ -333,13 +356,20 @@ function categorizeHand(holeCards, boardCards) {
                     // Smaller overpairs (TT-77 on low boards)
                     return { category: 'mediumMade', categoryCN: '小超对', strength: 0.70, eval: eval_, blockerInfo };
                 }
-                // Pocket pair below top card — differentiate underpair positions
+                // Pocket pair below top card — differentiate by how close to top
                 if (pairRank > secondHighestBoard) {
-                    // Above 2nd board card: e.g. TT on K-7-3, overpair to second card
-                    return { category: 'mediumMade', categoryCN: '口袋对(超过第二大)', strength: 0.50, eval: eval_, blockerInfo };
+                    if (pairRank >= 13) {
+                        // KK/QQ under an A — still very strong (only Ax beats you)
+                        return { category: 'strongMade', categoryCN: `口袋${pairRank===13?'K':'Q'}K(A下)`, strength: 0.68, eval: eval_, blockerInfo };
+                    }
+                    if (pairRank >= 10) {
+                        // TT-JJ under a higher card — decent
+                        return { category: 'mediumMade', categoryCN: '中等口袋对', strength: 0.55, eval: eval_, blockerInfo };
+                    }
+                    return { category: 'mediumMade', categoryCN: '口袋对(超过第二大)', strength: 0.48, eval: eval_, blockerInfo };
                 }
                 // Below second highest board card: low underpair
-                return { category: 'weakMade', categoryCN: '口袋小对', strength: 0.40, eval: eval_, blockerInfo };
+                return { category: 'weakMade', categoryCN: '口袋小对', strength: 0.38, eval: eval_, blockerInfo };
             }
 
             if (!holeHasPairRank) {
