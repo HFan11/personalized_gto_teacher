@@ -196,6 +196,35 @@ function categorizeHand(holeCards, boardCards) {
     const secondHighestBoard = sortedBoardRanks.length >= 2 ? sortedBoardRanks[1] : 0;
     const isRiver = boardCards.length === 5;
 
+    // === CRITICAL: Board flush detection ===
+    // If board has 3+ of one suit and hero has ZERO of that suit,
+    // any made hand (pair, two pair, set) is nearly worthless
+    const boardSuitCounts = {};
+    boardCards.forEach(c => boardSuitCounts[c.suit] = (boardSuitCounts[c.suit] || 0) + 1);
+    const dominantSuit = Object.entries(boardSuitCounts).find(([_, cnt]) => cnt >= 3);
+    if (dominantSuit) {
+        const [flushSuit, flushCount] = dominantSuit;
+        const heroHasFlushSuit = holeCards.some(c => c.suit === flushSuit);
+        const heroHasFlush = eval_ && eval_.tier >= 5; // tier 5 = flush
+
+        if (flushCount >= 4 && !heroHasFlush) {
+            // 4+ flush cards on board and hero doesn't have a flush
+            // Even TPTK/set is nearly worthless — anyone with one card of that suit beats you
+            const catCN = eval_ ? eval_.nameCN : '高牌';
+            return {
+                category: 'weakMade', categoryCN: `${catCN}(同花面危险)`,
+                strength: 0.15, eval: eval_,
+                blockerInfo: { blocksNutFlush: false, blocksFlush: false, flushSuit, boardFlushCards: flushCount },
+                flushDanger: true,
+            };
+        }
+        if (flushCount >= 3 && !heroHasFlushSuit && !heroHasFlush) {
+            // 3 flush cards, hero has none of that suit — vulnerable
+            // Downgrade strength significantly but don't make it as bad as 4-flush
+            // (opponent still needs 2 of that suit for flush on 3-flush board)
+        }
+    }
+
     // --- Flush draw detection helpers ---
     // Detect which suit has a flush draw and whether hero holds the ace of that suit
     function getFlushDrawInfo() {

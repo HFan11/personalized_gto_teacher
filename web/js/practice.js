@@ -945,7 +945,9 @@ class PracticeSession {
         let desc = `${catCN}(权益${eqPct}%)`;
 
         // Board-aware context (avoid generic statements)
-        if (paired) {
+        if (handCategory.flushDanger) {
+            desc += '——board四张同花你没有同花，成牌几乎无价值';
+        } else if (paired) {
             if (cat === 'nuts' || cat === 'strongMade' || str >= 0.7) {
                 // Strong hand on paired board — you benefit from the pair
                 desc += '——强牌在配对面';
