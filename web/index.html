@@ -324,32 +324,52 @@
 
             <!-- Poker Table -->
             <div class="poker-table">
-                <div class="table-info">
-                    <div class="table-info-item">底池: <strong id="pot-display">6BB</strong></div>
-                    <div class="table-info-item">后手: <strong id="stack-display">97BB</strong></div>
-                    <div class="table-info-item">SPR: <strong id="spr-display">16.2</strong></div>
+                <!-- Pot + Street (top center) -->
+                <div class="table-info" style="justify-content:center; gap:16px;">
                     <div class="table-info-item" id="street-display">Flop</div>
-                    <div class="table-info-item" id="bet-display" style="display:none; color:#e74c3c;">面对: <strong id="bet-amount-display">0BB</strong></div>
                 </div>
-                <!-- Villain area (face down during play) -->
-                <div class="villain-area" id="villain-table-area">
+
+                <!-- Villain: position + cards + stack -->
+                <div class="villain-area" id="villain-table-area" style="display:flex; align-items:center; gap:8px; justify-content:center;">
                     <span class="position-badge villain-badge" id="villain-pos-badge" style="font-size:10px;">BB</span>
                     <span id="villain-name-badge" style="font-size:10px;"></span>
                     <div class="cards-row" id="villain-cards-display">
                         <div class="playing-card facedown"></div>
                         <div class="playing-card facedown"></div>
                     </div>
+                    <span id="villain-stack-display" style="font-size:11px; color:var(--text-muted); background:rgba(0,0,0,0.3); padding:2px 6px; border-radius:4px;">97BB</span>
                 </div>
+
+                <!-- Villain bet (between villain and board) -->
+                <div id="villain-bet-area" style="text-align:center; height:20px; margin:2px 0;">
+                    <span id="villain-bet-chip" style="display:none; font-size:12px; color:#e74c3c; background:rgba(231,76,60,0.15); padding:2px 10px; border-radius:10px;">🔴 4.0BB</span>
+                </div>
+
+                <!-- Board + Pot (center) -->
                 <div class="board-area">
+                    <div style="text-align:center; margin-bottom:4px;">
+                        <span style="font-size:13px; color:#f1c40f; background:rgba(241,196,15,0.15); padding:2px 12px; border-radius:10px;">💰 <strong id="pot-display">6BB</strong></span>
+                    </div>
                     <div class="cards-row" id="board-cards"></div>
                 </div>
-                <div class="hero-area">
-                    <div class="hero-label">
-                        <span class="position-badge" id="hero-pos-badge">BTN</span>
-                        <span style="font-size:11px;">Hero</span>
-                    </div>
-                    <div class="cards-row" id="hero-cards"></div>
+
+                <!-- Hero bet (between board and hero) -->
+                <div id="hero-bet-area" style="text-align:center; height:20px; margin:2px 0;">
+                    <span id="hero-bet-chip" style="display:none; font-size:12px; color:#3498db; background:rgba(52,152,219,0.15); padding:2px 10px; border-radius:10px;">🔵 4.0BB</span>
                 </div>
+
+                <!-- Hero: position + cards + stack -->
+                <div class="hero-area" style="display:flex; align-items:center; gap:8px; justify-content:center;">
+                    <span class="position-badge" id="hero-pos-badge">BTN</span>
+                    <span style="font-size:11px;">Hero</span>
+                    <div class="cards-row" id="hero-cards"></div>
+                    <span id="hero-stack-display" style="font-size:11px; color:var(--text-muted); background:rgba(0,0,0,0.3); padding:2px 6px; border-radius:4px;">97BB</span>
+                </div>
+
+                <!-- Hidden elements for backward compat -->
+                <span id="stack-display" style="display:none;"></span>
+                <span id="spr-display" style="display:none;"></span>
+                <span id="bet-display" style="display:none;"><strong id="bet-amount-display"></strong></span>
             </div>
 
             <!-- Hand Info (compact single row) -->
@@ -1912,14 +1932,25 @@ function renderPracticeHand() {
     document.getElementById('stack-display').textContent = state.effectiveStack.toFixed(1) + 'BB';
     document.getElementById('spr-display').textContent = state.spr.toFixed(1);
     document.getElementById('street-display').textContent = state.street.charAt(0).toUpperCase() + state.street.slice(1);
-    // Show bet amount if facing bet
-    const betDisplay = document.getElementById('bet-display');
-    if (state.facingBet && practice.villainBetSize > 0) {
-        document.getElementById('bet-amount-display').textContent = practice.villainBetSize.toFixed(1) + 'BB';
-        betDisplay.style.display = '';
-    } else {
-        betDisplay.style.display = 'none';
+
+    // Stack displays next to player cards
+    const heroStackEl = document.getElementById('hero-stack-display');
+    const villainStackEl = document.getElementById('villain-stack-display');
+    if (heroStackEl) heroStackEl.textContent = state.effectiveStack.toFixed(1) + 'BB';
+    if (villainStackEl) villainStackEl.textContent = state.effectiveStack.toFixed(1) + 'BB';
+
+    // Bet chips on table
+    const villainBetChip = document.getElementById('villain-bet-chip');
+    const heroBetChip = document.getElementById('hero-bet-chip');
+    if (villainBetChip) {
+        if (state.facingBet && practice.villainBetSize > 0) {
+            villainBetChip.textContent = '🔴 ' + practice.villainBetSize.toFixed(1) + 'BB';
+            villainBetChip.style.display = '';
+        } else {
+            villainBetChip.style.display = 'none';
+        }
     }
+    if (heroBetChip) heroBetChip.style.display = 'none';
 
     // Positions & villain info
     document.getElementById('hero-pos-badge').textContent = state.heroPosition;
@@ -2229,7 +2260,15 @@ function makeAction(action, sizingPct) {
     document.getElementById('pot-display').textContent = currentState.potSize.toFixed(1) + 'BB';
     document.getElementById('stack-display').textContent = currentState.effectiveStack.toFixed(1) + 'BB';
     document.getElementById('spr-display').textContent = currentState.spr.toFixed(1);
-    document.getElementById('bet-display').style.display = 'none';
+    const heroStackEl2 = document.getElementById('hero-stack-display');
+    const villainStackEl2 = document.getElementById('villain-stack-display');
+    if (heroStackEl2) heroStackEl2.textContent = currentState.effectiveStack.toFixed(1) + 'BB';
+    if (villainStackEl2) villainStackEl2.textContent = currentState.effectiveStack.toFixed(1) + 'BB';
+    // Clear bet chips after action
+    const vbc = document.getElementById('villain-bet-chip');
+    const hbc = document.getElementById('hero-bet-chip');
+    if (vbc) vbc.style.display = 'none';
+    if (hbc) hbc.style.display = 'none';
 
     // Reset board texture text (clear facing-bet info after action)
     if (action !== 'check' || !currentState.facingBet) {
