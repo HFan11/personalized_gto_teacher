@@ -468,7 +468,7 @@ class PracticeSession {
             else if (pctOfPot <= 72) label = '2/3 Pot';
             else if (pctOfPot <= 85) label = '3/4 Pot';
             else label = 'Pot';
-            return { action: 'Bet', sizing: `${label} (${this.villainBetSize}BB)`, color: '#e74c3c' };
+            return { action: 'Bet', sizing: `${label} (${this.villainBetSize.toFixed(1)}BB)`, color: '#e74c3c' };
         } else if (this.villainAction === 'check') {
             return { action: 'Check', sizing: '', color: '#3498db' };
         }

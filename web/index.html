@@ -2175,12 +2175,17 @@ function makeAction(action, sizingPct) {
     // Add hero action to timeline
     actionLog.push({ street: streetLabel, position: currentState.heroPosition, action: actionLabel, sizing: betSizeLabel, isVillain: false });
 
-    // Score the action — try async worker result first, then sync fallback
-    // Show "计算中..." briefly while awaiting worker
+    // Score the action — clear old result first, then show spinner
     const inlineStrip = document.getElementById('inline-result');
     if (inlineStrip) { inlineStrip.style.display = 'block'; }
+    const inlineIcon = document.getElementById('inline-result-icon');
+    if (inlineIcon) { inlineIcon.textContent = ''; inlineIcon.style.cssText = ''; }
+    const inlineBar = document.getElementById('inline-result-bar');
+    if (inlineBar) { inlineBar.style.background = 'transparent'; inlineBar.style.border = 'none'; }
     const inlineText = document.getElementById('inline-result-text');
     if (inlineText) inlineText.innerHTML = '<span style="color:var(--text-muted);"><span class="spinner" style="display:inline-block;width:14px;height:14px;border:2px solid var(--text-muted);border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;vertical-align:middle;margin-right:6px;"></span>分析中...</span>';
+    const inlineDetail = document.getElementById('inline-result-detail');
+    if (inlineDetail) inlineDetail.style.display = 'none';
 
     (async () => {
         // Priority 0: Try precomputed lookup (instant, PIO-level)
