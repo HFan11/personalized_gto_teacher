@@ -2691,9 +2691,17 @@ function renderFoldResult() {
     // Also reveal on table
     document.getElementById('villain-cards-display').innerHTML = state.villainCards.map(c => renderPlayingCard(c)).join('');
 
+    // Show whether hero would have won if they didn't fold
+    const heroEval = evaluateBest(state.heroCards, state.boardCards);
+    const villainEval2 = evaluateBest(state.villainCards, state.boardCards);
     const resultEl = document.getElementById('showdown-result');
-    resultEl.textContent = 'Fold → V赢';
-    resultEl.style.color = '#e74c3c';
+    if (heroEval && villainEval2 && heroEval.score > villainEval2.score) {
+        resultEl.textContent = `弃牌放弃 ${state.potSize.toFixed(1)}BB（其实你赢了）`;
+        resultEl.style.color = '#e67e22'; // orange — fold was a mistake
+    } else {
+        resultEl.textContent = `弃牌放弃 ${state.potSize.toFixed(1)}BB`;
+        resultEl.style.color = '#95a5a6'; // gray — fold was correct
+    }
     document.getElementById('showdown-pot').textContent = state.potSize.toFixed(1) + 'BB';
 }
 
