@@ -6,7 +6,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Personalized Poker Teacher</title>
-    <link rel="stylesheet" href="css/style.css?v=27">
+    <link rel="stylesheet" href="css/style.css?v=30">
 </head>
 <body>
 
@@ -324,49 +324,60 @@
 
             <!-- Poker Table -->
             <div class="poker-table">
-                <!-- Pot + Street (top center) -->
-                <div class="table-info" style="justify-content:center; gap:16px;">
-                    <div class="table-info-item" id="street-display">Flop</div>
-                </div>
-
-                <!-- Villain: position + cards + stack -->
-                <div class="villain-area" id="villain-table-area" style="display:flex; align-items:center; gap:8px; justify-content:center;">
-                    <span class="position-badge villain-badge" id="villain-pos-badge" style="font-size:10px;">BB</span>
-                    <span id="villain-name-badge" style="font-size:10px;"></span>
-                    <div class="cards-row" id="villain-cards-display">
-                        <div class="playing-card facedown"></div>
-                        <div class="playing-card facedown"></div>
+                <!-- Villain area -->
+                <div class="villain-area" id="villain-table-area">
+                    <div style="display:flex; align-items:center; gap:6px; justify-content:center;">
+                        <span class="position-badge villain-badge" id="villain-pos-badge" style="font-size:10px;">BB</span>
+                        <span id="villain-name-badge" style="font-size:10px;"></span>
+                        <div id="villain-stack-display" class="chip-stack" style="margin-left:4px;">97BB</div>
                     </div>
-                    <span id="villain-stack-display" style="font-size:11px; color:var(--text-muted); background:rgba(0,0,0,0.3); padding:2px 6px; border-radius:4px;">97BB</span>
+                    <div style="display:flex; align-items:center; gap:4px; justify-content:center; margin-top:4px;">
+                        <div class="cards-row" id="villain-cards-display">
+                            <div class="playing-card facedown"></div>
+                            <div class="playing-card facedown"></div>
+                        </div>
+                    </div>
                 </div>
 
-                <!-- Villain bet (between villain and board) -->
-                <div id="villain-bet-area" style="text-align:center; height:20px; margin:2px 0;">
-                    <span id="villain-bet-chip" style="display:none; font-size:12px; color:#e74c3c; background:rgba(231,76,60,0.15); padding:2px 10px; border-radius:10px;">🔴 4.0BB</span>
+                <!-- Villain bet chip -->
+                <div id="villain-bet-area" style="text-align:center; min-height:24px; margin:3px 0;">
+                    <div id="villain-bet-chip" class="bet-chip bet-chip-villain" style="display:none;">
+                        <span class="chip-icon">🟡🟡🟡</span>
+                        <span class="chip-amount">4.0</span>
+                    </div>
                 </div>
 
-                <!-- Board + Pot (center) -->
+                <!-- Board + Pot center -->
                 <div class="board-area">
-                    <div style="text-align:center; margin-bottom:4px;">
-                        <span style="font-size:13px; color:#f1c40f; background:rgba(241,196,15,0.15); padding:2px 12px; border-radius:10px;">💰 <strong id="pot-display">6BB</strong></span>
+                    <div class="pot-badge">
+                        <span class="chip-icon" style="font-size:10px;">🪙</span>
+                        <strong id="pot-display">6BB</strong>
+                        <span style="font-size:9px; opacity:0.7; margin-left:4px;" id="street-display">Flop</span>
                     </div>
                     <div class="cards-row" id="board-cards"></div>
                 </div>
 
-                <!-- Hero bet (between board and hero) -->
-                <div id="hero-bet-area" style="text-align:center; height:20px; margin:2px 0;">
-                    <span id="hero-bet-chip" style="display:none; font-size:12px; color:#3498db; background:rgba(52,152,219,0.15); padding:2px 10px; border-radius:10px;">🔵 4.0BB</span>
+                <!-- Hero bet chip -->
+                <div id="hero-bet-area" style="text-align:center; min-height:24px; margin:3px 0;">
+                    <div id="hero-bet-chip" class="bet-chip bet-chip-hero" style="display:none;">
+                        <span class="chip-icon">🔵🔵🔵</span>
+                        <span class="chip-amount">4.0</span>
+                    </div>
                 </div>
 
-                <!-- Hero: position + cards + stack -->
-                <div class="hero-area" style="display:flex; align-items:center; gap:8px; justify-content:center;">
-                    <span class="position-badge" id="hero-pos-badge">BTN</span>
-                    <span style="font-size:11px;">Hero</span>
-                    <div class="cards-row" id="hero-cards"></div>
-                    <span id="hero-stack-display" style="font-size:11px; color:var(--text-muted); background:rgba(0,0,0,0.3); padding:2px 6px; border-radius:4px;">97BB</span>
+                <!-- Hero area -->
+                <div class="hero-area">
+                    <div style="display:flex; align-items:center; gap:4px; justify-content:center;">
+                        <div class="cards-row" id="hero-cards"></div>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:6px; justify-content:center; margin-top:4px;">
+                        <span class="position-badge" id="hero-pos-badge">BTN</span>
+                        <span style="font-size:11px;">Hero</span>
+                        <div id="hero-stack-display" class="chip-stack" style="margin-left:4px;">97BB</div>
+                    </div>
                 </div>
 
-                <!-- Hidden elements for backward compat -->
+                <!-- Hidden compat -->
                 <span id="stack-display" style="display:none;"></span>
                 <span id="spr-display" style="display:none;"></span>
                 <span id="bet-display" style="display:none;"><strong id="bet-amount-display"></strong></span>
@@ -1944,7 +1955,10 @@ function renderPracticeHand() {
     const heroBetChip = document.getElementById('hero-bet-chip');
     if (villainBetChip) {
         if (state.facingBet && practice.villainBetSize > 0) {
-            villainBetChip.textContent = '🔴 ' + practice.villainBetSize.toFixed(1) + 'BB';
+            const betAmt = practice.villainBetSize;
+            const chips = betAmt >= 20 ? '🟡🟡🟡🟡' : betAmt >= 10 ? '🟡🟡🟡' : betAmt >= 4 ? '🟡🟡' : '🟡';
+            villainBetChip.querySelector('.chip-icon').textContent = chips;
+            villainBetChip.querySelector('.chip-amount').textContent = betAmt.toFixed(1);
             villainBetChip.style.display = '';
         } else {
             villainBetChip.style.display = 'none';

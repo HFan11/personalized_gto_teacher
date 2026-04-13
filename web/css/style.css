@@ -859,6 +859,61 @@ body {
 .poker-table .card-rank { font-size: 15px; }
 .poker-table .card-suit { font-size: 12px; }
 
+/* Chip stack behind cards */
+.chip-stack {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    min-width: 42px; padding: 3px 6px;
+    background: linear-gradient(180deg, rgba(0,0,0,0.4), rgba(0,0,0,0.6));
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px;
+    font-size: 11px; font-weight: 700; color: #ddd;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+}
+.chip-stack::before {
+    content: '🪙';
+    font-size: 14px;
+    line-height: 1;
+}
+
+/* Pot badge */
+.pot-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: linear-gradient(135deg, rgba(241,196,15,0.2), rgba(243,156,18,0.2));
+    border: 1px solid rgba(241,196,15,0.4);
+    color: #f1c40f;
+    font-size: 13px;
+    padding: 3px 12px;
+    border-radius: 14px;
+    margin-bottom: 6px;
+}
+
+/* Bet chip on table */
+.bet-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 12px; font-weight: 600;
+    animation: chipDrop 0.3s ease-out;
+}
+.bet-chip .chip-icon { font-size: 10px; letter-spacing: -3px; }
+.bet-chip .chip-amount { font-weight: 700; }
+.bet-chip .chip-amount::after { content: 'BB'; font-size: 9px; opacity: 0.7; margin-left: 1px; }
+
+.bet-chip-villain {
+    color: #e74c3c;
+    background: rgba(231,76,60,0.15);
+    border: 1px solid rgba(231,76,60,0.3);
+}
+.bet-chip-hero {
+    color: #3498db;
+    background: rgba(52,152,219,0.15);
+    border: 1px solid rgba(52,152,219,0.3);
+}
+@keyframes chipDrop {
+    0% { transform: translateY(-8px); opacity: 0; }
+    100% { transform: translateY(0); opacity: 1; }
+}
+
 /* ============================================================
    Poker Table (Practice View)
    ============================================================ */
