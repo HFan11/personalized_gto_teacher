@@ -2204,7 +2204,8 @@ function makeAction(action, sizingPct) {
         }
 
         // Priority 1: C++ solver result — smart timeout
-        const maxWait = (action === 'check') ? 5000 : 30000;
+        // Vercel proxy has 10s limit, so C++ result arrives within 10s or not at all
+        const maxWait = (action === 'check') ? 5000 : 12000;
 
         if (practice._remotePromise) {
             try {
