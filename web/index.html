@@ -326,8 +326,10 @@
             <div class="poker-table">
                 <div class="table-info">
                     <div class="table-info-item">底池: <strong id="pot-display">6BB</strong></div>
+                    <div class="table-info-item">后手: <strong id="stack-display">97BB</strong></div>
                     <div class="table-info-item">SPR: <strong id="spr-display">16.2</strong></div>
                     <div class="table-info-item" id="street-display">Flop</div>
+                    <div class="table-info-item" id="bet-display" style="display:none; color:#e74c3c;">面对: <strong id="bet-amount-display">0BB</strong></div>
                 </div>
                 <!-- Villain area (face down during play) -->
                 <div class="villain-area" id="villain-table-area">
@@ -1907,8 +1909,17 @@ function renderPracticeHand() {
 
     // Table info
     document.getElementById('pot-display').textContent = state.potSize.toFixed(1) + 'BB';
+    document.getElementById('stack-display').textContent = state.effectiveStack.toFixed(1) + 'BB';
     document.getElementById('spr-display').textContent = state.spr.toFixed(1);
     document.getElementById('street-display').textContent = state.street.charAt(0).toUpperCase() + state.street.slice(1);
+    // Show bet amount if facing bet
+    const betDisplay = document.getElementById('bet-display');
+    if (state.facingBet && practice.villainBetSize > 0) {
+        document.getElementById('bet-amount-display').textContent = practice.villainBetSize.toFixed(1) + 'BB';
+        betDisplay.style.display = '';
+    } else {
+        betDisplay.style.display = 'none';
+    }
 
     // Positions & villain info
     document.getElementById('hero-pos-badge').textContent = state.heroPosition;
@@ -2216,7 +2227,9 @@ function makeAction(action, sizingPct) {
     // Update table info display
     currentState = practice.getState();
     document.getElementById('pot-display').textContent = currentState.potSize.toFixed(1) + 'BB';
+    document.getElementById('stack-display').textContent = currentState.effectiveStack.toFixed(1) + 'BB';
     document.getElementById('spr-display').textContent = currentState.spr.toFixed(1);
+    document.getElementById('bet-display').style.display = 'none';
 
     // Reset board texture text (clear facing-bet info after action)
     if (action !== 'check' || !currentState.facingBet) {
