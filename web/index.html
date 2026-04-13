@@ -2400,7 +2400,7 @@ function showInlineResult(result, actionLabel, betSizeLabel, facingBet) {
         <div style="display:flex; gap:8px; align-items:center; padding:3px 0; border-bottom:1px solid var(--border-color);">
             <span style="color:${a.color}; font-weight:700; min-width:36px;">${a.frequency}%</span>
             <span style="color:${a.color}; font-weight:600;">${a.actionCN}</span>
-            ${a.sizing !== '-' ? `<span style="color:var(--text-muted); font-size:12px;"> ${a.sizing}</span>` : ''}
+            ${a.sizing !== '-' && !a.actionCN.includes(a.sizing) ? `<span style="color:var(--text-muted); font-size:12px;"> ${a.sizing}</span>` : ''}
         </div>
     `).join('');
 
