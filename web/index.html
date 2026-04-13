@@ -6,7 +6,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Personalized Poker Teacher</title>
-    <link rel="stylesheet" href="css/style.css?v=30">
+    <link rel="stylesheet" href="css/style.css?v=31">
 </head>
 <body>
 
@@ -342,7 +342,7 @@
                 <!-- Villain bet chip -->
                 <div id="villain-bet-area" style="text-align:center; min-height:24px; margin:3px 0;">
                     <div id="villain-bet-chip" class="bet-chip bet-chip-villain" style="display:none;">
-                        <span class="chip-icon">🟡🟡🟡</span>
+                        <span class="chip-icon"><span class="chip-dot chip-dot-red"></span></span>
                         <span class="chip-amount">4.0</span>
                     </div>
                 </div>
@@ -350,9 +350,8 @@
                 <!-- Board + Pot center -->
                 <div class="board-area">
                     <div class="pot-badge">
-                        <span class="chip-icon" style="font-size:10px;">🪙</span>
                         <strong id="pot-display">6BB</strong>
-                        <span style="font-size:9px; opacity:0.7; margin-left:4px;" id="street-display">Flop</span>
+                        <span style="font-size:9px; opacity:0.6; margin-left:4px;" id="street-display">Flop</span>
                     </div>
                     <div class="cards-row" id="board-cards"></div>
                 </div>
@@ -360,7 +359,7 @@
                 <!-- Hero bet chip -->
                 <div id="hero-bet-area" style="text-align:center; min-height:24px; margin:3px 0;">
                     <div id="hero-bet-chip" class="bet-chip bet-chip-hero" style="display:none;">
-                        <span class="chip-icon">🔵🔵🔵</span>
+                        <span class="chip-icon"><span class="chip-dot chip-dot-blue"></span></span>
                         <span class="chip-amount">4.0</span>
                     </div>
                 </div>
@@ -1956,8 +1955,9 @@ function renderPracticeHand() {
     if (villainBetChip) {
         if (state.facingBet && practice.villainBetSize > 0) {
             const betAmt = practice.villainBetSize;
-            const chips = betAmt >= 20 ? '🟡🟡🟡🟡' : betAmt >= 10 ? '🟡🟡🟡' : betAmt >= 4 ? '🟡🟡' : '🟡';
-            villainBetChip.querySelector('.chip-icon').textContent = chips;
+            const dotCount = betAmt >= 30 ? 4 : betAmt >= 15 ? 3 : betAmt >= 5 ? 2 : 1;
+            const dots = Array(dotCount).fill('<span class="chip-dot chip-dot-red"></span>').join('');
+            villainBetChip.querySelector('.chip-icon').innerHTML = dots;
             villainBetChip.querySelector('.chip-amount').textContent = betAmt.toFixed(1);
             villainBetChip.style.display = '';
         } else {
