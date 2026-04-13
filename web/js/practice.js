@@ -1072,6 +1072,33 @@ class PracticeSession {
         return '';
     }
 
+    // Sanity check: reject C++ results that are obviously wrong
+    // (e.g., weak hand 99% raise, or 100% single action with no mixing)
+    _sanityCheck(rec) {
+        if (!rec || !rec.advice || rec.advice.length === 0) return false;
+        const best = rec.advice[0];
+        const state = this.getState();
+        const str = state.handCategory?.strength || 0.5;
+        const facingBet = this.facingBet;
+
+        // Red flag: weak hand (str < 0.4) with 90%+ raise/bet when facing a bet
+        if (facingBet && str < 0.4 && best.frequency > 85 && (best.action === 'raise' || best.action === 'bet')) {
+            console.warn(`C++ sanity fail: ${state.handCategory?.categoryCN}(${str}) facing bet → ${best.action} ${best.frequency}%`);
+            return false;
+        }
+
+        // Red flag: only 1 action with 100% (solver probably read wrong node)
+        if (rec.advice.length === 1 && best.frequency >= 99 && best.action !== 'fold') {
+            // 100% single action is suspicious unless it's a clear nuts or clear fold
+            if (str < 0.8 && str > 0.15) {
+                console.warn(`C++ sanity fail: 100% ${best.action} for ${state.handCategory?.categoryCN}(${str})`);
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     // ============================================================
     // GTO Recommendation — async worker-first, sync fallback
     // ============================================================
@@ -1087,7 +1114,7 @@ class PracticeSession {
         if (this._remoteStrategy) {
             const formatted = this._formatRemoteStrategy(this._remoteStrategy);
             this._remoteStrategy = null;
-            if (formatted) return formatted;
+            if (formatted && this._sanityCheck(formatted)) return formatted;
         }
 
         // Priority 2: JS Worker pre-solved result
