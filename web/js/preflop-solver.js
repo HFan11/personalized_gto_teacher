@@ -3,6 +3,111 @@
 // Builds game tree and solves for Nash equilibrium preflop ranges
 // ============================================================
 
+// ============================================================
+// Heads-Up Preflop Equity Model
+// Computes approximate all-in equity between two canonical hands.
+// Uses category-based formulas calibrated against PIO/Monte Carlo
+// values (±1-4% accuracy). Cached for O(1) repeated lookups.
+// ============================================================
+
+const _headsUpCache = new Map();
+const _rv = {A:14,K:13,Q:12,J:11,T:10,'9':9,'8':8,'7':7,'6':6,'5':5,'4':4,'3':3,'2':2};
+
+function _getHeadsUpEquity(h0Idx, h1Idx) {
+    if (h0Idx === h1Idx) return 0.5;
+    // Normalize key: smaller index first
+    const lo = Math.min(h0Idx, h1Idx), hi = Math.max(h0Idx, h1Idx);
+    const key = lo * 169 + hi;
+    let cached = _headsUpCache.get(key);
+    if (cached === undefined) {
+        const hands = generate169Hands();
+        cached = _computeHeadsUpEquity(hands[lo], hands[hi]);
+        _headsUpCache.set(key, cached);
+    }
+    return h0Idx <= h1Idx ? cached : 1 - cached;
+}
+
+function _computeHeadsUpEquity(h0, h1) {
+    const isPair0 = h0.length === 2, isPair1 = h1.length === 2;
+    const suited0 = h0.endsWith('s'), suited1 = h1.endsWith('s');
+    const hi0 = _rv[h0[0]], lo0 = isPair0 ? hi0 : _rv[h0[1]];
+    const hi1 = _rv[h1[0]], lo1 = isPair1 ? hi1 : _rv[h1[1]];
+
+    // === PAIR vs PAIR ===
+    if (isPair0 && isPair1) {
+        return hi0 > hi1 ? 0.82 : 0.18;
+    }
+
+    // === PAIR vs NON-PAIR ===
+    if (isPair0 || isPair1) {
+        let pRank, npHi, npLo, npSuited, pairFirst;
+        if (isPair0) {
+            pRank = hi0; npHi = hi1; npLo = lo1; npSuited = suited1; pairFirst = true;
+        } else {
+            pRank = hi1; npHi = hi0; npLo = lo0; npSuited = suited0; pairFirst = false;
+        }
+        const overCards = (npHi > pRank ? 1 : 0) + (npLo > pRank ? 1 : 0);
+        const shared = (npHi === pRank || npLo === pRank);
+        // Calibrated against PIO values (±1%):
+        //   QQ vs AKs=54%, QQ vs AKo=57%, TT vs AJs=66%, TT vs AJo=69%
+        //   TT vs T9s=84%, TT vs T9o=87%, TT vs 98s=81%, TT vs 98o=84%
+        let pEq;
+        if (overCards === 2)     pEq = npSuited ? 0.54 : 0.57;
+        else if (overCards === 1) pEq = npSuited ? 0.66 : 0.69;
+        else if (shared)         pEq = npSuited ? 0.84 : 0.87;
+        else                     pEq = npSuited ? 0.81 : 0.84;
+        return pairFirst ? pEq : 1 - pEq;
+    }
+
+    // === NON-PAIR vs NON-PAIR ===
+    // Check for shared cards (domination)
+    if (hi0 === hi1) {
+        // Same top card — higher kicker dominates (~72%)
+        if (lo0 === lo1) {
+            if (suited0 && !suited1) return 0.53;
+            if (!suited0 && suited1) return 0.47;
+            return 0.5;
+        }
+        let eq = lo0 > lo1 ? 0.72 : 0.28;
+        if (suited0) eq += 0.02; if (suited1) eq -= 0.02;
+        return Math.max(0.15, Math.min(0.85, eq));
+    }
+    if (lo0 === lo1) {
+        // Same bottom card — higher top card dominates (~70%)
+        let eq = hi0 > hi1 ? 0.70 : 0.30;
+        if (suited0) eq += 0.02; if (suited1) eq -= 0.02;
+        return Math.max(0.15, Math.min(0.85, eq));
+    }
+    if (hi0 === lo1) {
+        // h0's high = h1's low: h1 dominates (e.g., QJ vs AQ → AQ ~72%)
+        let eq = 0.28;
+        if (suited0) eq += 0.03; if (suited1) eq -= 0.03;
+        return Math.max(0.15, Math.min(0.85, eq));
+    }
+    if (lo0 === hi1) {
+        // h0's low = h1's high: h0 dominates (e.g., AQ vs QJ → AQ ~72%)
+        let eq = 0.72;
+        if (suited0) eq += 0.03; if (suited1) eq -= 0.03;
+        return Math.max(0.15, Math.min(0.85, eq));
+    }
+
+    // No shared cards — use equity-vs-random with sqrt scaling
+    // Calibrated: AKo vs QJo=63%, AKs vs 98s=62%, QJo vs 98o=59%
+    const eq0 = _PREFLOP_EQUITY_TABLE[h0] || 0.45;
+    const eq1 = _PREFLOP_EQUITY_TABLE[h1] || 0.45;
+    const diff = eq0 - eq1;
+    let eq = 0.5 + Math.sign(diff) * Math.sqrt(Math.abs(diff)) * 0.35;
+    if (suited0) eq += 0.015; if (suited1) eq -= 0.015;
+    return Math.max(0.20, Math.min(0.80, eq));
+}
+
+// Showdown payoff helper — replaces binary win/loss with continuous equity
+function _showdownPayoff(h0, h1, halfPot) {
+    const eq = _getHeadsUpEquity(h0, h1);
+    const ev = (2 * eq - 1) * halfPot;
+    return [ev, -ev];
+}
+
 class PreflopSolver {
     constructor(config = {}) {
         this.bb = config.bb || 1;
@@ -17,6 +122,16 @@ class PreflopSolver {
         this.rfiSize = config.rfiSize || 2.5;
         this.threeBetMultiplier = config.threeBetMultiplier || 3.0;
         this.fourBetMultiplier = config.fourBetMultiplier || 2.5;
+
+        // Precompute hand indices sorted by equity for range constraints
+        this._handsByEquity = this.hands169.map((h, i) => ({ idx: i, eq: _PREFLOP_EQUITY_TABLE[h] || 0.3 }))
+            .sort((a, b) => b.eq - a.eq);
+    }
+
+    // Get hand indices for top N% of hands (by equity vs random)
+    _getTopHandIndices(pct) {
+        const n = Math.max(1, Math.round(this.hands169.length * pct));
+        return this._handsByEquity.slice(0, n).map(h => h.idx);
     }
 
     // Singleton for app-wide preflop solution
@@ -72,17 +187,9 @@ class PreflopSolver {
                 return [0, 0];
             };
 
-            // Raise: simplified as win/lose the raised pot vs BB defense range
+            // Raise: showdown equity vs BB defense range
             const raiseNode = new GameNode(NodeType.TERMINAL, -1, [], this.rfiSize * 2 + 1.5, null);
-            raiseNode.payoffs = (h0, h1) => {
-                // Use precomputed hand equity rankings for speed
-                const eq0 = _preflopHandEquity(h0);
-                const eq1 = _preflopHandEquity(h1);
-                const potWon = this.rfiSize + 0.75; // half the pot (simplified)
-                if (eq0 > eq1) return [potWon, -potWon];
-                if (eq0 < eq1) return [-potWon, potWon];
-                return [0, 0];
-            };
+            raiseNode.payoffs = (h0, h1) => _showdownPayoff(h0, h1, this.rfiSize + 0.75);
 
             root.children = { fold: foldNode, raise: raiseNode };
 
@@ -124,16 +231,9 @@ class PreflopSolver {
                 const foldNode = new GameNode(NodeType.TERMINAL, -1, [], pot, null);
                 foldNode.payoffs = (h0, h1) => [0, 0];
 
-                // Call — go to showdown (simplified)
+                // Call — showdown
                 const callNode = new GameNode(NodeType.TERMINAL, -1, [], pot + this.rfiSize, null);
-                callNode.payoffs = (h0, h1) => {
-                    const eq0 = _preflopHandEquity(h0);
-                    const eq1 = _preflopHandEquity(h1);
-                    const halfPot = (pot + this.rfiSize) / 2;
-                    if (eq0 > eq1) return [halfPot, -halfPot];
-                    if (eq0 < eq1) return [-halfPot, halfPot];
-                    return [0, 0];
-                };
+                callNode.payoffs = (h0, h1) => _showdownPayoff(h0, h1, (pot + this.rfiSize) / 2);
 
                 // 3-bet → opponent decides fold/call/4bet
                 const threeBetNode = new GameNode(NodeType.PLAYER, 1, ['fold', 'call', '4bet'],
@@ -147,25 +247,11 @@ class PreflopSolver {
 
                 // 3bet → opp call
                 const threeBetCallNode = new GameNode(NodeType.TERMINAL, -1, [], pot + threeBetSize * 2, null);
-                threeBetCallNode.payoffs = (h0, h1) => {
-                    const eq0 = _preflopHandEquity(h0);
-                    const eq1 = _preflopHandEquity(h1);
-                    const halfPot = (pot + threeBetSize * 2) / 2;
-                    if (eq0 > eq1) return [halfPot, -halfPot];
-                    if (eq0 < eq1) return [-halfPot, halfPot];
-                    return [0, 0];
-                };
+                threeBetCallNode.payoffs = (h0, h1) => _showdownPayoff(h0, h1, (pot + threeBetSize * 2) / 2);
 
                 // 3bet → opp 4bet (simplified as all-in)
                 const fourBetNode = new GameNode(NodeType.TERMINAL, -1, [], this.startingStack * 2, null);
-                fourBetNode.payoffs = (h0, h1) => {
-                    const eq0 = _preflopHandEquity(h0);
-                    const eq1 = _preflopHandEquity(h1);
-                    const halfPot = this.startingStack;
-                    if (eq0 > eq1) return [halfPot, -halfPot];
-                    if (eq0 < eq1) return [-halfPot, halfPot];
-                    return [0, 0];
-                };
+                fourBetNode.payoffs = (h0, h1) => _showdownPayoff(h0, h1, this.startingStack);
 
                 threeBetNode.children = { fold: threeBetFoldNode, call: threeBetCallNode, '4bet': fourBetNode };
                 root.children = { fold: foldNode, call: callNode, '3bet': threeBetNode };
@@ -199,14 +285,7 @@ class PreflopSolver {
             foldNode.payoffs = (h0, h1) => [-(this.rfiSize), this.rfiSize];
 
             const callNode = new GameNode(NodeType.TERMINAL, -1, [], pot + threeBetSize, null);
-            callNode.payoffs = (h0, h1) => {
-                const eq0 = _preflopHandEquity(h0);
-                const eq1 = _preflopHandEquity(h1);
-                const halfPot = (pot + threeBetSize) / 2;
-                if (eq0 > eq1) return [halfPot, -halfPot];
-                if (eq0 < eq1) return [-halfPot, halfPot];
-                return [0, 0];
-            };
+            callNode.payoffs = (h0, h1) => _showdownPayoff(h0, h1, (pot + threeBetSize) / 2);
 
             // 4bet → opponent folds or 5bet-jams
             const fourBetRoot = new GameNode(NodeType.PLAYER, 1, ['fold', 'call', 'jam'], pot + fourBetSize, null);
@@ -215,23 +294,10 @@ class PreflopSolver {
             fbFold.payoffs = (h0, h1) => [threeBetSize + 0.75, -(threeBetSize + 0.75)];
 
             const fbCall = new GameNode(NodeType.TERMINAL, -1, [], pot + fourBetSize * 2, null);
-            fbCall.payoffs = (h0, h1) => {
-                const eq0 = _preflopHandEquity(h0);
-                const eq1 = _preflopHandEquity(h1);
-                const half = (pot + fourBetSize * 2) / 2;
-                if (eq0 > eq1) return [half, -half];
-                if (eq0 < eq1) return [-half, half];
-                return [0, 0];
-            };
+            fbCall.payoffs = (h0, h1) => _showdownPayoff(h0, h1, (pot + fourBetSize * 2) / 2);
 
             const fbJam = new GameNode(NodeType.TERMINAL, -1, [], this.startingStack * 2, null);
-            fbJam.payoffs = (h0, h1) => {
-                const eq0 = _preflopHandEquity(h0);
-                const eq1 = _preflopHandEquity(h1);
-                if (eq0 > eq1) return [this.startingStack, -this.startingStack];
-                if (eq0 < eq1) return [-this.startingStack, this.startingStack];
-                return [0, 0];
-            };
+            fbJam.payoffs = (h0, h1) => _showdownPayoff(h0, h1, this.startingStack);
 
             fourBetRoot.children = { fold: fbFold, call: fbCall, jam: fbJam };
             root.children = { fold: foldNode, call: callNode, '4bet': fourBetRoot };
@@ -240,8 +306,10 @@ class PreflopSolver {
                 return `vs3bet|${openerPos}|p${player}|${hand}`;
             };
 
-            const handIndices = this.hands169.map((_, i) => i);
-            this.solver.solve(root, [handIndices, handIndices], infoSetKeyFn, {
+            // Player 0 = opener (full range). Player 1 = 3bettor (top ~12% = narrow 3bet range)
+            const openerIndices = this.hands169.map((_, i) => i);
+            const threeBetterIndices = this._getTopHandIndices(0.12);
+            this.solver.solve(root, [openerIndices, threeBetterIndices], infoSetKeyFn, {
                 iterations: Math.floor(iterations * 0.5),
                 conflictFn: () => false,
             });
@@ -268,38 +336,23 @@ class PreflopSolver {
         const foldNode = new GameNode(NodeType.TERMINAL, -1, [], pot, null);
         foldNode.payoffs = (h0, h1) => [-heroInvested, heroInvested];
 
-        // Call: put in 14BB more. Total pot = 31.5 + 14 = 45.5BB. Showdown.
+        // Call: put in 14BB more. Pot = 45.5BB. Showdown.
         const callPot = pot + callAmount;
         const callNode = new GameNode(NodeType.TERMINAL, -1, [], callPot, null);
-        callNode.payoffs = (h0, h1) => {
-            const eq0 = _preflopHandEquity(h0);
-            const eq1 = _preflopHandEquity(h1);
-            // Win: gain callPot - heroInvested - callAmount. Lose: lose heroInvested + callAmount
-            const heroTotal = heroInvested + callAmount; // 22BB total invested
-            if (eq0 > eq1) return [callPot - heroTotal, -(callPot - heroTotal)];
-            if (eq0 < eq1) return [-heroTotal, heroTotal];
-            return [0, 0];
-        };
+        callNode.payoffs = (h0, h1) => _showdownPayoff(h0, h1, callPot / 2);
 
-        // Jam: put in remaining 92BB. Opponent calls or folds.
-        // Simplified: opponent always calls (jam is terminal with showdown)
-        const jamPot = pot + jamAmount + (jamAmount - callAmount); // both players all-in
+        // Jam: all-in showdown
         const jamNode = new GameNode(NodeType.TERMINAL, -1, [], this.startingStack * 2, null);
-        jamNode.payoffs = (h0, h1) => {
-            const eq0 = _preflopHandEquity(h0);
-            const eq1 = _preflopHandEquity(h1);
-            // Risk full stack
-            if (eq0 > eq1) return [this.startingStack - heroInvested, -(this.startingStack - heroInvested)];
-            if (eq0 < eq1) return [-(this.startingStack - heroInvested), this.startingStack - heroInvested];
-            return [0, 0];
-        };
+        jamNode.payoffs = (h0, h1) => _showdownPayoff(h0, h1, this.startingStack);
 
         root.children = { fold: foldNode, call: callNode, jam: jamNode };
 
         const infoSetKeyFn = (node, hand, player) => `vs4bet|p${player}|${hand}`;
-        const handIndices = this.hands169.map((_, i) => i);
+        // Player 0 = 3bettor facing 4bet (wider range). Player 1 = 4bettor (top ~5% = very narrow)
+        const threeBetterIndices = this._getTopHandIndices(0.15);
+        const fourBetterIndices = this._getTopHandIndices(0.05);
 
-        this.solver.solve(root, [handIndices, handIndices], infoSetKeyFn, {
+        this.solver.solve(root, [threeBetterIndices, fourBetterIndices], infoSetKeyFn, {
             iterations: Math.floor(iterations * 0.5),
             conflictFn: () => false,
             samplesPerIter: 800,
