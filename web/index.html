@@ -1740,9 +1740,13 @@ function renderPostflopHandPicker() {
     const container = document.getElementById('postflop-hand-matrix');
     if (!container) return;
 
-    // Get hero's range for current position
+    // Get hero's range for current position (adjusted for pot type)
+    const isVillainAgg = currentAggressor === 'villain';
+    const useAdjusted = typeof getVillainPostflopRange === 'function' && currentPotType !== 'srp';
     const heroRange = selectedHeroId && currentPracticePos
-        ? (pm.getRange(selectedHeroId, currentPracticePos) || [])
+        ? (useAdjusted
+            ? getVillainPostflopRange(pm, selectedHeroId, currentPracticePos, currentPotType, !isVillainAgg)
+            : pm.getRange(selectedHeroId, currentPracticePos)) || []
         : [];
     const rangeSet = new Set(heroRange);
 
@@ -1775,8 +1779,12 @@ function updateHandPickerStatus() {
     if (!el) return;
 
     if (selectedHeroHand) {
+        const isVillainAgg = currentAggressor === 'villain';
+        const useAdjusted = typeof getVillainPostflopRange === 'function' && currentPotType !== 'srp';
         const heroRange = selectedHeroId && currentPracticePos
-            ? (pm.getRange(selectedHeroId, currentPracticePos) || [])
+            ? (useAdjusted
+                ? getVillainPostflopRange(pm, selectedHeroId, currentPracticePos, currentPotType, !isVillainAgg)
+                : pm.getRange(selectedHeroId, currentPracticePos)) || []
             : [];
         const inRange = heroRange.includes(selectedHeroHand);
         el.innerHTML = `<strong style="color:var(--accent-blue);">${selectedHeroHand}</strong>` +
