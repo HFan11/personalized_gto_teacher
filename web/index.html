@@ -1571,54 +1571,20 @@ function preflopAction(action) {
         </div>`
     ).join('');
 
-    // Show range info matching the actual grading source
+    // Show CFR solver strategy breakdown for this hand
     const scenario = preflopPractice.currentScenario;
-    if (scenario.type === 'rfi') {
-        const rfiRange = GTO_PREFLOP.rfi[scenario.heroPos] || [];
-        const inRange = rfiRange.includes(scenario.heroHandKey);
-        const bestAction = result.correctActions[0]?.action || '';
-        // Check if CFR solver agrees with static range
-        const cfrAgrees = (inRange && bestAction !== 'fold') || (!inRange && bestAction === 'fold');
-        detailHtml += `<div style="margin-top:8px; padding:6px 8px; background:rgba(155,89,182,0.08); border-radius:6px; font-size:11px;">
-            📊 ${scenario.heroPos} RFI范围: ${rfiRange.length}种手牌
-            ${inRange ? '✅ 在范围内' : '❌ 不在范围内'}
-            ${!cfrAgrees ? `<br>⚠️ CFR求解器建议: ${bestAction} ${result.correctActions[0]?.frequency}% (混合策略边界手牌)` : ''}
-        </div>`;
-    } else if (scenario.type === 'vs_raise') {
-        const ranges = GTO_PREFLOP.vs_raise[scenario.heroPos]?.['vs_' + scenario.villainPos];
-        if (ranges) {
-            const in3bet = ranges.threebet.includes(scenario.heroHandKey);
-            const inCall = ranges.call.includes(scenario.heroHandKey);
-            const statusIcon = in3bet ? '✅ 3bet范围' : inCall ? '✅ 跟注范围' : '❌ 不在防守范围';
-            detailHtml += `<div style="margin-top:8px; padding:6px 8px; background:rgba(155,89,182,0.08); border-radius:6px; font-size:11px;">
-                📊 ${scenario.heroPos} vs ${scenario.villainPos}开池:
-                3bet ${ranges.threebet.length}种 | 跟注 ${ranges.call.length}种 | ${scenario.heroHandKey} ${statusIcon}
-            </div>`;
-        }
-    } else if (scenario.type === 'vs_3bet') {
-        const ranges = GTO_PREFLOP.vs_3bet[scenario.heroPos];
-        if (ranges) {
-            const in4bet = ranges.fourbet.includes(scenario.heroHandKey);
-            const inCall = ranges.call.includes(scenario.heroHandKey);
-            const statusIcon = in4bet ? '✅ 4bet范围' : inCall ? '✅ 跟注范围' : '❌ 弃牌';
-            detailHtml += `<div style="margin-top:8px; padding:6px 8px; background:rgba(155,89,182,0.08); border-radius:6px; font-size:11px;">
-                📊 ${scenario.heroPos}面对3bet:
-                4bet ${ranges.fourbet.length}种 | 跟注 ${ranges.call.length}种 | ${scenario.heroHandKey} ${statusIcon}
-            </div>`;
-        }
-    } else if (scenario.type === 'vs_4bet') {
-        const ranges = GTO_PREFLOP.vs_4bet;
-        const inJam = ranges.fivebet_jam.includes(scenario.heroHandKey);
-        const inCall = ranges.call.includes(scenario.heroHandKey);
-        const mixed = ranges.mixed?.[scenario.heroHandKey];
-        let statusIcon;
-        if (inJam) statusIcon = '✅ 5bet全压';
-        else if (inCall || mixed?.call) statusIcon = mixed ? `⚖️ 混合(call ${mixed.call}%/fold ${mixed.fold}%)` : '✅ 跟注';
-        else statusIcon = '❌ 弃牌';
-        detailHtml += `<div style="margin-top:8px; padding:6px 8px; background:rgba(155,89,182,0.08); border-radius:6px; font-size:11px;">
-            📊 面对4bet: 5bet全压 ${ranges.fivebet_jam.length}种 | 跟注 ${ranges.call.length}种 | ${scenario.heroHandKey} ${statusIcon}
-        </div>`;
-    }
+    const scenarioLabels = {
+        rfi: `${scenario.heroPos} 开池(100BB)`,
+        vs_raise: `${scenario.heroPos} vs ${scenario.villainPos}开池(100BB)`,
+        vs_3bet: `${scenario.heroPos} 面对${scenario.villainPos}的3bet(100BB)`,
+        vs_4bet: `面对4bet(100BB)`
+    };
+    const stratParts = result.correctActions.map(a =>
+        `${a.action} ${a.frequency}%`
+    ).join(' | ');
+    detailHtml += `<div style="margin-top:8px; padding:6px 8px; background:rgba(155,89,182,0.08); border-radius:6px; font-size:11px;">
+        📊 ${scenarioLabels[scenario.type] || scenario.type}: ${scenario.heroHandKey} → ${stratParts}
+    </div>`;
 
     document.getElementById('preflop-result-detail').innerHTML = detailHtml;
 

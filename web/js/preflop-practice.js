@@ -281,18 +281,11 @@ class PreflopPracticeSession {
     }
 
     _getCorrectAction(type, heroPos, villainPos, handKey) {
-        // vs_3bet and vs_4bet: static ranges are MORE accurate than CFR solver
-        // because CFR uses vs-random equity which is wrong for narrow ranges
-        // Static ranges are derived from real PIO solutions
-        if (type === 'vs_3bet' || type === 'vs_4bet') {
-            return this._getStaticAction(type, heroPos, villainPos, handKey);
-        }
-
-        // RFI and vs_raise: CFR solver works well (wide ranges, vs-random equity is reasonable)
+        // Use CFR solver for all scenarios (100BB deep, proper game tree sizing)
         const cfrResult = this._getCFRAction(type, heroPos, villainPos, handKey);
         if (cfrResult) return cfrResult;
 
-        // Fallback to static ranges
+        // Fallback to static ranges only if CFR solver fails
         return this._getStaticAction(type, heroPos, villainPos, handKey);
     }
 
