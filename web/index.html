@@ -1808,7 +1808,8 @@ function updateSetupRangeInfo() {
         const heroRange = usePotAdjusted
             ? getVillainPostflopRange(pm, selectedHeroId, currentPracticePos, currentPotType, !isVillainAggressor)
             : pm.getRange(selectedHeroId, currentPracticePos);
-        heroInfoEl.textContent = heroRange.length > 0 ? `(${currentPracticePos}: ${heroRange.length}种手牌)` : `(${currentPracticePos}: 无范围)`;
+        const heroCombos = heroRange.length > 0 ? pm.rangeToHands(heroRange).length : 0;
+        heroInfoEl.textContent = heroRange.length > 0 ? `(${currentPracticePos}: ${heroRange.length}种/${heroCombos}组合)` : `(${currentPracticePos}: 无范围)`;
         heroInfoEl.style.color = heroRange.length > 0 ? '#2ecc71' : '#e74c3c';
     } else {
         heroInfoEl.textContent = '';
@@ -1819,7 +1820,8 @@ function updateSetupRangeInfo() {
         const villainRange = usePotAdjusted
             ? getVillainPostflopRange(pm, selectedVillainId, currentPracticeVillainPos, currentPotType, isVillainAggressor)
             : pm.getRange(selectedVillainId, currentPracticeVillainPos);
-        villainInfoEl.textContent = villainRange.length > 0 ? `(${currentPracticeVillainPos}: ${villainRange.length}种手牌)` : `(${currentPracticeVillainPos}: 无范围)`;
+        const villainCombos = villainRange.length > 0 ? pm.rangeToHands(villainRange).length : 0;
+        villainInfoEl.textContent = villainRange.length > 0 ? `(${currentPracticeVillainPos}: ${villainRange.length}种/${villainCombos}组合)` : `(${currentPracticeVillainPos}: 无范围)`;
         villainInfoEl.style.color = villainRange.length > 0 ? '#2ecc71' : '#e74c3c';
     } else {
         villainInfoEl.textContent = currentPracticeVillainPos ? '' : '(随机位置)';
