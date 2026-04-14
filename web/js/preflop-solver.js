@@ -108,6 +108,30 @@ function _showdownPayoff(h0, h1, halfPot) {
     return [ev, -ev];
 }
 
+// IP showdown payoff — Player 0 has position, realizes more equity
+// Accounts for: positional advantage, suitedness playability, connectedness
+function _showdownPayoffIP(h0, h1, halfPot, hands169) {
+    let eq = _getHeadsUpEquity(h0, h1);
+    // IP equity realization bonus (~5-8% depending on hand playability)
+    const hand = hands169[h0];
+    const suited = hand && hand.endsWith('s');
+    const isPair = hand && hand.length === 2;
+    let gap = 99;
+    if (hand && hand.length === 3) {
+        const r0 = _rv[hand[0]], r1 = _rv[hand[1]];
+        gap = Math.abs(r0 - r1);
+    }
+    const connected = gap <= 2;
+    // Base IP advantage + playability bonuses
+    let bonus = 0.06; // base positional advantage
+    if (suited) bonus += 0.04; // flush draws, better equity realization
+    if (connected && !isPair) bonus += 0.03; // straight potential
+    if (isPair) bonus += 0.03; // set mining potential
+    eq = Math.min(0.92, eq + bonus);
+    const ev = (2 * eq - 1) * halfPot;
+    return [ev, -ev];
+}
+
 class PreflopSolver {
     constructor(config = {}) {
         this.bb = config.bb || 1;
@@ -165,46 +189,114 @@ class PreflopSolver {
 
         this.solved = true;
         this.strategies = this.solver._extractStrategies();
+
+        // Calibrate RFI ranges: CFR determines relative hand ranking,
+        // position-based width caps ensure realistic EP/LP range sizes
+        this._calibrateRFI();
         return this.strategies;
     }
 
-    // RFI: each position decides raise/fold when folded to them
-    _solveRFIScenarios(iterations) {
-        // For each position, create a 2-player simplified game:
-        // Player 0 (opener) vs Player 1 (remaining field represented as BB)
-        // The opener either folds (loses nothing extra) or raises (enters pot)
-        // Simplified: equity realization against a calling range
+    // Post-process RFI strategies to match realistic position-based range widths.
+    // The CFR solver correctly ranks hands (AA > AKs > ... > 72o) but the 2-player
+    // model produces too-wide EP ranges. This preserves the CFR ordering while
+    // capping range width per position to match standard GTO charts.
+    _calibrateRFI() {
+        // Target: number of hand TYPES that open (out of 169)
+        const targetCounts = { UTG: 29, HJ: 42, CO: 58, BTN: 87, SB: 72 };
 
         for (const pos of this.positions) {
-            if (pos === 'BB') continue; // BB doesn't RFI
+            if (pos === 'BB') continue;
+            const target = targetCounts[pos] || 50;
+
+            // Collect raise frequencies from CFR
+            const hands = [];
+            for (let i = 0; i < 169; i++) {
+                const key = `rfi|${pos}|0|${i}`;
+                const strat = this.strategies.get(key);
+                if (strat) hands.push({ idx: i, key, raiseFreq: strat[1] || 0 });
+            }
+            // Sort by raise frequency (best hands first)
+            hands.sort((a, b) => b.raiseFreq - a.raiseFreq);
+
+            // Top 'target' hands: raise. Borderline hands (±3 around cutoff): mixed.
+            // Rest: fold.
+            for (let i = 0; i < hands.length; i++) {
+                const h = hands[i];
+                if (i < target - 3) {
+                    // Core range: raise ~100%
+                    this.strategies.set(h.key, [0.02, 0.98]);
+                } else if (i < target + 3) {
+                    // Borderline: mixed strategy (linear interpolation)
+                    const t = (i - (target - 3)) / 6; // 0 to 1
+                    const raiseF = Math.max(0.05, 1 - t * 0.9);
+                    this.strategies.set(h.key, [1 - raiseF, raiseF]);
+                } else {
+                    // Outside range: fold ~100%
+                    this.strategies.set(h.key, [0.98, 0.02]);
+                }
+            }
+        }
+    }
+
+    // RFI: opener raises or folds; BB responds fold/call/3bet
+    _solveRFIScenarios(iterations) {
+        // Position-based multiplier: more players behind = more risk of facing 3bet
+        // This approximates multi-way dynamics in a 2-player model
+        // EP faces more 3bets: UTG has 5 players behind (~25% 3bet chance),
+        // BTN has 2 (~8%). Multiplier scales the fold-to-3bet cost to approximate this.
+        const posMultiplier = { UTG: 4.0, HJ: 3.0, CO: 1.8, BTN: 1.0, SB: 1.2 };
+
+        for (const pos of this.positions) {
+            if (pos === 'BB') continue;
+            const threeBetSize = this.rfiSize * this.threeBetMultiplier;
+            const posMult = posMultiplier[pos] || 1.0;
 
             const root = new GameNode(NodeType.PLAYER, 0, ['fold', 'raise'], 1.5, [this.startingStack, this.startingStack]);
 
-            // Fold: opener gives up blinds already posted
-            const foldNode = new GameNode(NodeType.TERMINAL, -1, [], 1.5, [this.startingStack, this.startingStack]);
-            foldNode.payoffs = (h0, h1) => {
-                // Opener loses nothing extra (blinds already counted)
-                return [0, 0];
-            };
+            // Fold: lose nothing
+            const foldNode = new GameNode(NodeType.TERMINAL, -1, [], 1.5, null);
+            foldNode.payoffs = (h0, h1) => [0, 0];
 
-            // Raise: showdown equity vs BB defense range
-            const raiseNode = new GameNode(NodeType.TERMINAL, -1, [], this.rfiSize * 2 + 1.5, null);
-            raiseNode.payoffs = (h0, h1) => _showdownPayoff(h0, h1, this.rfiSize + 0.75);
+            // Raise → BB decides fold/call/3bet
+            const bbNode = new GameNode(NodeType.PLAYER, 1, ['fold', 'call', '3bet'],
+                this.rfiSize + 1.5, [this.startingStack, this.startingStack]);
 
-            root.children = { fold: foldNode, raise: raiseNode };
+            // BB folds → opener wins dead blinds (reduced for EP: other players could 3bet)
+            const stealProfit = { UTG: 0.4, HJ: 0.6, CO: 1.0, BTN: 1.5, SB: 1.3 };
+            const bbFold = new GameNode(NodeType.TERMINAL, -1, [], this.rfiSize + 1.5, null);
+            bbFold.payoffs = (h0, h1) => [stealProfit[pos] || 1.5, -(stealProfit[pos] || 1.5)];
+
+            // BB calls → showdown. Only BTN/CO get full IP bonus; EP is often OOP vs callers.
+            const bbCall = new GameNode(NodeType.TERMINAL, -1, [], this.rfiSize * 2 + 1.5, null);
+            const hasIPAdvantage = (pos === 'BTN' || pos === 'CO');
+            bbCall.payoffs = hasIPAdvantage
+                ? (h0, h1) => _showdownPayoffIP(h0, h1, this.rfiSize + 0.75, this.hands169)
+                : (h0, h1) => _showdownPayoff(h0, h1, this.rfiSize + 0.75);
+
+            // BB 3bets → opener decides fold/call
+            const facing3bet = new GameNode(NodeType.PLAYER, 0, ['fold', 'call'], this.rfiSize + threeBetSize + 1.5, null);
+            const f3fold = new GameNode(NodeType.TERMINAL, -1, [], this.rfiSize + threeBetSize + 1.5, null);
+            // Opener folds: loses their RFI investment. Scale by position multiplier
+            // (EP faces more 3bets from behind, making marginal opens worse)
+            f3fold.payoffs = (h0, h1) => [-(this.rfiSize * posMult), this.rfiSize * posMult];
+            const f3call = new GameNode(NodeType.TERMINAL, -1, [], this.rfiSize + threeBetSize * 2 + 1.5, null);
+            f3call.payoffs = (h0, h1) => _showdownPayoff(h0, h1, (this.rfiSize + threeBetSize * 2 + 1.5) / 2);
+            facing3bet.children = { fold: f3fold, call: f3call };
+
+            bbNode.children = { fold: bbFold, call: bbCall, '3bet': facing3bet };
+            root.children = { fold: foldNode, raise: bbNode };
 
             const infoSetKeyFn = (node, hand, player) => {
                 return `rfi|${pos}|${player}|${hand}`;
             };
 
-            // Use hand indices as buckets (169 canonical hands)
             const handIndices0 = this.hands169.map((_, i) => i);
             const handIndices1 = this.hands169.map((_, i) => i);
 
             this.solver.solve(root, [handIndices0, handIndices1], infoSetKeyFn, {
                 iterations,
                 conflictFn: () => false,
-                samplesPerIter: 800, // Monte Carlo: sample 800 pairs per iteration
+                samplesPerIter: 800,
             });
         }
     }
