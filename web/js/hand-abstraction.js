@@ -99,7 +99,7 @@ function fastEquityEstimate(holeCards, boardCards, villainRange, sims, rngFn) {
 // Compute equity buckets for a set of hands against a villain range on a given board
 // Returns: { buckets: Map<comboKey, bucketId>, equities: Map<comboKey, equity>, numBuckets }
 function computeEquityBuckets(hands, boardCards, villainRange, numBuckets, simsPerHand) {
-    numBuckets = numBuckets || 30;
+    numBuckets = numBuckets || 25;
     simsPerHand = simsPerHand || 200;
 
     // Create seeded RNG from board for deterministic bucketing
@@ -111,15 +111,26 @@ function computeEquityBuckets(hands, boardCards, villainRange, numBuckets, simsP
     const equities = new Map();
     const usedBoard = new Set(boardCards.map(c => c.id));
 
-    // Calculate equity for each hand (seeded = deterministic)
+    // Hand-strength bonus: pushes strong made hands into higher buckets,
+    // separating two-pair/set from top-pair at similar raw equity.
+    // Tier: 0=HC, 1=pair, 2=two pair, 3=trips, 4=straight, 5=flush, 6=FH, 7=quads, 8=SF
+    const strengthBonus = [0, 0, 0.04, 0.06, 0.08, 0.08, 0.10, 0.12, 0.15];
+
     for (const hand of hands) {
         if (usedBoard.has(hand[0].id) || usedBoard.has(hand[1].id)) continue;
         const key = hand[0].id + '|' + hand[1].id;
-        const eq = fastEquityEstimate(hand, boardCards, villainRange, simsPerHand, rng);
+        let eq = fastEquityEstimate(hand, boardCards, villainRange, simsPerHand, rng);
+        // Add hand-strength bonus so two pair / set gets pushed to higher bucket
+        if (typeof evaluateBest === 'function') {
+            const eval5 = evaluateBest(hand, boardCards);
+            if (eval5 && eval5.tier >= 2) {
+                eq = Math.min(0.99, eq + (strengthBonus[eval5.tier] || 0));
+            }
+        }
         equities.set(key, eq);
     }
 
-    // Sort by equity and assign to equal-frequency buckets
+    // Sort by adjusted equity and assign to equal-frequency buckets
     const sorted = [...equities.entries()].sort((a, b) => a[1] - b[1]);
     const buckets = new Map();
     const bucketSize = Math.max(1, Math.ceil(sorted.length / numBuckets));
