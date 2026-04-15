@@ -99,7 +99,7 @@ function fastEquityEstimate(holeCards, boardCards, villainRange, sims, rngFn) {
 // Compute equity buckets for a set of hands against a villain range on a given board
 // Returns: { buckets: Map<comboKey, bucketId>, equities: Map<comboKey, equity>, numBuckets }
 function computeEquityBuckets(hands, boardCards, villainRange, numBuckets, simsPerHand) {
-    numBuckets = numBuckets || 25;
+    numBuckets = numBuckets || 30;
     simsPerHand = simsPerHand || 200;
 
     // Create seeded RNG from board for deterministic bucketing

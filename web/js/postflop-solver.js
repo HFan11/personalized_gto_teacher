@@ -15,7 +15,7 @@ class PostflopSolver {
         this.street = config.street || 'flop';
         this.betSizes = config.betSizes || [0.33, 0.66, 1.0];
         this.raiseMultiplier = config.raiseMultiplier || 2.5;
-        this.numBuckets = config.numBuckets || 25;
+        this.numBuckets = config.numBuckets || 30;
         this.iterations = config.iterations || 2000;
         this.simsPerHand = config.simsPerHand || 80;
 
@@ -93,8 +93,9 @@ class PostflopSolver {
         // Cap sampling to prevent O(buckets²) blowup with many buckets.
         // 600 samples/iter gives good coverage for up to 50 buckets (2500 pairs)
         // while keeping per-iteration cost constant regardless of bucket count.
-        // Scale sampling: full traversal for small games, capped for large
-        const samplesPerIter = Math.min(totalPairs, Math.max(400, Math.floor(totalPairs * 0.6)));
+        // Full traversal up to ~32 buckets (1024 pairs). Above that, sample 80%.
+        // Full traversal converges much better than MC sampling for small games.
+        const samplesPerIter = totalPairs <= 1024 ? 0 : Math.floor(totalPairs * 0.8);
 
         // Store for incremental iterations (worker can call solver.solve() again)
         this._lastRoot = root;
