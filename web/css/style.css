@@ -544,8 +544,11 @@ body {
     font-weight: 600;
     font-size: 9px;
     cursor: pointer;
-    transition: transform 0.15s;
+    transition: transform 0.15s, background-color 0.1s;
     position: relative;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
 }
 
 @media (min-width: 400px) {

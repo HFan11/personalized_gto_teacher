@@ -1356,12 +1356,17 @@ function renderMatrix(profileId) {
             const combos = getComboCount(hand);
             if (inRaise) raiseCombos += combos;
             if (inCall) callCombos += combos;
-            html += `<div class="matrix-cell ${cls}"
+            html += `<div class="matrix-cell ${cls}" data-hand="${hand}"
                           onclick="toggleRangeCell('${hand}','${profileId}',${hasCall})"
                           title="${hand} (${combos} combos)">${hand}</div>`;
         }
     }
     grid.innerHTML = html;
+
+    // Attach drag-to-paint for main editor
+    attachDragPaint(grid, (hand, newCls) => {
+        mainSetCell(hand, profileId, newCls);
+    });
 
     const totalDef = raiseCombos + callCombos;
     const raisePct = (raiseCombos / 1326 * 100).toFixed(1);
@@ -1414,6 +1419,17 @@ function toggleRangeCell(hand, profileId, hasCall) {
         // inCall → fold (already removed)
     }
 
+    saveScenarioRange(profileId, currentPreflopPos, currentScenario, currentOpenerPos, data.raise, data.call);
+    renderMatrix(profileId);
+}
+
+// Direct set cell to a specific state (for drag-to-paint)
+function mainSetCell(hand, profileId, newCls) {
+    const data = getScenarioRangeData(profileId, currentPreflopPos, currentScenario, currentOpenerPos);
+    data.raise = data.raise.filter(h => h !== hand);
+    data.call = data.call.filter(h => h !== hand);
+    if (newCls === 'raise') data.raise.push(hand);
+    else if (newCls === 'call') data.call.push(hand);
     saveScenarioRange(profileId, currentPreflopPos, currentScenario, currentOpenerPos, data.raise, data.call);
     renderMatrix(profileId);
 }
@@ -2989,6 +3005,108 @@ function getEquityColor(eq) {
 }
 
 // ============================================================
+// ============================================================
+// Drag-to-Paint Range Editor
+// Drag = toggle between raise (red) and fold (white)
+// Click (no drag) = cycle to call (green)
+// ============================================================
+
+function attachDragPaint(matrixEl, setCellFn) {
+    if (!matrixEl) return;
+    let painting = false;
+    let paintMode = null; // 'raise' or 'fold'
+    let hasDragged = false;
+    let startHand = null;
+
+    function getCellHand(e) {
+        const touch = e.touches ? e.touches[0] : e;
+        const el = document.elementFromPoint(touch.clientX, touch.clientY);
+        if (el && el.classList.contains('matrix-cell')) return el.dataset.hand || el.textContent.trim();
+        return null;
+    }
+
+    function getCellState(el) {
+        if (el.classList.contains('raise')) return 'raise';
+        if (el.classList.contains('call')) return 'call';
+        return 'fold';
+    }
+
+    matrixEl.addEventListener('mousedown', (e) => {
+        const hand = getCellHand(e);
+        if (!hand) return;
+        e.preventDefault();
+        painting = true;
+        hasDragged = false;
+        startHand = hand;
+        // Determine paint mode from first cell: if raise/call → paint fold, if fold → paint raise
+        const cell = e.target.closest('.matrix-cell');
+        if (cell) {
+            const state = getCellState(cell);
+            paintMode = (state === 'raise' || state === 'call') ? 'fold' : 'raise';
+        }
+    });
+
+    matrixEl.addEventListener('mousemove', (e) => {
+        if (!painting) return;
+        const hand = getCellHand(e);
+        if (!hand || hand === startHand && !hasDragged) return;
+        hasDragged = true;
+        // Paint this cell
+        const cell = e.target.closest('.matrix-cell');
+        if (cell) {
+            const state = getCellState(cell);
+            if (paintMode === 'raise' && state !== 'raise') setCellFn(hand, 'raise');
+            else if (paintMode === 'fold' && state !== 'fold') setCellFn(hand, 'fold');
+        }
+    });
+
+    document.addEventListener('mouseup', () => {
+        if (painting && !hasDragged && startHand) {
+            // Pure click (no drag) — let the onclick handler cycle through states (includes green)
+            // onclick already handles this, so do nothing here
+        }
+        painting = false;
+        paintMode = null;
+        startHand = null;
+    });
+
+    // Touch support
+    matrixEl.addEventListener('touchstart', (e) => {
+        const hand = getCellHand(e);
+        if (!hand) return;
+        painting = true;
+        hasDragged = false;
+        startHand = hand;
+        const cell = document.elementFromPoint(e.touches[0].clientX, e.touches[0].clientY);
+        if (cell && cell.classList.contains('matrix-cell')) {
+            paintMode = (getCellState(cell) === 'raise' || getCellState(cell) === 'call') ? 'fold' : 'raise';
+        }
+    }, { passive: true });
+
+    matrixEl.addEventListener('touchmove', (e) => {
+        if (!painting) return;
+        e.preventDefault();
+        const hand = getCellHand(e);
+        if (!hand) return;
+        if (hand !== startHand) hasDragged = true;
+        if (hasDragged) {
+            const cell = document.elementFromPoint(e.touches[0].clientX, e.touches[0].clientY);
+            if (cell && cell.classList.contains('matrix-cell')) {
+                const state = getCellState(cell);
+                if (paintMode === 'raise' && state !== 'raise') setCellFn(hand, 'raise');
+                else if (paintMode === 'fold' && state !== 'fold') setCellFn(hand, 'fold');
+            }
+        }
+    }, { passive: false });
+
+    matrixEl.addEventListener('touchend', () => {
+        painting = false;
+        paintMode = null;
+        startHand = null;
+    });
+}
+
+// ============================================================
 // Setup Wizard (first-time users)
 // ============================================================
 
@@ -2997,6 +3115,8 @@ const WIZARD_TOTAL_STEPS = 5;
 const WIZARD_SKIPPABLE = [2, 4]; // range editing steps
 let wizardRangePos = 'BTN';
 let wizardRangeProfileId = null;
+let wizardScenario = 'rfi';
+let wizardOpenerPos = null;
 
 function showWizard() {
     wizardStep = 1;
@@ -3120,14 +3240,44 @@ function renderWizardRange(profileId) {
         + `<strong>${profile.name}</strong></div>`;
 
     // Position selector
-    html += '<div class="position-selector" style="margin-bottom:8px;">';
+    html += '<div class="position-selector" style="margin-bottom:6px;">';
     for (const pos of positions) {
         html += `<button class="pos-btn ${pos === wizardRangePos ? 'active' : ''}" onclick="wizardSelectPos('${pos}')">${pos}</button>`;
     }
     html += '</div>';
 
+    // Scenario tabs
+    const scenarios = getAvailableScenarios(wizardRangePos);
+    if (!scenarios.find(s => s.id === wizardScenario)) {
+        wizardScenario = scenarios[0]?.id || 'rfi';
+        wizardOpenerPos = null;
+    }
+    html += '<div style="display:flex;gap:4px;margin-bottom:6px;flex-wrap:wrap;">';
+    for (const s of scenarios) {
+        const active = wizardScenario === s.id ? 'background:var(--accent-blue);color:white;' : 'background:var(--bg-elevated);color:var(--text-secondary);';
+        html += `<button onclick="wizardSelectScenario('${s.id}')" style="${active}border:none;padding:4px 10px;border-radius:16px;font-size:10px;font-weight:600;cursor:pointer;">${s.label}</button>`;
+    }
+    html += '</div>';
+
+    // Opener position selector (for vs_raise only)
+    if (wizardScenario === 'vs_raise') {
+        const openers = getAvailableOpeners(wizardRangePos);
+        if (openers.length > 0) {
+            if (!wizardOpenerPos || !openers.includes(wizardOpenerPos)) wizardOpenerPos = openers[0];
+            html += '<div style="display:flex;gap:4px;margin-bottom:6px;align-items:center;"><span style="font-size:10px;color:var(--text-muted);">对手开池位置:</span>';
+            for (const p of openers) {
+                html += `<button class="pos-btn ${wizardOpenerPos === p ? 'active' : ''}" onclick="wizardSelectOpener('${p}')" style="padding:3px 8px;font-size:10px;">${p}</button>`;
+            }
+            html += '</div>';
+        }
+    }
+
+    // Dynamic labels
+    const raiseLabels = { rfi: 'Raise', vs_raise: '3-Bet', vs_3bet: '4-Bet', vs_4bet: '5-Bet' };
+    const callLabels = { rfi: 'Limp', vs_raise: 'Call', vs_3bet: 'Call', vs_4bet: 'Call' };
+
     // Matrix
-    const data = getScenarioRangeData(profileId, wizardRangePos, 'rfi', null);
+    const data = getScenarioRangeData(profileId, wizardRangePos, wizardScenario, wizardOpenerPos);
     const raiseSet = new Set(data.raise);
     const callSet = new Set(data.call);
     const matrix = getHandMatrix();
@@ -3139,19 +3289,34 @@ function renderWizardRange(profileId) {
             let cls = 'fold';
             if (raiseSet.has(hand)) cls = 'raise';
             else if (callSet.has(hand)) cls = 'call';
-            html += `<div class="matrix-cell ${cls}" onclick="wizardToggleCell('${hand}')">${hand}</div>`;
+            html += `<div class="matrix-cell ${cls}" data-hand="${hand}" onclick="wizardToggleCell('${hand}')">${hand}</div>`;
         }
     }
     html += '</div></div>';
 
     // Legend
     html += `<div class="matrix-legend" style="margin-top:6px;">
-        <div class="legend-item"><div class="legend-color" style="background:var(--accent-red);"></div>Raise</div>
-        <div class="legend-item"><div class="legend-color" style="background:var(--accent-green);"></div>Call</div>
+        <div class="legend-item"><div class="legend-color" style="background:var(--accent-red);"></div>${raiseLabels[wizardScenario] || 'Raise'}</div>
+        <div class="legend-item"><div class="legend-color" style="background:var(--accent-green);"></div>${callLabels[wizardScenario] || 'Call'}</div>
         <div class="legend-item"><div class="legend-color" style="background:var(--bg-elevated);"></div>Fold</div>
     </div>`;
 
     container.innerHTML = html;
+    // Attach drag-to-paint after render
+    attachDragPaint(document.getElementById('wizard-matrix'), (hand, newCls) => {
+        wizardSetCell(hand, newCls);
+    });
+}
+
+function wizardSelectScenario(scenario) {
+    wizardScenario = scenario;
+    wizardOpenerPos = null;
+    renderWizardRange(wizardRangeProfileId);
+}
+
+function wizardSelectOpener(pos) {
+    wizardOpenerPos = pos;
+    renderWizardRange(wizardRangeProfileId);
 }
 
 function wizardSelectPos(pos) {
@@ -3160,17 +3325,23 @@ function wizardSelectPos(pos) {
 }
 
 function wizardToggleCell(hand) {
-    const profileId = wizardRangeProfileId;
-    const data = getScenarioRangeData(profileId, wizardRangePos, 'rfi', null);
+    // Click cycles: fold → raise → call → fold
+    const data = getScenarioRangeData(wizardRangeProfileId, wizardRangePos, wizardScenario, wizardOpenerPos);
     const inRaise = data.raise.includes(hand);
     const inCall = data.call.includes(hand);
+    if (!inRaise && !inCall) wizardSetCell(hand, 'raise');
+    else if (inRaise) wizardSetCell(hand, 'call');
+    else wizardSetCell(hand, 'fold');
+}
+
+function wizardSetCell(hand, newCls) {
+    const data = getScenarioRangeData(wizardRangeProfileId, wizardRangePos, wizardScenario, wizardOpenerPos);
     const newRaise = data.raise.filter(h => h !== hand);
     const newCall = data.call.filter(h => h !== hand);
-    if (!inRaise && !inCall) newRaise.push(hand);       // fold -> raise
-    else if (inRaise) newCall.push(hand);                // raise -> call
-    // call -> fold: already removed from both
-    saveScenarioRange(profileId, wizardRangePos, 'rfi', null, newRaise, newCall);
-    renderWizardRange(profileId);
+    if (newCls === 'raise') newRaise.push(hand);
+    else if (newCls === 'call') newCall.push(hand);
+    saveScenarioRange(wizardRangeProfileId, wizardRangePos, wizardScenario, wizardOpenerPos, newRaise, newCall);
+    renderWizardRange(wizardRangeProfileId);
 }
 
 function renderWizardSummary() {
