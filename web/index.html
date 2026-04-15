@@ -3420,6 +3420,121 @@ function closeHelp() {
     document.getElementById('page-help').classList.remove('active');
     switchPage(helpReturnPage);
 }
+// ============================================================
+// Browser Batch Solver
+// Usage: open browser console on your deployed app, then:
+//   batchSolveFlops()                    — solve only NEW boards (skip existing)
+//   batchSolveFlops({force: true})       — re-solve ALL boards at 300 iters
+//   batchSolveFlops({iterations: 500})   — custom iteration count
+// After download, upload precomputed_flops.json to repo:
+//   web/data/precomputed/flop/ (split into individual files)
+// ============================================================
+// Browser Batch Solver — run from console: batchSolveFlops()
+// Calls Railway C++ API directly, saves results to download
+// ============================================================
+async function batchSolveFlops(opts = {}) {
+    const API = opts.url || 'https://personalizedgtoteacher-production.up.railway.app';
+    const ITERS = opts.iterations || 300;
+    const FORCE = opts.force || false;
+    const RANGE_IP = 'AA,KK,QQ,JJ,TT,99,88,77,AKs,AKo,AQs,AJs,ATs,A9s,A5s,KQs,KJs,KTs,QJs,QTs,JTs,T9s,98s,87s,76s,65s,54s,AQo,AJo,KQo';
+    const RANGE_OOP = 'AA,KK,QQ,JJ,TT,99,88,77,66,55,AKs,AKo,AQs,AJs,ATs,A9s,A5s,A4s,KQs,KJs,KTs,K9s,QJs,QTs,Q9s,JTs,J9s,T9s,98s,87s,76s,65s,54s,AQo,AJo,KQo,KJo';
+    const BET_SIZES = {ip_flop_bet:[33,66],ip_flop_raise:[100],oop_flop_bet:[33,66],oop_flop_raise:[100],ip_turn_bet:[50,100],ip_turn_raise:[100],oop_turn_bet:[50,100],oop_turn_raise:[100],ip_river_bet:[66,100],ip_river_raise:[100],oop_river_bet:[66,100],oop_river_raise:[100]};
+
+    // Get board list from precomputed index
+    let boards;
+    try {
+        const idx = await fetch('/data/precomputed/index.json').then(r => r.json());
+        boards = idx.flop.map(b => ({ board: b.board, category: b.category, file: b.file }));
+    } catch(e) { console.error('Failed to load index.json'); return; }
+
+    // Filter out already-solved boards (check if file exists)
+    if (!FORCE) {
+        const existing = [];
+        for (const b of boards) {
+            try {
+                const r = await fetch('/data/precomputed/flop/' + b.file, { method: 'HEAD' });
+                if (r.ok) existing.push(b.file);
+            } catch(e) {}
+        }
+        boards = boards.filter(b => !existing.includes(b.file));
+        console.log(`Skipping ${existing.length} existing boards, solving ${boards.length} new boards`);
+    }
+
+    // Progress overlay
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;color:white;font-family:monospace;';
+    overlay.innerHTML = `
+        <h2 style="margin-bottom:20px;">🔄 Batch Solver (${boards.length} boards × ${ITERS} iters)</h2>
+        <div id="bs-progress" style="font-size:14px;margin-bottom:10px;">Starting...</div>
+        <div style="width:80%;max-width:500px;background:#333;border-radius:8px;overflow:hidden;height:24px;">
+            <div id="bs-bar" style="width:0%;height:100%;background:linear-gradient(90deg,#4f8ff7,#34d399);transition:width 0.3s;"></div>
+        </div>
+        <div id="bs-log" style="margin-top:20px;font-size:11px;max-height:300px;overflow-y:auto;width:80%;max-width:500px;background:#1a1a2e;padding:10px;border-radius:8px;"></div>
+        <button onclick="this.parentElement.remove()" style="margin-top:15px;padding:8px 24px;background:#ef4444;border:none;color:white;border-radius:8px;cursor:pointer;">取消</button>
+    `;
+    document.body.appendChild(overlay);
+    const progEl = document.getElementById('bs-progress');
+    const barEl = document.getElementById('bs-bar');
+    const logEl = document.getElementById('bs-log');
+    function log(msg) { logEl.innerHTML += msg + '<br>'; logEl.scrollTop = logEl.scrollHeight; }
+
+    const results = [];
+    let done = 0, failed = 0;
+    const t0 = Date.now();
+
+    for (let i = 0; i < boards.length; i++) {
+        const { board, category, file } = boards[i];
+        progEl.textContent = `[${i+1}/${boards.length}] ${board} (${category})`;
+        barEl.style.width = ((i / boards.length) * 100) + '%';
+
+        try {
+            const body = { range_ip: RANGE_IP, range_oop: RANGE_OOP, board, round: 1,
+                oop_commit: 3, ip_commit: 3, stack: 100, iterations: ITERS, threads: 8, dump_depth: 1, ...BET_SIZES };
+
+            const resp = await fetch(API + '/api/solve', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body), signal: AbortSignal.timeout(300000),
+            });
+            const data = await resp.json();
+            if (data.error) throw new Error(data.error);
+
+            const rootStrat = data.strategy?.strategy;
+            const compact = { board, category, round: 1, iterations: data.iterations || ITERS,
+                solve_time_ms: data.solve_time_ms, actions: rootStrat?.actions || [],
+                strategy: rootStrat?.strategy || {}, children: {} };
+            const children = data.strategy?.childrens || {};
+            for (const [action, child] of Object.entries(children)) {
+                if (child?.strategy) compact.children[action] = {
+                    actions: child.strategy.actions || [], strategy: child.strategy.strategy || {}, player: child.player };
+            }
+
+            results.push({ file, data: compact });
+            done++;
+            log(`✅ ${board} — ${Math.round((data.solve_time_ms||0)/1000)}s`);
+        } catch(e) {
+            failed++;
+            log(`❌ ${board} — ${e.message}`);
+        }
+    }
+
+    barEl.style.width = '100%';
+    const elapsed = Math.round((Date.now() - t0) / 1000);
+    progEl.textContent = `Complete: ${done} done, ${failed} failed (${elapsed}s)`;
+    log(`\n🎉 Done! ${done} solved, ${failed} failed. Downloading...`);
+
+    // Download as individual JSON files via zip-like approach (or individual downloads)
+    if (results.length > 0) {
+        // Create a single combined JSON for easy upload
+        const combined = {};
+        for (const r of results) combined[r.file] = r.data;
+        const blob = new Blob([JSON.stringify(combined)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = 'precomputed_flops.json'; a.click();
+        URL.revokeObjectURL(url);
+        log(`📥 Downloaded precomputed_flops.json (${results.length} boards)`);
+    }
+}
 
 </script>
 
