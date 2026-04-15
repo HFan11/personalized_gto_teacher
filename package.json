@@ -5,6 +5,11 @@
   "private": true,
   "scripts": {
     "dev": "python3 -m http.server 8080 --directory web",
-    "test": "node lib/test-solver.js"
+    "test": "node lib/test-solver.js",
+    "calibrate": "node lib/calibrate-solver.js",
+    "calibrate:all": "node lib/calibrate-solver.js --all",
+    "batch:flop": "node solver/precompute/batch-solve.js --flop",
+    "batch:flop:force": "node solver/precompute/batch-solve.js --flop --force",
+    "batch:turn": "node solver/precompute/batch-solve.js --turn"
   }
 }

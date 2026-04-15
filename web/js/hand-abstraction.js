@@ -111,11 +111,14 @@ function computeEquityBuckets(hands, boardCards, villainRange, numBuckets, simsP
     const equities = new Map();
     const usedBoard = new Set(boardCards.map(c => c.id));
 
-    // Hand-strength bonus: separates made hands from draws at similar equity.
-    // Without this, pair (55 on K9T, ~28% eq, wants call for set mining) ends up
-    // in same bucket as gutshot (86 on K9T, ~28% eq, should fold OOP).
+    // Hand-strength adjustment for equity bucketing.
+    // Calibrated against C++ solver (calibrate-solver.js):
+    //   highcard was +20% over-check → reduce penalty to -1% (was -3%)
+    //   pair was -12% over-bet → keep +1% (was +3%)
+    //   twopair was -28.5% over-bet → reduce to +2% (was +5%)
+    //   trips was +24% over-check → boost to +5% (was +8%)
     // Tier: 0=HC, 1=pair, 2=two pair, 3=trips, 4=straight, 5=flush, 6=FH, 7=quads, 8=SF
-    const strengthBonus = [-0.03, 0.03, 0.05, 0.08, 0.10, 0.10, 0.12, 0.14, 0.16];
+    const strengthBonus = [-0.01, 0.01, 0.02, 0.05, 0.08, 0.08, 0.10, 0.12, 0.15];
 
     for (const hand of hands) {
         if (usedBoard.has(hand[0].id) || usedBoard.has(hand[1].id)) continue;
