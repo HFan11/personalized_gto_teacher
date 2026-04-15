@@ -268,9 +268,11 @@ class PostflopSolver {
         const node = new GameNode(NodeType.PLAYER, 1, actions, pot, [stack, stack]);
         node._actionPath = pathPrefix;
 
-        // IP checks → terminal (showdown or next street)
+        // IP checks → terminal (check-check: neutral, no IP bonus)
+        // When both players check, position advantage is minimal for THIS street.
+        // OOP mid-strength hands should feel safe checking (not penalized).
         const checkTerminal = new GameNode(NodeType.TERMINAL, -1, [], pot, [stack, stack]);
-        checkTerminal.payoffs = this._makeShowdownPayoffs(pot);
+        checkTerminal.payoffs = this._makeShowdownPayoffs(pot, 1.0);
         node.children = { check: checkTerminal };
 
         // IP bets → OOP responds
@@ -319,11 +321,13 @@ class PostflopSolver {
             return [halfOrigPot, -halfOrigPot];                     // IP folds
         };
 
-        // Call → showdown (or next street — simplified as showdown)
+        // Call → showdown. IP gets equity realization bonus (~10%) because
+        // after betting action, IP's positional advantage materializes on
+        // future streets (can barrel or check back with information).
         const callPot = pot + betToCall;
         const callStack = remainingStack - betToCall;
         const callNode = new GameNode(NodeType.TERMINAL, -1, [], callPot, [callStack, callStack]);
-        callNode.payoffs = this._makeShowdownPayoffs(callPot);
+        callNode.payoffs = this._makeShowdownPayoffs(callPot, 1.15);
 
         node.children = { fold: foldNode, call: callNode };
 
@@ -352,8 +356,10 @@ class PostflopSolver {
     }
 
     // Create showdown payoff function based on equity buckets
-    _makeShowdownPayoffs(pot) {
+    // ipBonus: IP equity realization multiplier (1.0 = neutral, >1 = IP advantage)
+    _makeShowdownPayoffs(pot, ipBonus) {
         const halfPot = pot / 2;
+        const bonus = ipBonus || 1.0;
         return (bucketOOP, bucketIP) => {
             const actualBuckets = Math.max(
                 this.heroBuckets?.numBuckets || this.numBuckets,
@@ -363,12 +369,7 @@ class PostflopSolver {
             const eqOOP = (bucketOOP + 0.5) / actualBuckets;
             const eqIP = (bucketIP + 0.5) / actualBuckets;
 
-            // IP equity realization advantage (~8%): IP acts last on future
-            // streets, realizing more equity with draws and bluff opportunities.
-            // This makes check-check slightly worse for OOP, and makes IP's
-            // calls more profitable → IP defends wider vs OOP bets.
-            const ipRealizationBonus = 1.08;
-            const oopShare = eqOOP / (eqOOP + eqIP * ipRealizationBonus);
+            const oopShare = eqOOP / (eqOOP + eqIP * bonus);
             return [
                 pot * oopShare - halfPot,
                 pot * (1 - oopShare) - halfPot
