@@ -308,12 +308,15 @@ class PostflopSolver {
         const node = new GameNode(NodeType.PLAYER, player, actions, pot, [remainingStack, remainingStack]);
         node._actionPath = pathPrefix;
 
-        // Fold → opponent wins pot
+        // Fold → opponent wins pot. Payoff = ±halfOriginalPot where
+        // originalPot = pot before the bet that's being faced.
+        // This correctly values the dead money already in the pot —
+        // folding costs more than just betToCall, discouraging over-folding.
+        const halfOrigPot = (pot - betToCall) / 2;
         const foldNode = new GameNode(NodeType.TERMINAL, -1, [], pot, null);
         foldNode.payoffs = (h0, h1) => {
-            // Player who folded loses their investment
-            if (player === 0) return [-betToCall, betToCall]; // OOP folds, IP wins
-            return [betToCall, -betToCall]; // IP folds, OOP wins
+            if (player === 0) return [-halfOrigPot, halfOrigPot];  // OOP folds
+            return [halfOrigPot, -halfOrigPot];                     // IP folds
         };
 
         // Call → showdown (or next street — simplified as showdown)
@@ -352,20 +355,23 @@ class PostflopSolver {
     _makeShowdownPayoffs(pot) {
         const halfPot = pot / 2;
         return (bucketOOP, bucketIP) => {
-            // Use actual bucket count (may be less than configured numBuckets if range is small)
             const actualBuckets = Math.max(
                 this.heroBuckets?.numBuckets || this.numBuckets,
                 this.villainBuckets?.numBuckets || this.numBuckets,
-                Math.max(bucketOOP, bucketIP) + 1 // at least enough to cover the bucket IDs
+                Math.max(bucketOOP, bucketIP) + 1
             );
             const eqOOP = (bucketOOP + 0.5) / actualBuckets;
             const eqIP = (bucketIP + 0.5) / actualBuckets;
 
-            // Normalize to zero-sum
-            const oopShare = eqOOP / (eqOOP + eqIP);
+            // IP equity realization advantage (~8%): IP acts last on future
+            // streets, realizing more equity with draws and bluff opportunities.
+            // This makes check-check slightly worse for OOP, and makes IP's
+            // calls more profitable → IP defends wider vs OOP bets.
+            const ipRealizationBonus = 1.08;
+            const oopShare = eqOOP / (eqOOP + eqIP * ipRealizationBonus);
             return [
-                pot * oopShare - halfPot,   // OOP payoff
-                pot * (1 - oopShare) - halfPot  // IP payoff
+                pot * oopShare - halfPot,
+                pot * (1 - oopShare) - halfPot
             ];
         };
     }
