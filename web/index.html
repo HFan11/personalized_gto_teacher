@@ -3015,7 +3015,13 @@ function attachDragPaint(matrixEl, commitFn) {
     let paintMode = null; // 'raise' or 'fold'
     let hasDragged = false;
     let startHand = null;
+    let suppressClick = false;
     let changedCells = new Map(); // hand → newClass
+
+    // Suppress inline onclick when drag-paint already handled the interaction
+    matrixEl.addEventListener('click', (e) => {
+        if (suppressClick) { e.stopImmediatePropagation(); suppressClick = false; }
+    }, true);
 
     function getCell(e) {
         const pt = e.touches ? e.touches[0] : e;
@@ -3044,24 +3050,30 @@ function attachDragPaint(matrixEl, commitFn) {
         }
     }
 
-    function startPaint(e, cell) {
+    let startCell = null;
+
+    function startPaint(cell) {
         if (!cell) return;
         painting = true;
         hasDragged = false;
+        startCell = cell;
         startHand = cell.dataset.hand || cell.textContent.trim();
         changedCells.clear();
         const state = getCellState(cell);
         paintMode = (state === 'raise' || state === 'call') ? 'fold' : 'raise';
+        // Don't paint yet — wait to see if user drags or just clicks
     }
 
     function endPaint() {
         if (painting && hasDragged && changedCells.size > 0) {
-            // Batch commit all changes
+            suppressClick = true;
             commitFn(changedCells);
         }
+        // If !hasDragged: pure click → let onclick handle it (cycles to green)
         painting = false;
         paintMode = null;
         startHand = null;
+        startCell = null;
         changedCells.clear();
     }
 
@@ -3069,7 +3081,7 @@ function attachDragPaint(matrixEl, commitFn) {
         const cell = getCell(e);
         if (!cell) return;
         e.preventDefault();
-        startPaint(e, cell);
+        startPaint(cell);
     });
 
     matrixEl.addEventListener('mousemove', (e) => {
@@ -3077,18 +3089,20 @@ function attachDragPaint(matrixEl, commitFn) {
         const cell = getCell(e);
         if (!cell) return;
         const hand = cell.dataset.hand || cell.textContent.trim();
-        if (hand !== startHand || hasDragged) {
+        if (!hasDragged && hand !== startHand) {
+            // First move to a different cell — now it's a drag
             hasDragged = true;
-            paintCell(cell);
+            paintCell(startCell); // paint the starting cell too
         }
+        if (hasDragged) paintCell(cell);
     });
 
-    document.addEventListener('mouseup', () => { endPaint(); });
+    document.addEventListener('mouseup', () => { if (painting) endPaint(); });
 
     // Touch support
     matrixEl.addEventListener('touchstart', (e) => {
         const cell = getCell(e);
-        if (cell) startPaint(e, cell);
+        if (cell) startPaint(cell);
     }, { passive: true });
 
     matrixEl.addEventListener('touchmove', (e) => {
@@ -3097,11 +3111,14 @@ function attachDragPaint(matrixEl, commitFn) {
         const cell = getCell(e);
         if (!cell) return;
         const hand = cell.dataset.hand || cell.textContent.trim();
-        if (hand !== startHand) hasDragged = true;
+        if (!hasDragged && hand !== startHand) {
+            hasDragged = true;
+            paintCell(startCell);
+        }
         if (hasDragged) paintCell(cell);
     }, { passive: false });
 
-    matrixEl.addEventListener('touchend', () => { endPaint(); });
+    matrixEl.addEventListener('touchend', () => { if (painting) endPaint(); });
 }
 
 // ============================================================
