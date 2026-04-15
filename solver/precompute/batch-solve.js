@@ -13,6 +13,7 @@ const API_URL = process.argv.find(a => a.startsWith('--url='))?.split('=')[1]
     || 'https://personalizedgtoteacher-production.up.railway.app';
 const DO_FLOP = process.argv.includes('--flop') || (!process.argv.includes('--turn'));
 const DO_TURN = process.argv.includes('--turn');
+const FORCE = process.argv.includes('--force'); // re-solve existing boards at higher precision
 const OUTPUT_DIR = path.join(__dirname, '../../web/data/precomputed');
 
 // Core ranges: covers all hands a serious player needs to study
@@ -98,8 +99,8 @@ async function runFlopBatch() {
         const filename = boardToFilename(board) + '.json';
         const filepath = path.join(OUTPUT_DIR, 'flop', filename);
 
-        // Skip if already computed
-        if (fs.existsSync(filepath)) {
+        // Skip if already computed (unless --force to re-solve at higher precision)
+        if (fs.existsSync(filepath) && !FORCE) {
             console.log(`  ⏭ ${board} (${category}) — already exists`);
             done++;
             continue;
@@ -107,7 +108,8 @@ async function runFlopBatch() {
 
         try {
             console.log(`  🔄 ${board} (${category})...`);
-            const result = await solveBoard(board, 1, 50, 8);
+            // 300 iterations for PIO-level convergence (was 50)
+            const result = await solveBoard(board, 1, 300, 8);
 
             // Extract root strategy (compact format)
             const rootStrat = result.strategy?.strategy;
@@ -188,13 +190,14 @@ async function runTurnBatch() {
             const filename = boardToFilename(turnBoard) + '.json';
             const filepath = path.join(OUTPUT_DIR, 'turn', filename);
 
-            if (fs.existsSync(filepath)) {
+            if (fs.existsSync(filepath) && !FORCE) {
                 skipped++;
                 continue;
             }
 
             try {
-                const result = await solveBoard(turnBoard, 2, 100, 4);
+                // 200 iterations for turn (PIO-level, was 100)
+                const result = await solveBoard(turnBoard, 2, 200, 4);
 
                 const rootStrat = result.strategy?.strategy;
                 const compact = {

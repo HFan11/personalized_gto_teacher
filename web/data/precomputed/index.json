@@ -1,623 +1,1414 @@
 {
  "flop": [
   {
-   "board": "5d,3c,2s",
-   "category": "532 lowest",
-   "file": "5d_3c_2s.json",
-   "hands": 313
-  },
-  {
-   "board": "5s,4d,2c",
-   "category": "542 low",
-   "file": "5s_4d_2c.json",
-   "hands": 312
-  },
-  {
-   "board": "5s,5d,2c",
-   "category": "552 paired",
-   "file": "5s_5d_2c.json",
-   "hands": 312
-  },
-  {
-   "board": "6d,4c,2s",
-   "category": "642 low",
-   "file": "6d_4c_2s.json",
-   "hands": 312
-  },
-  {
-   "board": "6s,5d,3c",
-   "category": "653 low",
-   "file": "6s_5d_3c.json",
-   "hands": 308
-  },
-  {
-   "board": "6s,6d,3c",
-   "category": "663 paired",
-   "file": "6s_6d_3c.json",
-   "hands": 309
-  },
-  {
-   "board": "7d,6c,4s",
-   "category": "764",
-   "file": "7d_6c_4s.json",
-   "hands": 307
-  },
-  {
-   "board": "7s,5d,3c",
-   "category": "753 low",
-   "file": "7s_5d_3c.json",
-   "hands": 308
-  },
-  {
-   "board": "7s,6d,5c",
-   "category": "765 straight board",
-   "file": "7s_6d_5c.json",
-   "hands": 306
-  },
-  {
-   "board": "7s,6s,3d",
-   "category": "763 two-tone connected",
-   "file": "7s_6s_3d.json",
-   "hands": 309
-  },
-  {
-   "board": "7s,7d,4c",
-   "category": "774 paired",
-   "file": "7s_7d_4c.json",
-   "hands": 308
-  },
-  {
-   "board": "8d,6c,3s",
-   "category": "863",
-   "file": "8d_6c_3s.json",
-   "hands": 305
-  },
-  {
-   "board": "8h,5h,3h",
-   "category": "8-high monotone",
-   "file": "8h_5h_3h.json",
-   "hands": 306
-  },
-  {
-   "board": "8s,7d,2c",
-   "category": "8-high dry",
-   "file": "8s_7d_2c.json",
-   "hands": 308
-  },
-  {
-   "board": "8s,7d,6c",
-   "category": "876 straight board",
-   "file": "8s_7d_6c.json",
-   "hands": 303
-  },
-  {
-   "board": "8s,7s,4d",
-   "category": "874 two-tone connected",
-   "file": "8s_7s_4d.json",
-   "hands": 305
-  },
-  {
-   "board": "8s,8d,2c",
-   "category": "882 paired",
-   "file": "8s_8d_2c.json",
-   "hands": 306
-  },
-  {
-   "board": "9d,8c,5s",
-   "category": "985",
-   "file": "9d_8c_5s.json",
-   "hands": 298
-  },
-  {
-   "board": "9h,6h,2h",
-   "category": "9-high monotone",
-   "file": "9h_6h_2h.json",
-   "hands": 306
-  },
-  {
-   "board": "9s,7d,2c",
-   "category": "9-high dry",
-   "file": "9s_7d_2c.json",
-   "hands": 306
-  },
-  {
-   "board": "9s,8d,7c",
-   "category": "987 straight board",
-   "file": "9s_8d_7c.json",
-   "hands": 298
-  },
-  {
-   "board": "9s,8s,5d",
-   "category": "985 two-tone connected",
-   "file": "9s_8s_5d.json",
-   "hands": 299
-  },
-  {
-   "board": "9s,9d,3c",
-   "category": "993 paired",
-   "file": "9s_9d_3c.json",
-   "hands": 299
-  },
-  {
-   "board": "Ac,9d,4s",
-   "category": "A-high dry rainbow",
-   "file": "Ac_9d_4s.json",
-   "hands": 284
-  },
-  {
-   "board": "Ad,4c,3s",
-   "category": "A43 wheel draw",
-   "file": "Ad_4c_3s.json",
-   "hands": 291
-  },
-  {
-   "board": "Ad,5c,3s",
-   "category": "A-high dry rainbow low",
-   "file": "Ad_5c_3s.json",
-   "hands": 290
-  },
-  {
-   "board": "Ad,8c,3s",
-   "category": "A-high dry rainbow",
-   "file": "Ad_8c_3s.json",
-   "hands": 287
-  },
-  {
-   "board": "Ad,8d,3c",
-   "category": "A-high two-tone",
-   "file": "Ad_8d_3c.json",
-   "hands": 288
-  },
-  {
-   "board": "Ad,Jc,7s",
-   "category": "AJ7",
-   "file": "Ad_Jc_7s.json",
-   "hands": 276
-  },
-  {
-   "board": "Ad,Kc,4s",
-   "category": "AK4",
-   "file": "Ad_Kc_4s.json",
-   "hands": 280
-  },
-  {
-   "board": "Ad,Kc,Js",
-   "category": "AKJ broadway",
-   "file": "Ad_Kc_Js.json",
-   "hands": 268
-  },
-  {
-   "board": "Ad,Kc,Ts",
-   "category": "AKT connected",
-   "file": "Ad_Kc_Ts.json",
-   "hands": 270
-  },
-  {
-   "board": "Ah,Td,5h",
-   "category": "A-high two-tone T",
-   "file": "Ah_Td_5h.json",
-   "hands": 280
-  },
-  {
-   "board": "Ah,Th,5h",
-   "category": "A-high monotone T",
-   "file": "Ah_Th_5h.json",
-   "hands": 280
-  },
-  {
-   "board": "As,5s,4d",
-   "category": "A54 wheel draw two-tone",
-   "file": "As_5s_4d.json",
-   "hands": 290
-  },
-  {
-   "board": "As,6d,2c",
-   "category": "A-high dry rainbow low",
-   "file": "As_6d_2c.json",
-   "hands": 293
-  },
-  {
    "board": "As,7d,2c",
-   "category": "A-high dry rainbow",
+   "category": "A-high dry",
    "file": "As_7d_2c.json",
    "hands": 293
   },
   {
-   "board": "As,7d,7c",
-   "category": "A77 paired bottom",
-   "file": "As_7d_7c.json",
-   "hands": 289
+   "board": "Ad,8c,3s",
+   "category": "A-high dry",
+   "file": "Ad_8c_3s.json",
+   "hands": 293
+  },
+  {
+   "board": "Ac,9d,4s",
+   "category": "A-high dry",
+   "file": "Ac_9d_4s.json",
+   "hands": 293
+  },
+  {
+   "board": "As,6d,2c",
+   "category": "A-high dry low",
+   "file": "As_6d_2c.json",
+   "hands": 293
+  },
+  {
+   "board": "Ad,5c,3s",
+   "category": "A-high dry low",
+   "file": "Ad_5c_3s.json",
+   "hands": 293
   },
   {
    "board": "As,7s,2d",
-   "category": "A-high two-tone",
+   "category": "A-high tt",
    "file": "As_7s_2d.json",
-   "hands": 294
+   "hands": 293
   },
   {
-   "board": "As,7s,2s",
-   "category": "A-high monotone",
-   "file": "As_7s_2s.json",
-   "hands": 294
+   "board": "Ad,8d,3c",
+   "category": "A-high tt",
+   "file": "Ad_8d_3c.json",
+   "hands": 293
   },
   {
-   "board": "As,Ad,7c",
-   "category": "AA7 paired",
-   "file": "As_Ad_7c.json",
-   "hands": 271
+   "board": "Ah,Td,5h",
+   "category": "A-high tt T",
+   "file": "Ah_Td_5h.json",
+   "hands": 293
   },
   {
    "board": "As,Js,4d",
-   "category": "A-high two-tone J",
+   "category": "A-high tt J",
    "file": "As_Js_4d.json",
-   "hands": 277
+   "hands": 293
   },
   {
-   "board": "As,Kd,Kc",
-   "category": "AKK paired",
-   "file": "As_Kd_Kc.json",
-   "hands": 271
+   "board": "Ah,9h,3d",
+   "category": "A-high tt 9",
+   "file": "Ah_9h_3d.json",
+   "hands": 293
   },
   {
    "board": "As,Kd,Qc",
-   "category": "AKQ broadway",
+   "category": "AKQ bway",
    "file": "As_Kd_Qc.json",
-   "hands": 271
+   "hands": 293
   },
   {
-   "board": "As,Qd,8c",
-   "category": "AQ8",
-   "file": "As_Qd_8c.json",
-   "hands": 276
+   "board": "Ad,Kc,Js",
+   "category": "AKJ bway",
+   "file": "Ad_Kc_Js.json",
+   "hands": 293
   },
   {
    "board": "As,Qd,Jc",
-   "category": "AQJ broadway",
+   "category": "AQJ bway",
    "file": "As_Qd_Jc.json",
-   "hands": 268
+   "hands": 293
   },
   {
-   "board": "As,Td,3c",
-   "category": "AT3",
-   "file": "As_Td_3c.json",
-   "hands": 281
+   "board": "Ad,Kc,Ts",
+   "category": "AKT conn",
+   "file": "Ad_Kc_Ts.json",
+   "hands": 293
   },
   {
    "board": "As,Td,9c",
-   "category": "AT9 connected",
+   "category": "AT9 conn",
    "file": "As_Td_9c.json",
-   "hands": 275
+   "hands": 293
   },
   {
-   "board": "As,Td,Tc",
-   "category": "ATT paired",
-   "file": "As_Td_Tc.json",
-   "hands": 271
+   "board": "Ad,Qc,Ts",
+   "category": "AQT",
+   "file": "Ad_Qc_Ts.json",
+   "hands": 293
   },
   {
-   "board": "Jd,5c,2s",
-   "category": "J-high dry low",
-   "file": "Jd_5c_2s.json",
-   "hands": 298
+   "board": "As,Kd,9c",
+   "category": "AK9",
+   "file": "As_Kd_9c.json",
+   "hands": 293
   },
   {
-   "board": "Jd,7c,3s",
-   "category": "J73",
-   "file": "Jd_7c_3s.json",
-   "hands": 295
+   "board": "Ad,Jc,Ts",
+   "category": "AJT conn",
+   "file": "Ad_Jc_Ts.json",
+   "hands": 293
   },
   {
-   "board": "Jd,9c,3s",
-   "category": "J9 high",
-   "file": "Jd_9c_3s.json",
-   "hands": 290
+   "board": "As,Kd,5c",
+   "category": "AK5",
+   "file": "As_Kd_5c.json",
+   "hands": 293
   },
   {
-   "board": "Jd,9d,7s",
-   "category": "J97 two-tone",
-   "file": "Jd_9d_7s.json",
-   "hands": 289
+   "board": "As,Ks,Qd",
+   "category": "AKQ tt",
+   "file": "As_Ks_Qd.json",
+   "hands": 293
   },
   {
-   "board": "Jd,Tc,8s",
-   "category": "JT8 connected",
-   "file": "Jd_Tc_8s.json",
-   "hands": 281
+   "board": "Ad,Qd,Jc",
+   "category": "AQJ tt",
+   "file": "Ad_Qd_Jc.json",
+   "hands": 293
   },
   {
-   "board": "Jh,Th,4d",
-   "category": "JT two-tone",
-   "file": "Jh_Th_4d.json",
-   "hands": 285
+   "board": "As,Ks,Td",
+   "category": "AKT tt",
+   "file": "As_Ks_Td.json",
+   "hands": 293
   },
   {
-   "board": "Js,3d,3c",
-   "category": "J33 paired bottom",
-   "file": "Js_3d_3c.json",
-   "hands": 298
+   "board": "As,Ts,9d",
+   "category": "AT9 tt",
+   "file": "As_Ts_9d.json",
+   "hands": 293
   },
   {
-   "board": "Js,6s,2d",
-   "category": "J62 two-tone",
-   "file": "Js_6s_2d.json",
-   "hands": 298
+   "board": "As,7s,2s",
+   "category": "A-high mono",
+   "file": "As_7s_2s.json",
+   "hands": 293
   },
   {
-   "board": "Js,7d,2c",
-   "category": "J-high dry",
-   "file": "Js_7d_2c.json",
-   "hands": 298
+   "board": "Ah,Th,5h",
+   "category": "A-high mono T",
+   "file": "Ah_Th_5h.json",
+   "hands": 293
   },
   {
-   "board": "Js,8d,5c",
-   "category": "J85",
-   "file": "Js_8d_5c.json",
-   "hands": 290
+   "board": "As,Ks,Qs",
+   "category": "AKQ mono",
+   "file": "As_Ks_Qs.json",
+   "hands": 293
   },
   {
-   "board": "Js,8s,2s",
-   "category": "J-high monotone",
-   "file": "Js_8s_2s.json",
-   "hands": 296
-  },
-  {
-   "board": "Js,Jd,4c",
-   "category": "JJ4 paired",
-   "file": "Js_Jd_4c.json",
-   "hands": 282
-  },
-  {
-   "board": "Js,Td,4c",
-   "category": "JT high",
-   "file": "Js_Td_4c.json",
-   "hands": 285
-  },
-  {
-   "board": "Js,Td,9c",
-   "category": "JT9 connected",
-   "file": "Js_Td_9c.json",
-   "hands": 280
+   "board": "Ks,8d,3c",
+   "category": "K-high dry",
+   "file": "Ks_8d_3c.json",
+   "hands": 293
   },
   {
    "board": "Kd,7c,2s",
    "category": "K-high dry low",
    "file": "Kd_7c_2s.json",
-   "hands": 301
+   "hands": 293
+  },
+  {
+   "board": "Ks,6d,2c",
+   "category": "K62 dry",
+   "file": "Ks_6d_2c.json",
+   "hands": 293
+  },
+  {
+   "board": "Ks,Qd,5c",
+   "category": "KQ5",
+   "file": "Ks_Qd_5c.json",
+   "hands": 293
+  },
+  {
+   "board": "Kd,Jc,4s",
+   "category": "KJ4",
+   "file": "Kd_Jc_4s.json",
+   "hands": 293
+  },
+  {
+   "board": "Ks,Td,6c",
+   "category": "KT6",
+   "file": "Ks_Td_6c.json",
+   "hands": 293
   },
   {
    "board": "Kd,9c,3s",
-   "category": "K9 high",
+   "category": "K93",
    "file": "Kd_9c_3s.json",
+   "hands": 293
+  },
+  {
+   "board": "Ks,8s,3d",
+   "category": "K-high tt",
+   "file": "Ks_8s_3d.json",
+   "hands": 293
+  },
+  {
+   "board": "Kh,Qh,7d",
+   "category": "KQ tt",
+   "file": "Kh_Qh_7d.json",
+   "hands": 293
+  },
+  {
+   "board": "Kd,Jd,5c",
+   "category": "KJ tt",
+   "file": "Kd_Jd_5c.json",
+   "hands": 293
+  },
+  {
+   "board": "Ks,Jd,Ts",
+   "category": "KJT conn tt",
+   "file": "Ks_Jd_Ts.json",
+   "hands": 293
+  },
+  {
+   "board": "Kh,Qh,Jd",
+   "category": "KQJ bway",
+   "file": "Kh_Qh_Jd.json",
+   "hands": 293
+  },
+  {
+   "board": "Kd,Qc,Ts",
+   "category": "KQT",
+   "file": "Kd_Qc_Ts.json",
+   "hands": 293
+  },
+  {
+   "board": "Ks,Jd,9c",
+   "category": "KJ9",
+   "file": "Ks_Jd_9c.json",
+   "hands": 293
+  },
+  {
+   "board": "Kd,Tc,8s",
+   "category": "KT8",
+   "file": "Kd_Tc_8s.json",
    "hands": 293
   },
   {
    "board": "Kd,9c,6s",
    "category": "K96",
    "file": "Kd_9c_6s.json",
-   "hands": 291
+   "hands": 293
   },
   {
-   "board": "Kd,Jc,4s",
-   "category": "KJ high",
-   "file": "Kd_Jc_4s.json",
-   "hands": 285
-  },
-  {
-   "board": "Kd,Tc,8s",
-   "category": "KT8",
-   "file": "Kd_Tc_8s.json",
-   "hands": 283
-  },
-  {
-   "board": "Kh,Qh,7d",
-   "category": "KQ two-tone",
-   "file": "Kh_Qh_7d.json",
-   "hands": 287
-  },
-  {
-   "board": "Kh,Qh,Jd",
-   "category": "KQJ broadway",
-   "file": "Kh_Qh_Jd.json",
-   "hands": 276
-  },
-  {
-   "board": "Ks,8d,3c",
-   "category": "K-high dry",
-   "file": "Ks_8d_3c.json",
-   "hands": 295
-  },
-  {
-   "board": "Ks,8d,8c",
-   "category": "K88 paired bottom",
-   "file": "Ks_8d_8c.json",
-   "hands": 291
-  },
-  {
-   "board": "Ks,8s,3d",
-   "category": "K-high two-tone",
-   "file": "Ks_8s_3d.json",
-   "hands": 296
+   "board": "Ks,Ts,6d",
+   "category": "KT6 tt",
+   "file": "Ks_Ts_6d.json",
+   "hands": 293
   },
   {
    "board": "Ks,9s,4s",
-   "category": "K-high monotone",
+   "category": "K-high mono",
    "file": "Ks_9s_4s.json",
    "hands": 293
   },
   {
-   "board": "Ks,Jd,Ts",
-   "category": "KJT connected two-tone",
-   "file": "Ks_Jd_Ts.json",
-   "hands": 276
-  },
-  {
-   "board": "Ks,Kd,5c",
-   "category": "KK5 paired",
-   "file": "Ks_Kd_5c.json",
-   "hands": 287
-  },
-  {
-   "board": "Ks,Qd,5c",
-   "category": "KQ high",
-   "file": "Ks_Qd_5c.json",
-   "hands": 287
-  },
-  {
-   "board": "Ks,Qd,Qc",
-   "category": "KQQ paired",
-   "file": "Ks_Qd_Qc.json",
-   "hands": 279
-  },
-  {
-   "board": "Ks,Td,6c",
-   "category": "KT high",
-   "file": "Ks_Td_6c.json",
-   "hands": 286
-  },
-  {
-   "board": "Ks,Ts,5d",
-   "category": "KT5 two-tone K high",
-   "file": "Ks_Ts_5d.json",
-   "hands": 287
-  },
-  {
-   "board": "Qd,8c,3s",
-   "category": "Q-high dry",
-   "file": "Qd_8c_3s.json",
-   "hands": 295
-  },
-  {
-   "board": "Qd,Jc,Ts",
-   "category": "QJT connected",
-   "file": "Qd_Jc_Ts.json",
-   "hands": 275
-  },
-  {
-   "board": "Qd,Tc,5s",
-   "category": "QT high",
-   "file": "Qd_Tc_5s.json",
-   "hands": 286
-  },
-  {
-   "board": "Qh,Jh,5d",
-   "category": "QJ two-tone",
-   "file": "Qh_Jh_5d.json",
-   "hands": 284
-  },
-  {
-   "board": "Qs,5d,5c",
-   "category": "Q55 paired bottom",
-   "file": "Qs_5d_5c.json",
-   "hands": 297
+   "board": "Kh,Qh,9h",
+   "category": "KQ9 mono",
+   "file": "Kh_Qh_9h.json",
+   "hands": 293
   },
   {
    "board": "Qs,7d,2c",
    "category": "Q-high dry",
    "file": "Qs_7d_2c.json",
-   "hands": 301
+   "hands": 293
   },
   {
-   "board": "Qs,7s,3s",
-   "category": "Q-high monotone",
-   "file": "Qs_7s_3s.json",
-   "hands": 298
+   "board": "Qd,8c,3s",
+   "category": "Q-high dry",
+   "file": "Qd_8c_3s.json",
+   "hands": 293
   },
   {
-   "board": "Qs,8d,4c",
-   "category": "Q84",
-   "file": "Qs_8d_4c.json",
-   "hands": 294
+   "board": "Qs,6d,2c",
+   "category": "Q62 dry",
+   "file": "Qs_6d_2c.json",
+   "hands": 293
+  },
+  {
+   "board": "Qs,Jd,4c",
+   "category": "QJ4",
+   "file": "Qs_Jd_4c.json",
+   "hands": 293
+  },
+  {
+   "board": "Qd,Tc,5s",
+   "category": "QT5",
+   "file": "Qd_Tc_5s.json",
+   "hands": 293
   },
   {
    "board": "Qs,9d,3c",
-   "category": "Q9 high",
+   "category": "Q93",
    "file": "Qs_9d_3c.json",
    "hands": 293
   },
   {
-   "board": "Qs,9d,6c",
-   "category": "Q96",
-   "file": "Qs_9d_6c.json",
-   "hands": 291
+   "board": "Qd,Jc,Ts",
+   "category": "QJT conn",
+   "file": "Qd_Jc_Ts.json",
+   "hands": 293
   },
   {
-   "board": "Qs,9s,2d",
-   "category": "Q92 two-tone",
-   "file": "Qs_9s_2d.json",
-   "hands": 297
+   "board": "Qs,Jd,9c",
+   "category": "QJ9 conn",
+   "file": "Qs_Jd_9c.json",
+   "hands": 293
   },
   {
-   "board": "Qs,Jd,4c",
-   "category": "QJ high",
-   "file": "Qs_Jd_4c.json",
-   "hands": 285
+   "board": "Qd,Tc,8s",
+   "category": "QT8 conn",
+   "file": "Qd_Tc_8s.json",
+   "hands": 293
   },
   {
-   "board": "Qs,Qd,8c",
-   "category": "QQ8 paired",
-   "file": "Qs_Qd_8c.json",
-   "hands": 284
+   "board": "Qh,Jh,5d",
+   "category": "QJ tt",
+   "file": "Qh_Jh_5d.json",
+   "hands": 293
   },
   {
    "board": "Qs,Ts,6d",
-   "category": "QT two-tone",
+   "category": "QT tt",
    "file": "Qs_Ts_6d.json",
-   "hands": 287
+   "hands": 293
   },
   {
-   "board": "Td,6c,2s",
-   "category": "T62",
-   "file": "Td_6c_2s.json",
-   "hands": 301
+   "board": "Qd,9d,4c",
+   "category": "Q94 tt",
+   "file": "Qd_9d_4c.json",
+   "hands": 293
   },
   {
-   "board": "Td,8c,3s",
-   "category": "T-high mid",
-   "file": "Td_8c_3s.json",
-   "hands": 295
+   "board": "Qs,7s,3s",
+   "category": "Q-high mono",
+   "file": "Qs_7s_3s.json",
+   "hands": 293
   },
   {
-   "board": "Td,8c,6s",
-   "category": "T86 connected",
-   "file": "Td_8c_6s.json",
+   "board": "Qh,Jh,Th",
+   "category": "QJT mono",
+   "file": "Qh_Jh_Th.json",
+   "hands": 293
+  },
+  {
+   "board": "Js,7d,2c",
+   "category": "J-high dry",
+   "file": "Js_7d_2c.json",
+   "hands": 293
+  },
+  {
+   "board": "Jd,5c,2s",
+   "category": "J-high dry low",
+   "file": "Jd_5c_2s.json",
+   "hands": 293
+  },
+  {
+   "board": "Js,8d,5c",
+   "category": "J85",
+   "file": "Js_8d_5c.json",
+   "hands": 293
+  },
+  {
+   "board": "Js,Td,4c",
+   "category": "JT4",
+   "file": "Js_Td_4c.json",
+   "hands": 293
+  },
+  {
+   "board": "Jd,9c,3s",
+   "category": "J93",
+   "file": "Jd_9c_3s.json",
+   "hands": 293
+  },
+  {
+   "board": "Js,8d,2c",
+   "category": "J82",
+   "file": "Js_8d_2c.json",
+   "hands": 293
+  },
+  {
+   "board": "Jh,Th,4d",
+   "category": "JT tt",
+   "file": "Jh_Th_4d.json",
+   "hands": 293
+  },
+  {
+   "board": "Js,9s,3d",
+   "category": "J93 tt",
+   "file": "Js_9s_3d.json",
+   "hands": 293
+  },
+  {
+   "board": "Jd,8d,4c",
+   "category": "J84 tt",
+   "file": "Jd_8d_4c.json",
+   "hands": 293
+  },
+  {
+   "board": "Js,Td,9c",
+   "category": "JT9 conn",
+   "file": "Js_Td_9c.json",
+   "hands": 293
+  },
+  {
+   "board": "Jd,Tc,8s",
+   "category": "JT8 conn",
+   "file": "Jd_Tc_8s.json",
+   "hands": 293
+  },
+  {
+   "board": "Js,9d,8c",
+   "category": "J98 conn",
+   "file": "Js_9d_8c.json",
+   "hands": 293
+  },
+  {
+   "board": "Js,Ts,9d",
+   "category": "JT9 tt",
+   "file": "Js_Ts_9d.json",
+   "hands": 293
+  },
+  {
+   "board": "Jd,9d,7c",
+   "category": "J97 tt",
+   "file": "Jd_9d_7c.json",
+   "hands": 293
+  },
+  {
+   "board": "Js,8s,2s",
+   "category": "J-high mono",
+   "file": "Js_8s_2s.json",
    "hands": 293
   },
   {
    "board": "Ts,7d,2c",
    "category": "T-high dry",
    "file": "Ts_7d_2c.json",
-   "hands": 301
+   "hands": 293
   },
   {
-   "board": "Ts,7s,3s",
-   "category": "T-high monotone",
-   "file": "Ts_7s_3s.json",
-   "hands": 298
+   "board": "Td,8c,3s",
+   "category": "T-high mid",
+   "file": "Td_8c_3s.json",
+   "hands": 293
+  },
+  {
+   "board": "Ts,6d,2c",
+   "category": "T62",
+   "file": "Ts_6d_2c.json",
+   "hands": 293
   },
   {
    "board": "Ts,9d,4c",
-   "category": "T9 high",
+   "category": "T94",
    "file": "Ts_9d_4c.json",
    "hands": 293
   },
   {
    "board": "Ts,9d,8c",
-   "category": "T98 connected",
+   "category": "T98 conn",
    "file": "Ts_9d_8c.json",
-   "hands": 289
+   "hands": 293
+  },
+  {
+   "board": "Td,8c,6s",
+   "category": "T86 conn",
+   "file": "Td_8c_6s.json",
+   "hands": 293
+  },
+  {
+   "board": "Ts,9d,7c",
+   "category": "T97 conn",
+   "file": "Ts_9d_7c.json",
+   "hands": 293
+  },
+  {
+   "board": "Ts,8s,4d",
+   "category": "T84 tt",
+   "file": "Ts_8s_4d.json",
+   "hands": 293
+  },
+  {
+   "board": "Td,9d,5c",
+   "category": "T95 tt",
+   "file": "Td_9d_5c.json",
+   "hands": 293
   },
   {
    "board": "Ts,9s,7d",
-   "category": "T97 two-tone",
+   "category": "T97 tt",
    "file": "Ts_9s_7d.json",
-   "hands": 292
+   "hands": 293
+  },
+  {
+   "board": "Ts,7s,3s",
+   "category": "T-high mono",
+   "file": "Ts_7s_3s.json",
+   "hands": 293
+  },
+  {
+   "board": "9s,7d,2c",
+   "category": "9-high dry",
+   "file": "9s_7d_2c.json",
+   "hands": 293
+  },
+  {
+   "board": "9d,8c,5s",
+   "category": "985",
+   "file": "9d_8c_5s.json",
+   "hands": 293
+  },
+  {
+   "board": "9s,6d,3c",
+   "category": "963",
+   "file": "9s_6d_3c.json",
+   "hands": 293
+  },
+  {
+   "board": "9s,8d,7c",
+   "category": "987 str",
+   "file": "9s_8d_7c.json",
+   "hands": 293
+  },
+  {
+   "board": "9d,8c,6s",
+   "category": "986 conn",
+   "file": "9d_8c_6s.json",
+   "hands": 293
+  },
+  {
+   "board": "9s,7d,5c",
+   "category": "975 conn",
+   "file": "9s_7d_5c.json",
+   "hands": 293
+  },
+  {
+   "board": "9s,8s,5d",
+   "category": "985 tt",
+   "file": "9s_8s_5d.json",
+   "hands": 293
+  },
+  {
+   "board": "9h,6h,2h",
+   "category": "9-high mono",
+   "file": "9h_6h_2h.json",
+   "hands": 293
+  },
+  {
+   "board": "8s,7d,2c",
+   "category": "8-high dry",
+   "file": "8s_7d_2c.json",
+   "hands": 293
+  },
+  {
+   "board": "8d,6c,3s",
+   "category": "863",
+   "file": "8d_6c_3s.json",
+   "hands": 293
+  },
+  {
+   "board": "8s,5d,2c",
+   "category": "852",
+   "file": "8s_5d_2c.json",
+   "hands": 293
+  },
+  {
+   "board": "8s,7d,6c",
+   "category": "876 str",
+   "file": "8s_7d_6c.json",
+   "hands": 293
+  },
+  {
+   "board": "8d,7c,5s",
+   "category": "875 conn",
+   "file": "8d_7c_5s.json",
+   "hands": 293
+  },
+  {
+   "board": "8s,6d,4c",
+   "category": "864 conn",
+   "file": "8s_6d_4c.json",
+   "hands": 293
+  },
+  {
+   "board": "8s,7s,4d",
+   "category": "874 tt",
+   "file": "8s_7s_4d.json",
+   "hands": 293
+  },
+  {
+   "board": "8h,5h,3h",
+   "category": "8-high mono",
+   "file": "8h_5h_3h.json",
+   "hands": 293
+  },
+  {
+   "board": "7s,5d,3c",
+   "category": "753",
+   "file": "7s_5d_3c.json",
+   "hands": 293
+  },
+  {
+   "board": "7d,6c,4s",
+   "category": "764",
+   "file": "7d_6c_4s.json",
+   "hands": 293
+  },
+  {
+   "board": "7s,6d,5c",
+   "category": "765 str",
+   "file": "7s_6d_5c.json",
+   "hands": 293
+  },
+  {
+   "board": "7s,4d,2c",
+   "category": "742",
+   "file": "7s_4d_2c.json",
+   "hands": 293
+  },
+  {
+   "board": "7s,6s,3d",
+   "category": "763 tt",
+   "file": "7s_6s_3d.json",
+   "hands": 293
+  },
+  {
+   "board": "6s,5d,3c",
+   "category": "653",
+   "file": "6s_5d_3c.json",
+   "hands": 293
+  },
+  {
+   "board": "6d,4c,2s",
+   "category": "642",
+   "file": "6d_4c_2s.json",
+   "hands": 293
+  },
+  {
+   "board": "6s,5d,4c",
+   "category": "654 str",
+   "file": "6s_5d_4c.json",
+   "hands": 293
+  },
+  {
+   "board": "5s,4d,2c",
+   "category": "542",
+   "file": "5s_4d_2c.json",
+   "hands": 293
+  },
+  {
+   "board": "5d,3c,2s",
+   "category": "532",
+   "file": "5d_3c_2s.json",
+   "hands": 293
+  },
+  {
+   "board": "As,Ad,7c",
+   "category": "AA7",
+   "file": "As_Ad_7c.json",
+   "hands": 293
+  },
+  {
+   "board": "As,Ad,Tc",
+   "category": "AAT",
+   "file": "As_Ad_Tc.json",
+   "hands": 293
+  },
+  {
+   "board": "As,Ad,3c",
+   "category": "AA3",
+   "file": "As_Ad_3c.json",
+   "hands": 293
+  },
+  {
+   "board": "Ks,Kd,5c",
+   "category": "KK5",
+   "file": "Ks_Kd_5c.json",
+   "hands": 293
+  },
+  {
+   "board": "Ks,Kd,9c",
+   "category": "KK9",
+   "file": "Ks_Kd_9c.json",
+   "hands": 293
+  },
+  {
+   "board": "Qs,Qd,8c",
+   "category": "QQ8",
+   "file": "Qs_Qd_8c.json",
+   "hands": 293
+  },
+  {
+   "board": "Qs,Qd,3c",
+   "category": "QQ3",
+   "file": "Qs_Qd_3c.json",
+   "hands": 293
+  },
+  {
+   "board": "Js,Jd,4c",
+   "category": "JJ4",
+   "file": "Js_Jd_4c.json",
+   "hands": 293
+  },
+  {
+   "board": "Js,Jd,7c",
+   "category": "JJ7",
+   "file": "Js_Jd_7c.json",
+   "hands": 293
   },
   {
    "board": "Ts,Td,6c",
-   "category": "TT6 paired",
+   "category": "TT6",
    "file": "Ts_Td_6c.json",
-   "hands": 287
+   "hands": 293
+  },
+  {
+   "board": "9s,9d,3c",
+   "category": "993",
+   "file": "9s_9d_3c.json",
+   "hands": 293
+  },
+  {
+   "board": "8s,8d,2c",
+   "category": "882",
+   "file": "8s_8d_2c.json",
+   "hands": 293
+  },
+  {
+   "board": "7s,7d,4c",
+   "category": "774",
+   "file": "7s_7d_4c.json",
+   "hands": 293
+  },
+  {
+   "board": "6s,6d,3c",
+   "category": "663",
+   "file": "6s_6d_3c.json",
+   "hands": 293
+  },
+  {
+   "board": "5s,5d,2c",
+   "category": "552",
+   "file": "5s_5d_2c.json",
+   "hands": 293
+  },
+  {
+   "board": "As,7d,7c",
+   "category": "A77",
+   "file": "As_7d_7c.json",
+   "hands": 293
+  },
+  {
+   "board": "Ks,8d,8c",
+   "category": "K88",
+   "file": "Ks_8d_8c.json",
+   "hands": 293
+  },
+  {
+   "board": "Qs,5d,5c",
+   "category": "Q55",
+   "file": "Qs_5d_5c.json",
+   "hands": 293
+  },
+  {
+   "board": "Js,3d,3c",
+   "category": "J33",
+   "file": "Js_3d_3c.json",
+   "hands": 293
+  },
+  {
+   "board": "Ts,4d,4c",
+   "category": "T44",
+   "file": "Ts_4d_4c.json",
+   "hands": 293
+  },
+  {
+   "board": "9s,2d,2c",
+   "category": "922",
+   "file": "9s_2d_2c.json",
+   "hands": 293
+  },
+  {
+   "board": "As,Kd,Kc",
+   "category": "AKK",
+   "file": "As_Kd_Kc.json",
+   "hands": 293
+  },
+  {
+   "board": "Ks,Qd,Qc",
+   "category": "KQQ",
+   "file": "Ks_Qd_Qc.json",
+   "hands": 293
+  },
+  {
+   "board": "As,Td,Tc",
+   "category": "ATT",
+   "file": "As_Td_Tc.json",
+   "hands": 293
+  },
+  {
+   "board": "Ks,Jd,Jc",
+   "category": "KJJ",
+   "file": "Ks_Jd_Jc.json",
+   "hands": 293
+  },
+  {
+   "board": "Qs,Td,Tc",
+   "category": "QTT",
+   "file": "Qs_Td_Tc.json",
+   "hands": 293
+  },
+  {
+   "board": "As,Ad,7s",
+   "category": "AA7 tt",
+   "file": "As_Ad_7s.json",
+   "hands": 293
+  },
+  {
+   "board": "Ks,Kd,8s",
+   "category": "KK8 tt",
+   "file": "Ks_Kd_8s.json",
+   "hands": 293
+  },
+  {
+   "board": "Js,Jd,6s",
+   "category": "JJ6 tt",
+   "file": "Js_Jd_6s.json",
+   "hands": 293
+  },
+  {
+   "board": "Kh,9h,4h",
+   "category": "K94 mono",
+   "file": "Kh_9h_4h.json",
+   "hands": 293
+  },
+  {
+   "board": "Qh,8h,3h",
+   "category": "Q83 mono",
+   "file": "Qh_8h_3h.json",
+   "hands": 293
+  },
+  {
+   "board": "Jh,7h,3h",
+   "category": "J73 mono",
+   "file": "Jh_7h_3h.json",
+   "hands": 293
+  },
+  {
+   "board": "Th,6h,2h",
+   "category": "T62 mono",
+   "file": "Th_6h_2h.json",
+   "hands": 293
+  },
+  {
+   "board": "Kh,Jh,9h",
+   "category": "KJ9 mono",
+   "file": "Kh_Jh_9h.json",
+   "hands": 293
+  },
+  {
+   "board": "Qh,Th,8h",
+   "category": "QT8 mono",
+   "file": "Qh_Th_8h.json",
+   "hands": 293
+  },
+  {
+   "board": "Jh,9h,7h",
+   "category": "J97 mono",
+   "file": "Jh_9h_7h.json",
+   "hands": 293
+  },
+  {
+   "board": "Ah,Kh,8h",
+   "category": "AK8 mono",
+   "file": "Ah_Kh_8h.json",
+   "hands": 293
+  },
+  {
+   "board": "Ts,9s,6d",
+   "category": "T96 tt",
+   "file": "Ts_9s_6d.json",
+   "hands": 293
+  },
+  {
+   "board": "8s,6s,3d",
+   "category": "863 tt",
+   "file": "8s_6s_3d.json",
+   "hands": 293
+  },
+  {
+   "board": "7s,5s,2d",
+   "category": "752 tt",
+   "file": "7s_5s_2d.json",
+   "hands": 293
+  },
+  {
+   "board": "Ks,Qs,7d",
+   "category": "KQ7 tt",
+   "file": "Ks_Qs_7d.json",
+   "hands": 293
+  },
+  {
+   "board": "Jh,Th,6d",
+   "category": "JT6 tt",
+   "file": "Jh_Th_6d.json",
+   "hands": 293
+  },
+  {
+   "board": "9h,8h,4d",
+   "category": "984 tt",
+   "file": "9h_8h_4d.json",
+   "hands": 293
+  },
+  {
+   "board": "Ah,Kh,4d",
+   "category": "AK4 tt",
+   "file": "Ah_Kh_4d.json",
+   "hands": 293
+  },
+  {
+   "board": "As,Qd,8s",
+   "category": "AQ8 tt",
+   "file": "As_Qd_8s.json",
+   "hands": 293
+  },
+  {
+   "board": "Ad,Kc,4s",
+   "category": "AK4",
+   "file": "Ad_Kc_4s.json",
+   "hands": 293
+  },
+  {
+   "board": "As,Qd,8c",
+   "category": "AQ8",
+   "file": "As_Qd_8c.json",
+   "hands": 293
+  },
+  {
+   "board": "Ad,Jc,7s",
+   "category": "AJ7",
+   "file": "Ad_Jc_7s.json",
+   "hands": 293
+  },
+  {
+   "board": "As,Td,3c",
+   "category": "AT3",
+   "file": "As_Td_3c.json",
+   "hands": 293
+  },
+  {
+   "board": "Qs,9d,6c",
+   "category": "Q96",
+   "file": "Qs_9d_6c.json",
+   "hands": 293
+  },
+  {
+   "board": "Qs,8d,4c",
+   "category": "Q84",
+   "file": "Qs_8d_4c.json",
+   "hands": 293
+  },
+  {
+   "board": "Jd,7c,3s",
+   "category": "J73",
+   "file": "Jd_7c_3s.json",
+   "hands": 293
+  },
+  {
+   "board": "Td,6c,2s",
+   "category": "T62",
+   "file": "Td_6c_2s.json",
+   "hands": 293
+  },
+  {
+   "board": "Ad,Qc,4s",
+   "category": "AQ4",
+   "file": "Ad_Qc_4s.json",
+   "hands": 293
+  },
+  {
+   "board": "As,Jd,3c",
+   "category": "AJ3",
+   "file": "As_Jd_3c.json",
+   "hands": 293
+  },
+  {
+   "board": "Kd,Tc,4s",
+   "category": "KT4",
+   "file": "Kd_Tc_4s.json",
+   "hands": 293
+  },
+  {
+   "board": "Kd,8c,5s",
+   "category": "K85",
+   "file": "Kd_8c_5s.json",
+   "hands": 293
+  },
+  {
+   "board": "Qd,7c,3s",
+   "category": "Q73",
+   "file": "Qd_7c_3s.json",
+   "hands": 293
+  },
+  {
+   "board": "Jd,6c,2s",
+   "category": "J62",
+   "file": "Jd_6c_2s.json",
+   "hands": 293
+  },
+  {
+   "board": "As,5s,4d",
+   "category": "A54 wheel tt",
+   "file": "As_5s_4d.json",
+   "hands": 293
+  },
+  {
+   "board": "Ad,4c,3s",
+   "category": "A43 wheel",
+   "file": "Ad_4c_3s.json",
+   "hands": 293
+  },
+  {
+   "board": "As,3d,2c",
+   "category": "A32 wheel",
+   "file": "As_3d_2c.json",
+   "hands": 293
+  },
+  {
+   "board": "Ad,5c,4s",
+   "category": "A54 wheel",
+   "file": "Ad_5c_4s.json",
+   "hands": 293
+  },
+  {
+   "board": "As,4d,2c",
+   "category": "A42 wheel",
+   "file": "As_4d_2c.json",
+   "hands": 293
+  },
+  {
+   "board": "Ks,Ts,5d",
+   "category": "KT5 tt",
+   "file": "Ks_Ts_5d.json",
+   "hands": 293
+  },
+  {
+   "board": "Qs,9s,2d",
+   "category": "Q92 tt",
+   "file": "Qs_9s_2d.json",
+   "hands": 293
+  },
+  {
+   "board": "Js,6s,2d",
+   "category": "J62 tt",
+   "file": "Js_6s_2d.json",
+   "hands": 293
+  },
+  {
+   "board": "Td,7c,4s",
+   "category": "T74 gap",
+   "file": "Td_7c_4s.json",
+   "hands": 293
+  },
+  {
+   "board": "9d,6c,3s",
+   "category": "963 gap",
+   "file": "9d_6c_3s.json",
+   "hands": 293
+  },
+  {
+   "board": "8d,5c,2s",
+   "category": "852 gap",
+   "file": "8d_5c_2s.json",
+   "hands": 293
+  },
+  {
+   "board": "Jd,Tc,9s",
+   "category": "JT9 str3",
+   "file": "Jd_Tc_9s.json",
+   "hands": 293
+  },
+  {
+   "board": "Td,9c,8s",
+   "category": "T98 str3",
+   "file": "Td_9c_8s.json",
+   "hands": 293
+  },
+  {
+   "board": "9d,8c,7s",
+   "category": "987 str3",
+   "file": "9d_8c_7s.json",
+   "hands": 293
+  },
+  {
+   "board": "8d,7c,6s",
+   "category": "876 str3",
+   "file": "8d_7c_6s.json",
+   "hands": 293
+  },
+  {
+   "board": "7d,6c,5s",
+   "category": "765 str3",
+   "file": "7d_6c_5s.json",
+   "hands": 293
+  },
+  {
+   "board": "6d,5c,4s",
+   "category": "654 str3",
+   "file": "6d_5c_4s.json",
+   "hands": 293
+  },
+  {
+   "board": "5d,4c,3s",
+   "category": "543 str3",
+   "file": "5d_4c_3s.json",
+   "hands": 293
+  },
+  {
+   "board": "Ad,Kc,Qs",
+   "category": "AKQ str3",
+   "file": "Ad_Kc_Qs.json",
+   "hands": 293
+  },
+  {
+   "board": "Kd,Qc,Js",
+   "category": "KQJ str3",
+   "file": "Kd_Qc_Js.json",
+   "hands": 293
+  },
+  {
+   "board": "Ts,9s,8d",
+   "category": "T98 str3 tt",
+   "file": "Ts_9s_8d.json",
+   "hands": 293
+  },
+  {
+   "board": "9s,8s,7d",
+   "category": "987 str3 tt",
+   "file": "9s_8s_7d.json",
+   "hands": 293
+  },
+  {
+   "board": "As,8d,4c",
+   "category": "A84 gap",
+   "file": "As_8d_4c.json",
+   "hands": 293
+  },
+  {
+   "board": "Ad,9c,5s",
+   "category": "A95 gap",
+   "file": "Ad_9c_5s.json",
+   "hands": 293
+  },
+  {
+   "board": "As,7d,3c",
+   "category": "A73 gap",
+   "file": "As_7d_3c.json",
+   "hands": 293
+  },
+  {
+   "board": "Ad,6c,2s",
+   "category": "A62",
+   "file": "Ad_6c_2s.json",
+   "hands": 293
+  },
+  {
+   "board": "As,8d,6c",
+   "category": "A86",
+   "file": "As_8d_6c.json",
+   "hands": 293
+  },
+  {
+   "board": "Kd,7c,4s",
+   "category": "K74",
+   "file": "Kd_7c_4s.json",
+   "hands": 293
+  },
+  {
+   "board": "Ks,9d,5c",
+   "category": "K95",
+   "file": "Ks_9d_5c.json",
+   "hands": 293
+  },
+  {
+   "board": "Kd,Jc,8s",
+   "category": "KJ8",
+   "file": "Kd_Jc_8s.json",
+   "hands": 293
+  },
+  {
+   "board": "Ks,Qd,9c",
+   "category": "KQ9",
+   "file": "Ks_Qd_9c.json",
+   "hands": 293
+  },
+  {
+   "board": "Kd,Tc,6s",
+   "category": "KT6r",
+   "file": "Kd_Tc_6s.json",
+   "hands": 293
+  },
+  {
+   "board": "Qs,Jd,7c",
+   "category": "QJ7",
+   "file": "Qs_Jd_7c.json",
+   "hands": 293
+  },
+  {
+   "board": "Qd,Tc,9s",
+   "category": "QT9",
+   "file": "Qd_Tc_9s.json",
+   "hands": 293
+  },
+  {
+   "board": "Qs,8d,5c",
+   "category": "Q85",
+   "file": "Qs_8d_5c.json",
+   "hands": 293
+  },
+  {
+   "board": "Jd,8c,3s",
+   "category": "J83",
+   "file": "Jd_8c_3s.json",
+   "hands": 293
+  },
+  {
+   "board": "Js,Td,6c",
+   "category": "JT6",
+   "file": "Js_Td_6c.json",
+   "hands": 293
+  },
+  {
+   "board": "Jd,9c,5s",
+   "category": "J95",
+   "file": "Jd_9c_5s.json",
+   "hands": 293
+  },
+  {
+   "board": "Ts,8d,5c",
+   "category": "T85",
+   "file": "Ts_8d_5c.json",
+   "hands": 293
+  },
+  {
+   "board": "Td,9c,6s",
+   "category": "T96",
+   "file": "Td_9c_6s.json",
+   "hands": 293
+  },
+  {
+   "board": "Ts,7d,4c",
+   "category": "T74r",
+   "file": "Ts_7d_4c.json",
+   "hands": 293
+  },
+  {
+   "board": "9d,7c,4s",
+   "category": "974",
+   "file": "9d_7c_4s.json",
+   "hands": 293
+  },
+  {
+   "board": "9s,5d,2c",
+   "category": "952",
+   "file": "9s_5d_2c.json",
+   "hands": 293
+  },
+  {
+   "board": "8d,7c,4s",
+   "category": "874",
+   "file": "8d_7c_4s.json",
+   "hands": 293
+  },
+  {
+   "board": "8s,5d,3c",
+   "category": "853",
+   "file": "8s_5d_3c.json",
+   "hands": 293
+  },
+  {
+   "board": "7d,4c,2s",
+   "category": "742r",
+   "file": "7d_4c_2s.json",
+   "hands": 293
+  },
+  {
+   "board": "6s,4d,2c",
+   "category": "642r",
+   "file": "6s_4d_2c.json",
+   "hands": 293
+  },
+  {
+   "board": "Kd,7d,3c",
+   "category": "K73 tt",
+   "file": "Kd_7d_3c.json",
+   "hands": 293
+  },
+  {
+   "board": "Ad,6d,2c",
+   "category": "A62 tt",
+   "file": "Ad_6d_2c.json",
+   "hands": 293
+  },
+  {
+   "board": "Qd,8d,5c",
+   "category": "Q85 tt",
+   "file": "Qd_8d_5c.json",
+   "hands": 293
+  },
+  {
+   "board": "Jd,7d,2c",
+   "category": "J72 tt",
+   "file": "Jd_7d_2c.json",
+   "hands": 293
+  },
+  {
+   "board": "Td,6d,2c",
+   "category": "T62 tt",
+   "file": "Td_6d_2c.json",
+   "hands": 293
+  },
+  {
+   "board": "4s,4d,2c",
+   "category": "442",
+   "file": "4s_4d_2c.json",
+   "hands": 293
+  },
+  {
+   "board": "3s,3d,7c",
+   "category": "337",
+   "file": "3s_3d_7c.json",
+   "hands": 293
+  },
+  {
+   "board": "2s,2d,5c",
+   "category": "225",
+   "file": "2s_2d_5c.json",
+   "hands": 293
+  },
+  {
+   "board": "As,9d,9c",
+   "category": "A99",
+   "file": "As_9d_9c.json",
+   "hands": 293
+  },
+  {
+   "board": "Ks,6d,6c",
+   "category": "K66",
+   "file": "Ks_6d_6c.json",
+   "hands": 293
+  },
+  {
+   "board": "Qs,4d,4c",
+   "category": "Q44",
+   "file": "Qs_4d_4c.json",
+   "hands": 293
+  },
+  {
+   "board": "Js,Td,Tc",
+   "category": "JTT",
+   "file": "Js_Td_Tc.json",
+   "hands": 293
+  },
+  {
+   "board": "9s,8d,8c",
+   "category": "988",
+   "file": "9s_8d_8c.json",
+   "hands": 293
+  },
+  {
+   "board": "Kd,Jc,Ts",
+   "category": "KJT",
+   "file": "Kd_Jc_Ts.json",
+   "hands": 293
+  },
+  {
+   "board": "Qs,Kd,Tc",
+   "category": "QKT",
+   "file": "Qs_Kd_Tc.json",
+   "hands": 293
+  },
+  {
+   "board": "As,2d,3c",
+   "category": "A23 wheel",
+   "file": "As_2d_3c.json",
+   "hands": 293
+  },
+  {
+   "board": "7h,5h,3h",
+   "category": "753 mono",
+   "file": "7h_5h_3h.json",
+   "hands": 293
+  },
+  {
+   "board": "6h,4h,2h",
+   "category": "642 mono",
+   "file": "6h_4h_2h.json",
+   "hands": 293
   }
- ],
- "turn": []
+ ]
 }
