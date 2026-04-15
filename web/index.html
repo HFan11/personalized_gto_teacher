@@ -14,11 +14,16 @@
      Cover Page
      ============================================================ -->
 <div class="page cover-page active" id="page-cover">
-    <div class="cover-logo" style="font-size:48px; letter-spacing:12px;">♠ ♥ ♦ ♣</div>
-    <h1 class="cover-title" style="font-size:32px; letter-spacing:2px;">Personalized Poker Teacher</h1>
-    <p class="cover-subtitle" style="font-size:16px; opacity:0.8; margin-top:8px;">易用的 PIO Solver 替代 · 你的专属扑克教练</p>
-    <button class="cover-btn" onclick="enterApp()" style="margin-top:36px; font-size:18px; padding:14px 48px;">开始训练</button>
-    <div style="margin-top:24px; font-size:12px; color:var(--text-muted);">6-Max NL Hold'em · 100BB Deep · Powered by Michael Fan</div>
+    <div class="cover-logo">♠</div>
+    <h1 class="cover-title">GTO Poker<br>Teacher</h1>
+    <p class="cover-subtitle">你的专属GTO教练 · PIO Solver替代</p>
+    <div style="display:flex; gap:8px; margin-top:12px; margin-bottom:32px; position:relative; z-index:1;">
+        <span style="padding:4px 12px; border-radius:20px; background:rgba(79,143,247,0.12); border:1px solid rgba(79,143,247,0.2); font-size:11px; color:var(--accent-blue);">6-Max</span>
+        <span style="padding:4px 12px; border-radius:20px; background:rgba(52,211,153,0.12); border:1px solid rgba(52,211,153,0.2); font-size:11px; color:var(--accent-green);">100BB Deep</span>
+        <span style="padding:4px 12px; border-radius:20px; background:rgba(176,125,240,0.12); border:1px solid rgba(176,125,240,0.2); font-size:11px; color:var(--accent-purple);">CFR+</span>
+    </div>
+    <button class="cover-btn" onclick="enterApp()">开始训练</button>
+    <div style="margin-top:20px; font-size:11px; color:var(--text-muted); position:relative; z-index:1;">Powered by Michael Fan</div>
 </div>
 
 <!-- ============================================================
@@ -2962,7 +2967,7 @@ function updateScoreDisplay() {
 
 function renderPlayingCard(card, animClass) {
     const suitClass = {'♠':'spades','♥':'hearts','♦':'diamonds','♣':'clubs'}[card.suit];
-    return `<div class="playing-card ${suitClass} ${animClass || ''}">
+    return `<div class="playing-card ${suitClass} ${animClass || ''}" data-rank="${RANK_DISPLAY[card.rank]}">
         <span class="card-rank">${RANK_DISPLAY[card.rank]}</span>
         <span class="card-suit">${card.suit}</span>
     </div>`;
