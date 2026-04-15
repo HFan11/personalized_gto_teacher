@@ -603,9 +603,13 @@ class PracticeSession {
         if (!this.boardCards || this.boardCards.length < 3) return null;
         if (!this.villainRangeHands || this.villainRangeHands.length === 0) return null;
 
-        // Cache the SOLVER object (not the formatted result) so it can be reused
-        // for both initial-action and facing-bet contexts on the same board.
-        const solverCacheKey = this.boardCards.map(c => c.id).sort().join(',') + '|' + this.street + '|' + (this.heroIsIP ? 'IP' : 'OOP') + '|' + this.potSize.toFixed(1) + '|' + this.effectiveStack.toFixed(1);
+        // Cache key: board+street+position ONLY (not pot/stack).
+        // The solver's game tree includes ALL action paths (check/bet AND fold/call/raise),
+        // so the same solver handles both initial-action and facing-bet lookups.
+        // If pot/stack were in the key, facing-bet would cache-miss (pot changed after
+        // villain bet) and rebuild a solver with wrong pot → broken tree paths.
+        // Undo invalidates cache explicitly to handle pot/stack changes.
+        const solverCacheKey = this.boardCards.map(c => c.id).sort().join(',') + '|' + this.street + '|' + (this.heroIsIP ? 'IP' : 'OOP');
 
         let solver;
         let effectiveBuckets, effectiveIterations;
