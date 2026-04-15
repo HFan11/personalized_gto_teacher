@@ -673,7 +673,7 @@ class PracticeSession {
                 betSizes: [0.33, 0.66, 1.0],
                 numBuckets: effectiveBuckets,
                 iterations: effectiveIterations,
-                simsPerHand: 150,
+                simsPerHand: 80,
             });
 
             solver.solve(solveOptions);

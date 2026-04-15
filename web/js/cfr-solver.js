@@ -128,6 +128,12 @@ class CFRSolver {
         const seed = options.seed || 42;
         const rng = seededRandom(seed);
 
+        // Strategy convergence tracking: snapshot strategies every N iters,
+        // stop early if max strategy change < threshold
+        let prevSnapshot = null;
+        const convergenceInterval = Math.max(100, Math.floor(iters / 10));
+        const convergenceThreshold = 0.02; // stop if max strategy shift < 2%
+
         for (let t = 0; t < iters; t++) {
             if (samplesPerIter > 0 && n0 * n1 > samplesPerIter) {
                 for (let s = 0; s < samplesPerIter; s++) {
@@ -146,7 +152,27 @@ class CFRSolver {
                 }
             }
 
-            // Track convergence every 200 iterations
+            // Lightweight convergence check: compare average strategies to previous snapshot
+            if (t > 0 && t % convergenceInterval === 0 && t >= convergenceInterval * 2) {
+                const currentSnapshot = this._snapshotStrategies();
+                if (prevSnapshot) {
+                    let maxDelta = 0;
+                    for (const [key, strat] of currentSnapshot) {
+                        const prev = prevSnapshot.get(key);
+                        if (prev) {
+                            for (let a = 0; a < strat.length; a++) {
+                                maxDelta = Math.max(maxDelta, Math.abs(strat[a] - (prev[a] || 0)));
+                            }
+                        }
+                    }
+                    if (maxDelta < convergenceThreshold) {
+                        break; // Converged — strategies stable within 2%
+                    }
+                }
+                prevSnapshot = currentSnapshot;
+            }
+
+            // Legacy exploitability-based early stop
             if (earlyStop > 0 && t > 0 && t % 200 === 0) {
                 const exploit = this._estimateExploitability(root, hands, infoSetKeyFn, options);
                 this.exploitabilityHistory.push({ iteration: t, exploitability: exploit });
@@ -155,6 +181,15 @@ class CFRSolver {
         }
 
         return this._extractStrategies();
+    }
+
+    // Fast snapshot of current average strategies for convergence check
+    _snapshotStrategies() {
+        const snap = new Map();
+        for (const [key, infoSet] of this.infoSets) {
+            snap.set(key, infoSet.getAverageStrategy());
+        }
+        return snap;
     }
 
     // Recursive CFR+ traversal
@@ -185,15 +220,18 @@ class CFRSolver {
         const actionValues = new Array(numActions);
         const nodeValue = [0, 0];
 
+        // Reuse a 2-element array to avoid allocation per action
+        const newReachProbs = [reachProbs[0], reachProbs[1]];
+        const savedReach = reachProbs[player];
         for (let a = 0; a < numActions; a++) {
             const childNode = node.children[node.actions[a]];
-            const newReachProbs = [...reachProbs];
-            newReachProbs[player] *= strategy[a];
+            newReachProbs[player] = savedReach * strategy[a];
 
             actionValues[a] = this._cfr(childNode, playerHands, newReachProbs, infoSetKeyFn);
             nodeValue[0] += strategy[a] * actionValues[a][0];
             nodeValue[1] += strategy[a] * actionValues[a][1];
         }
+        newReachProbs[player] = savedReach; // restore
 
         // Update regrets for the acting player (CFR+: clip to 0)
         const opponent = 1 - player;

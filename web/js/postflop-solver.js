@@ -17,7 +17,7 @@ class PostflopSolver {
         this.raiseMultiplier = config.raiseMultiplier || 2.5;
         this.numBuckets = config.numBuckets || 30;
         this.iterations = config.iterations || 2000;
-        this.simsPerHand = config.simsPerHand || 150;
+        this.simsPerHand = config.simsPerHand || 80;
 
         this.solver = new CFRSolver({ iterations: this.iterations });
         this.heroBuckets = null;
