@@ -1363,9 +1363,17 @@ function renderMatrix(profileId) {
     }
     grid.innerHTML = html;
 
-    // Attach drag-to-paint for main editor
-    attachDragPaint(grid, (hand, newCls) => {
-        mainSetCell(hand, profileId, newCls);
+    // Attach drag-to-paint for main editor (batch commit on mouseup)
+    attachDragPaint(grid, (changedCells) => {
+        const data = getScenarioRangeData(profileId, currentPreflopPos, currentScenario, currentOpenerPos);
+        for (const [hand, cls] of changedCells) {
+            data.raise = data.raise.filter(h => h !== hand);
+            data.call = data.call.filter(h => h !== hand);
+            if (cls === 'raise') data.raise.push(hand);
+            else if (cls === 'call') data.call.push(hand);
+        }
+        saveScenarioRange(profileId, currentPreflopPos, currentScenario, currentOpenerPos, data.raise, data.call);
+        renderMatrix(profileId);
     });
 
     const totalDef = raiseCombos + callCombos;
@@ -1423,16 +1431,6 @@ function toggleRangeCell(hand, profileId, hasCall) {
     renderMatrix(profileId);
 }
 
-// Direct set cell to a specific state (for drag-to-paint)
-function mainSetCell(hand, profileId, newCls) {
-    const data = getScenarioRangeData(profileId, currentPreflopPos, currentScenario, currentOpenerPos);
-    data.raise = data.raise.filter(h => h !== hand);
-    data.call = data.call.filter(h => h !== hand);
-    if (newCls === 'raise') data.raise.push(hand);
-    else if (newCls === 'call') data.call.push(hand);
-    saveScenarioRange(profileId, currentPreflopPos, currentScenario, currentOpenerPos, data.raise, data.call);
-    renderMatrix(profileId);
-}
 
 // ============================================================
 // Practice Page — Mode Switching
@@ -3011,18 +3009,18 @@ function getEquityColor(eq) {
 // Click (no drag) = cycle to call (green)
 // ============================================================
 
-function attachDragPaint(matrixEl, setCellFn) {
+function attachDragPaint(matrixEl, commitFn) {
     if (!matrixEl) return;
     let painting = false;
     let paintMode = null; // 'raise' or 'fold'
     let hasDragged = false;
     let startHand = null;
+    let changedCells = new Map(); // hand → newClass
 
-    function getCellHand(e) {
-        const touch = e.touches ? e.touches[0] : e;
-        const el = document.elementFromPoint(touch.clientX, touch.clientY);
-        if (el && el.classList.contains('matrix-cell')) return el.dataset.hand || el.textContent.trim();
-        return null;
+    function getCell(e) {
+        const pt = e.touches ? e.touches[0] : e;
+        const el = document.elementFromPoint(pt.clientX, pt.clientY);
+        return (el && el.classList.contains('matrix-cell')) ? el : null;
     }
 
     function getCellState(el) {
@@ -3031,79 +3029,79 @@ function attachDragPaint(matrixEl, setCellFn) {
         return 'fold';
     }
 
-    matrixEl.addEventListener('mousedown', (e) => {
-        const hand = getCellHand(e);
-        if (!hand) return;
-        e.preventDefault();
+    function paintCell(cell) {
+        if (!cell) return;
+        const hand = cell.dataset.hand || cell.textContent.trim();
+        const state = getCellState(cell);
+        if (paintMode === 'raise' && state !== 'raise') {
+            cell.classList.remove('fold', 'call');
+            cell.classList.add('raise');
+            changedCells.set(hand, 'raise');
+        } else if (paintMode === 'fold' && state !== 'fold') {
+            cell.classList.remove('raise', 'call');
+            cell.classList.add('fold');
+            changedCells.set(hand, 'fold');
+        }
+    }
+
+    function startPaint(e, cell) {
+        if (!cell) return;
         painting = true;
         hasDragged = false;
-        startHand = hand;
-        // Determine paint mode from first cell: if raise/call → paint fold, if fold → paint raise
-        const cell = e.target.closest('.matrix-cell');
-        if (cell) {
-            const state = getCellState(cell);
-            paintMode = (state === 'raise' || state === 'call') ? 'fold' : 'raise';
-        }
-    });
+        startHand = cell.dataset.hand || cell.textContent.trim();
+        changedCells.clear();
+        const state = getCellState(cell);
+        paintMode = (state === 'raise' || state === 'call') ? 'fold' : 'raise';
+    }
 
-    matrixEl.addEventListener('mousemove', (e) => {
-        if (!painting) return;
-        const hand = getCellHand(e);
-        if (!hand || hand === startHand && !hasDragged) return;
-        hasDragged = true;
-        // Paint this cell
-        const cell = e.target.closest('.matrix-cell');
-        if (cell) {
-            const state = getCellState(cell);
-            if (paintMode === 'raise' && state !== 'raise') setCellFn(hand, 'raise');
-            else if (paintMode === 'fold' && state !== 'fold') setCellFn(hand, 'fold');
-        }
-    });
-
-    document.addEventListener('mouseup', () => {
-        if (painting && !hasDragged && startHand) {
-            // Pure click (no drag) — let the onclick handler cycle through states (includes green)
-            // onclick already handles this, so do nothing here
+    function endPaint() {
+        if (painting && hasDragged && changedCells.size > 0) {
+            // Batch commit all changes
+            commitFn(changedCells);
         }
         painting = false;
         paintMode = null;
         startHand = null;
+        changedCells.clear();
+    }
+
+    matrixEl.addEventListener('mousedown', (e) => {
+        const cell = getCell(e);
+        if (!cell) return;
+        e.preventDefault();
+        startPaint(e, cell);
     });
+
+    matrixEl.addEventListener('mousemove', (e) => {
+        if (!painting) return;
+        const cell = getCell(e);
+        if (!cell) return;
+        const hand = cell.dataset.hand || cell.textContent.trim();
+        if (hand !== startHand || hasDragged) {
+            hasDragged = true;
+            paintCell(cell);
+        }
+    });
+
+    document.addEventListener('mouseup', () => { endPaint(); });
 
     // Touch support
     matrixEl.addEventListener('touchstart', (e) => {
-        const hand = getCellHand(e);
-        if (!hand) return;
-        painting = true;
-        hasDragged = false;
-        startHand = hand;
-        const cell = document.elementFromPoint(e.touches[0].clientX, e.touches[0].clientY);
-        if (cell && cell.classList.contains('matrix-cell')) {
-            paintMode = (getCellState(cell) === 'raise' || getCellState(cell) === 'call') ? 'fold' : 'raise';
-        }
+        const cell = getCell(e);
+        if (cell) startPaint(e, cell);
     }, { passive: true });
 
     matrixEl.addEventListener('touchmove', (e) => {
         if (!painting) return;
         e.preventDefault();
-        const hand = getCellHand(e);
-        if (!hand) return;
+        const cell = getCell(e);
+        if (!cell) return;
+        const hand = cell.dataset.hand || cell.textContent.trim();
         if (hand !== startHand) hasDragged = true;
-        if (hasDragged) {
-            const cell = document.elementFromPoint(e.touches[0].clientX, e.touches[0].clientY);
-            if (cell && cell.classList.contains('matrix-cell')) {
-                const state = getCellState(cell);
-                if (paintMode === 'raise' && state !== 'raise') setCellFn(hand, 'raise');
-                else if (paintMode === 'fold' && state !== 'fold') setCellFn(hand, 'fold');
-            }
-        }
+        if (hasDragged) paintCell(cell);
     }, { passive: false });
 
-    matrixEl.addEventListener('touchend', () => {
-        painting = false;
-        paintMode = null;
-        startHand = null;
-    });
+    matrixEl.addEventListener('touchend', () => { endPaint(); });
 }
 
 // ============================================================
@@ -3302,9 +3300,17 @@ function renderWizardRange(profileId) {
     </div>`;
 
     container.innerHTML = html;
-    // Attach drag-to-paint after render
-    attachDragPaint(document.getElementById('wizard-matrix'), (hand, newCls) => {
-        wizardSetCell(hand, newCls);
+    // Attach drag-to-paint (batch commit on mouseup)
+    attachDragPaint(document.getElementById('wizard-matrix'), (changedCells) => {
+        const data = getScenarioRangeData(wizardRangeProfileId, wizardRangePos, wizardScenario, wizardOpenerPos);
+        for (const [hand, cls] of changedCells) {
+            data.raise = data.raise.filter(h => h !== hand);
+            data.call = data.call.filter(h => h !== hand);
+            if (cls === 'raise') data.raise.push(hand);
+            else if (cls === 'call') data.call.push(hand);
+        }
+        saveScenarioRange(wizardRangeProfileId, wizardRangePos, wizardScenario, wizardOpenerPos, data.raise, data.call);
+        renderWizardRange(wizardRangeProfileId);
     });
 }
 
