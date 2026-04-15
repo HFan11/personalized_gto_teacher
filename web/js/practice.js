@@ -76,6 +76,9 @@ class PracticeSession {
         this.history = snap.history;
         this.villainRangeWeights = snap.villainRangeWeights;
         this.villainActionHistory = snap.villainActionHistory;
+        // Invalidate solver cache — pot/stack changed after undo
+        this._cfrSolverKey = null;
+        this._cfrCachedSolver = null;
         // Recalculate score from restored history
         this.score.total = this.history.length;
         this.score.correct = this.history.filter(h => h.isCorrect).length;
@@ -602,7 +605,7 @@ class PracticeSession {
 
         // Cache the SOLVER object (not the formatted result) so it can be reused
         // for both initial-action and facing-bet contexts on the same board.
-        const solverCacheKey = this.boardCards.map(c => c.id).sort().join(',') + '|' + this.street + '|' + (this.heroIsIP ? 'IP' : 'OOP');
+        const solverCacheKey = this.boardCards.map(c => c.id).sort().join(',') + '|' + this.street + '|' + (this.heroIsIP ? 'IP' : 'OOP') + '|' + this.potSize.toFixed(1) + '|' + this.effectiveStack.toFixed(1);
 
         let solver;
         let effectiveBuckets, effectiveIterations;
