@@ -600,85 +600,72 @@ class PracticeSession {
         if (!this.boardCards || this.boardCards.length < 3) return null;
         if (!this.villainRangeHands || this.villainRangeHands.length === 0) return null;
 
-        // Cache check: same board + street + position → reuse previous solve
-        const cacheKey = this.boardCards.map(c => c.id).sort().join(',') + '|' + this.street + '|' + (this.heroIsIP ? 'IP' : 'OOP');
-        if (this._cfrCacheKey === cacheKey && this._cfrCachedResult) {
-            return this._cfrCachedResult;
-        }
+        // Cache the SOLVER object (not the formatted result) so it can be reused
+        // for both initial-action and facing-bet contexts on the same board.
+        const solverCacheKey = this.boardCards.map(c => c.id).sort().join(',') + '|' + this.street + '|' + (this.heroIsIP ? 'IP' : 'OOP');
 
-        // Determine hero range — use preflop range if available
-        let heroRangeHands = [];
-        if (this.heroProfile && this.pm) {
-            const heroPos = this.heroPosition;
-            const heroProfileId = this.heroProfile?.id;
-            let heroRangeStrings = [];
-            if (typeof getVillainPostflopRange === 'function' && this.potType && this.potType !== 'srp') {
-                heroRangeStrings = getVillainPostflopRange(this.pm, heroProfileId, heroPos, this.potType, !this.isVillainAggressor) || [];
-            } else {
-                heroRangeStrings = this.pm.getRange(heroProfileId, heroPos) || [];
-            }
-            heroRangeHands = heroRangeStrings.length > 0 ? this.pm.rangeToHands(heroRangeStrings) : [];
-        }
+        let solver;
+        let effectiveBuckets, effectiveIterations;
 
-        // If no hero range available, can't solve — fallback to heuristic
-        if (heroRangeHands.length === 0) {
-            return null;
-        }
-
-        // Dynamic parameter tuning based on range size
-        // Smaller ranges = fewer buckets but more iterations → converges better
-        const numHeroCombos = heroRangeHands.filter(h => !handConflictsWithBoard(h, this.boardCards)).length;
-        const numVillainCombos = this.villainRangeHands.filter(h => !handConflictsWithBoard(h, this.boardCards)).length;
-        const minCombos = Math.min(numHeroCombos, numVillainCombos);
-        // JS solver params — optimized for best accuracy within browser constraints
-        let numBuckets, iterations;
-        if (minCombos < 50) {
-            numBuckets = Math.min(20, Math.max(10, Math.floor(minCombos / 2)));
-            iterations = 2500;
-        } else if (minCombos < 200) {
-            numBuckets = Math.min(40, Math.max(20, Math.floor(minCombos / 4)));
-            iterations = 1500;
+        if (this._cfrSolverKey === solverCacheKey && this._cfrCachedSolver) {
+            // Reuse cached solver — strategy lookup still uses current facingBet state
+            solver = this._cfrCachedSolver;
+            effectiveBuckets = this._cfrCachedBuckets;
+            effectiveIterations = this._cfrCachedIters;
         } else {
-            numBuckets = Math.min(50, Math.max(25, Math.floor(minCombos / 5)));
-            iterations = 1000;
-        }
+            // Build new solver
+            let heroRangeHands = [];
+            if (this.heroProfile && this.pm) {
+                const heroPos = this.heroPosition;
+                const heroProfileId = this.heroProfile?.id;
+                let heroRangeStrings = [];
+                if (typeof getVillainPostflopRange === 'function' && this.potType && this.potType !== 'srp') {
+                    heroRangeStrings = getVillainPostflopRange(this.pm, heroProfileId, heroPos, this.potType, !this.isVillainAggressor) || [];
+                } else {
+                    heroRangeStrings = this.pm.getRange(heroProfileId, heroPos) || [];
+                }
+                heroRangeHands = heroRangeStrings.length > 0 ? this.pm.rangeToHands(heroRangeStrings) : [];
+            }
+            if (heroRangeHands.length === 0) return null;
 
-        try {
-            // Check if we have pre-cached equity buckets from solver-cache
+            const numHeroCombos = heroRangeHands.filter(h => !handConflictsWithBoard(h, this.boardCards)).length;
+            const numVillainCombos = this.villainRangeHands.filter(h => !handConflictsWithBoard(h, this.boardCards)).length;
+            const minCombos = Math.min(numHeroCombos, numVillainCombos);
+            let numBuckets, iterations;
+            if (minCombos < 50) { numBuckets = Math.min(20, Math.max(10, Math.floor(minCombos / 2))); iterations = 2500; }
+            else if (minCombos < 200) { numBuckets = Math.min(40, Math.max(20, Math.floor(minCombos / 4))); iterations = 1500; }
+            else { numBuckets = Math.min(50, Math.max(25, Math.floor(minCombos / 5))); iterations = 1000; }
+
             const cachedBuckets = (typeof solverCache !== 'undefined')
-                ? solverCache.getCachedBuckets(this.boardCards, 50)
-                : null;
-
+                ? solverCache.getCachedBuckets(this.boardCards, 50) : null;
             const solveOptions = {};
-            let effectiveBuckets = numBuckets;
-            let effectiveIterations = iterations;
-
+            effectiveBuckets = numBuckets;
+            effectiveIterations = iterations;
             if (cachedBuckets) {
-                // Pre-cached buckets → skip bucketing, boost precision
                 solveOptions.precomputedHeroBuckets = this.heroIsIP ? cachedBuckets.hero : cachedBuckets.villain;
                 solveOptions.precomputedVillainBuckets = this.heroIsIP ? cachedBuckets.villain : cachedBuckets.hero;
                 effectiveBuckets = 50;
                 effectiveIterations = 2500;
-                console.log('[Practice] Using pre-cached buckets → boosted to 50 buckets, 2500 iterations');
             }
 
-            const solver = new PostflopSolver({
-                heroRange: heroRangeHands,
-                villainRange: this.villainRangeHands,
-                board: this.boardCards,
-                pot: this.potSize,
-                stack: this.effectiveStack,
-                heroIsIP: this.heroIsIP,
-                street: this.street,
-                betSizes: [0.33, 0.66, 1.0],
-                numBuckets: effectiveBuckets,
-                iterations: effectiveIterations,
-                simsPerHand: 80,
+            solver = new PostflopSolver({
+                heroRange: heroRangeHands, villainRange: this.villainRangeHands,
+                board: this.boardCards, pot: this.potSize, stack: this.effectiveStack,
+                heroIsIP: this.heroIsIP, street: this.street,
+                betSizes: [0.33, 0.66, 1.0], numBuckets: effectiveBuckets,
+                iterations: effectiveIterations, simsPerHand: 80,
             });
-
             solver.solve(solveOptions);
 
-            // Get strategy for hero's specific hand
+            // Cache the solver for reuse (facing-bet lookup on same board)
+            this._cfrSolverKey = solverCacheKey;
+            this._cfrCachedSolver = solver;
+            this._cfrCachedBuckets = effectiveBuckets;
+            this._cfrCachedIters = effectiveIterations;
+        }
+
+        try {
+            // Get strategy for hero's specific hand — context-sensitive
             let strategy;
             if (this.facingBet) {
                 const betPct = this.villainBetSize / this.potSize;
@@ -760,9 +747,6 @@ class PracticeSession {
                 solverBuckets: effectiveBuckets,
             };
 
-            // Cache result for undo/redo consistency
-            this._cfrCacheKey = cacheKey;
-            this._cfrCachedResult = result;
             return result;
         } catch (e) {
             console.warn('CFR solver failed, falling back to heuristics:', e);
