@@ -216,14 +216,19 @@
 
             <!-- Preflop Active Hand -->
             <div id="preflop-hand" style="display:none;">
-                <!-- Scenario Description -->
+                <!-- Action Timeline (replaces dense text) -->
+                <div class="action-timeline" id="preflop-action-timeline"></div>
+
+                <!-- Pot & Position Info -->
+                <div id="preflop-pot-info" style="display:flex; justify-content:center; gap:12px; padding:4px 8px; font-size:11px; color:var(--text-muted);"></div>
+
+                <!-- Hero Cards -->
                 <div class="ui-card" style="text-align:center; padding:16px;">
-                    <div style="font-size:14px; color:var(--text-secondary); margin-bottom:8px;" id="preflop-scenario-desc"></div>
                     <div style="font-size:12px; margin-bottom:12px;">
                         <span class="position-badge" id="preflop-hero-badge" style="font-size:11px;"></span>
+                        <span style="font-size:12px; color:var(--text-secondary); margin-left:6px;">Hero</span>
                         <span id="preflop-ip-label" style="font-size:11px; color:var(--text-muted); margin-left:4px;"></span>
                     </div>
-                    <!-- Hero Cards -->
                     <div class="cards-row" id="preflop-hero-cards" style="justify-content:center; margin-bottom:12px;"></div>
                     <div style="font-size:13px; font-weight:600;" id="preflop-hand-label"></div>
                 </div>
@@ -1476,6 +1481,61 @@ function selectPreflopVillainPosBtn(pos, el) {
     if (el) el.classList.add('active');
 }
 
+function renderPreflopTimeline(scenario) {
+    const container = document.getElementById('preflop-action-timeline');
+    const potInfo = document.getElementById('preflop-pot-info');
+    const open = 2.5, threebet = 8, fourbet = 22, blinds = 1.5, stack = 100;
+    const steps = [];
+
+    // Build action steps based on scenario type
+    if (scenario.type === 'rfi') {
+        steps.push({ pos: '', action: 'Folds to you', color: '#95a5a6', icon: '' });
+    } else if (scenario.type === 'vs_raise') {
+        steps.push({ pos: scenario.villainPos, action: `Raise ${open}BB`, color: '#e74c3c', icon: '😈' });
+    } else if (scenario.type === 'vs_3bet') {
+        steps.push({ pos: scenario.heroPos, action: `Raise ${open}BB`, color: '#3498db', icon: '🦸' });
+        steps.push({ pos: scenario.villainPos, action: `3-Bet ${threebet}BB`, color: '#e74c3c', icon: '😈' });
+    } else if (scenario.type === 'vs_4bet') {
+        steps.push({ pos: scenario.villainPos, action: `Raise ${open}BB`, color: '#95a5a6', icon: '😈' });
+        steps.push({ pos: scenario.heroPos, action: `3-Bet ${threebet}BB`, color: '#3498db', icon: '🦸' });
+        steps.push({ pos: scenario.villainPos, action: `4-Bet ${fourbet}BB`, color: '#e74c3c', icon: '😈' });
+    }
+
+    // Render timeline with staggered animation
+    let html = '';
+    for (let i = 0; i < steps.length; i++) {
+        const s = steps[i];
+        if (i > 0) html += '<div class="timeline-arrow" style="animation:fadeIn 0.3s ease ' + (i * 0.3) + 's both;">→</div>';
+        html += `<div class="timeline-item" style="animation:fadeIn 0.3s ease ${i * 0.3}s both;">
+            <span style="font-size:9px;">${s.icon}${s.pos}</span>
+            <span class="timeline-action" style="background:${s.color};">${s.action}</span>
+        </div>`;
+    }
+    // "Your turn" indicator
+    const delay = steps.length * 0.3;
+    html += `<div class="timeline-arrow" style="animation:fadeIn 0.3s ease ${delay}s both;">→</div>`;
+    html += `<div class="timeline-item current" style="animation:fadeIn 0.3s ease ${delay}s both;">
+        <span style="font-size:9px;">🦸${scenario.heroPos}</span>
+        <span class="timeline-action" style="background:var(--bg-elevated);">?</span>
+    </div>`;
+    container.innerHTML = html;
+
+    // Pot & SPR info below timeline
+    let infoHtml = '';
+    if (scenario.type === 'vs_3bet') {
+        const pot = open + threebet + blinds;
+        const spr = ((stack - open - (threebet - open)) / (pot + threebet - open)).toFixed(1);
+        infoHtml = `<span>底池 ${pot}BB</span><span>SPR ${spr}</span>`;
+    } else if (scenario.type === 'vs_4bet') {
+        const pot = open + threebet + fourbet + blinds;
+        const spr = ((stack - threebet - (fourbet - threebet)) / (pot + fourbet - threebet)).toFixed(1);
+        infoHtml = `<span>底池 ${pot}BB</span><span>SPR ${spr}</span>`;
+    } else if (scenario.type === 'vs_raise') {
+        infoHtml = `<span>底池 ${(open + blinds).toFixed(1)}BB</span>`;
+    }
+    potInfo.innerHTML = infoHtml;
+}
+
 function startPreflopHand() {
     const btn = document.getElementById('preflop-deal-btn');
     if (btn) btn.innerHTML = '<span class="spinner"></span>';
@@ -1497,8 +1557,8 @@ function startPreflopHand() {
         document.getElementById('preflop-result').style.display = 'none';
         document.getElementById('preflop-action-buttons').style.display = 'flex';
 
-        // Render scenario
-        document.getElementById('preflop-scenario-desc').textContent = scenario.description;
+        // Build visual timeline for this scenario
+        renderPreflopTimeline(scenario);
         document.getElementById('preflop-hero-badge').textContent = scenario.heroPos;
         document.getElementById('preflop-ip-label').textContent = scenario.heroIsIP ? '(IP 有位置)' : '(OOP 无位置)';
         // Show facedown first, then flip
