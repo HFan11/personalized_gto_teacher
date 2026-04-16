@@ -4439,14 +4439,22 @@ function pvpOnRoomUpdate(room) {
 }
 
 function pvpRenderLobby(room) {
-    const seats = room.seats || [];
+    let seats = room.seats || [];
     const userId = supabase.user?.id;
-    let html = '';
 
+    // If seats empty, show 6 default bot seats for UI
+    if (seats.length < 6) {
+        seats = [];
+        for (let i = 0; i < 6; i++) {
+            seats.push({ user_id: null, name: 'Bot ' + (i+1), stack: 100, seat_idx: i, is_bot: true });
+        }
+    }
+
+    let html = '';
     for (let vp = 0; vp < 6; vp++) {
-        const s = seats[vp] || { name: 'Empty', is_bot: true, stack: 0, seat_idx: vp };
+        const s = seats[vp];
         const isMe = s.user_id === userId;
-        const isBot = s.is_bot === true || s.is_bot === 'true';
+        const isBot = s.is_bot === true || s.is_bot === 'true' || s.user_id === null;
         const cls = isMe ? 'cg-seat hero-seat' : 'cg-seat';
 
         html += `<div class="${cls}" data-pos="${vp}" style="cursor:${isBot ? 'pointer' : 'default'};" ${isBot ? `onclick="pvpJoin(${vp})"` : ''}>
@@ -4460,7 +4468,7 @@ function pvpRenderLobby(room) {
     }
     document.getElementById('pvp-lobby-seats').innerHTML = html;
 
-    const humanCount = seats.filter(s => s.is_bot !== true && s.is_bot !== 'true').length;
+    const humanCount = seats.filter(s => s.user_id && s.is_bot !== true && s.is_bot !== 'true').length;
     document.getElementById('pvp-status').textContent = humanCount > 0 ? `${humanCount} 位玩家在座` : '等待玩家入座...';
 
     // Show/hide buttons
