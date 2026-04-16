@@ -4339,21 +4339,28 @@ function spinSlots() {
 // ============================================================
 
 // ============================================================
-// PVP Room Controller (redesigned)
-// Core: player joins → game auto-starts → leave replaces with bot
+// PVP Room Controller
+// Core: player joins → game auto-starts → full poker flow
+// Server handles: deal, actions, street transitions, showdown
+// Client handles: auto-deal trigger, bot AI, rendering
 // ============================================================
 let pvpPollId = null;
 let pvpMySeat = -1;
 let pvpLastHandNum = 0;
 let pvpBotPending = false;
 let pvpMyCards = [];
+let pvpDealPending = false;
+let pvpLastActingSeat = -2;   // track to avoid duplicate bot triggers
+let pvpResultTimer = null;    // timer for showing result before next deal
 
 function initPVPPage() {
     if (!supabase.user) { toggleAuthModal(); return; }
     pvpBotPending = false;
+    pvpDealPending = false;
+    pvpLastActingSeat = -2;
     pvpLoadRoom();
     if (pvpPollId) supabase.stopPoll(pvpPollId);
-    pvpPollId = supabase.pollTable('pvp_room', 1200, pvpOnRoomUpdate);
+    pvpPollId = supabase.pollTable('pvp_room', 1000, pvpOnRoomUpdate);
 }
 
 async function pvpLoadRoom() {
@@ -4367,6 +4374,14 @@ function pvpIsBot(s) {
     return s?.is_bot === true || s?.is_bot === 'true' || !s?.user_id;
 }
 
+// Am I the "host" (lowest-indexed human)? Only host drives bots & auto-deals
+function pvpAmHost(seats) {
+    for (let i = 0; i < seats.length; i++) {
+        if (!pvpIsBot(seats[i])) return i === pvpMySeat;
+    }
+    return false;
+}
+
 function pvpOnRoomUpdate(room) {
     if (!room) return;
     const seats = room.seats || [];
@@ -4378,55 +4393,45 @@ function pvpOnRoomUpdate(room) {
         if (seats[i]?.user_id === userId) { pvpMySeat = i; break; }
     }
 
-    // Count humans
+    const isHost = pvpAmHost(seats);
     const humanCount = seats.filter(s => !pvpIsBot(s)).length;
 
-    // --- AUTO STATE MANAGEMENT ---
-    // Game stuck > 20s? Auto-fold acting seat
-    if (room.street !== 'waiting' && room.acting_seat >= 0) {
-        const lastTs = room.last_action?.ts || (Date.parse(room.updated_at) / 1000) || 0;
+    // --- AUTO-DEAL: only host triggers deals ---
+    if (isHost && !pvpDealPending) {
+        if (room.street === 'waiting' && humanCount > 0) {
+            // Show result briefly, then deal
+            const lastType = room.last_action?.type;
+            const delay = (lastType === 'fold_win' || lastType === 'showdown') ? 3000 : 1500;
+            pvpDealPending = true;
+            setTimeout(async () => {
+                try { await supabase.rpc('pvp_deal'); } catch(e) { console.warn('Deal failed:', e); }
+                pvpDealPending = false;
+            }, delay);
+        }
+    }
+
+    // --- STUCK DETECTION: auto-fold after 30s (host only) ---
+    if (isHost && room.street !== 'waiting' && room.acting_seat >= 0 && !pvpBotPending) {
+        const lastTs = room.last_action?.ts || 0;
         const stuckSec = Date.now() / 1000 - lastTs;
-        if (stuckSec > 20 && !pvpBotPending && pvpMySeat >= 0) {
+        if (stuckSec > 30) {
             pvpBotPending = true;
-            const isBot = pvpIsBot(seats[room.acting_seat]);
-            supabase.rpc(isBot ? 'pvp_bot_action' : 'pvp_action', { p_action: 'fold', p_amount: 0 })
-                .catch(() => {}).finally(() => { pvpBotPending = false; });
+            const actingSeat = room.acting_seat;
+            const isBot = pvpIsBot(seats[actingSeat]);
+            const rpcName = isBot ? 'pvp_bot_action' : 'pvp_action';
+            supabase.rpc(rpcName, { p_action: 'fold', p_amount: 0 })
+                .catch(e => console.warn('Auto-fold failed:', e))
+                .finally(() => { pvpBotPending = false; });
             return;
         }
     }
 
-    // Hand over (<=1 active or acting_seat=-1)? Auto-deal next hand
-    if (room.street !== 'waiting' && pvpMySeat >= 0) {
-        const activePlayers = seats.filter((s, i) => !room.folded?.[i]).length;
-        if (activePlayers <= 1 || room.acting_seat < 0) {
-            const lastTs = room.last_action?.ts || 0;
-            if (Date.now() / 1000 - lastTs > 3 && !pvpBotPending) {
-                pvpBotPending = true;
-                setTimeout(async () => {
-                    try { await supabase.rpc('pvp_deal'); } catch(e) { console.warn('Auto-deal failed:', e); }
-                    pvpBotPending = false;
-                }, 2000);
-            }
-        }
-    }
-
-    // Waiting + has humans + I'm seated? Auto-deal
-    if (room.street === 'waiting' && humanCount > 0 && pvpMySeat >= 0 && !pvpBotPending) {
-        pvpBotPending = true;
-        setTimeout(async () => {
-            try { await supabase.rpc('pvp_deal'); } catch(e) {}
-            pvpBotPending = false;
-        }, 1500);
-    }
-
     // --- RENDER ---
     if (pvpMySeat < 0) {
-        // Not seated: show lobby
         document.getElementById('pvp-lobby').style.display = 'block';
         document.getElementById('pvp-game').style.display = 'none';
         pvpRenderLobby(room);
     } else {
-        // Seated: always show game table
         document.getElementById('pvp-lobby').style.display = 'none';
         document.getElementById('pvp-game').style.display = 'block';
         pvpRenderGame(room);
@@ -4435,19 +4440,26 @@ function pvpOnRoomUpdate(room) {
     // Fetch cards for new hand
     if (room.hand_number > pvpLastHandNum && pvpMySeat >= 0) {
         pvpLastHandNum = room.hand_number;
+        pvpMyCards = [];
         pvpFetchMyCards(room.hand_number);
     }
 
-    // Drive bot actions
-    if (room.acting_seat >= 0 && pvpIsBot(seats[room.acting_seat]) && pvpMySeat >= 0 && !pvpBotPending) {
-        const humans = seats.map((s, i) => pvpIsBot(s) ? 999 : i).filter(i => i !== 999);
-        if (humans.length > 0 && Math.min(...humans) === pvpMySeat) {
-            pvpBotPending = true;
-            setTimeout(async () => {
+    // --- BOT ACTIONS: only host drives bots ---
+    if (isHost && room.street !== 'waiting' && room.acting_seat >= 0
+        && pvpIsBot(seats[room.acting_seat]) && !pvpBotPending
+        && room.acting_seat !== pvpLastActingSeat) {
+        pvpLastActingSeat = room.acting_seat;
+        pvpBotPending = true;
+        setTimeout(async () => {
+            try {
                 await pvpBotAction(room);
-                pvpBotPending = false;
-            }, 500 + Math.random() * 500);
-        }
+            } catch(e) { console.warn('Bot action error:', e); }
+            pvpBotPending = false;
+        }, 600 + Math.random() * 600);
+    }
+    // Reset tracker when acting seat changes to non-bot or -1
+    if (room.acting_seat < 0 || !pvpIsBot(seats[room.acting_seat])) {
+        pvpLastActingSeat = -2;
     }
 }
 
@@ -4477,8 +4489,10 @@ function pvpRenderGame(room) {
     const seats = room.seats || [];
     const userId = supabase.user?.id;
     const board = room.board || [];
+    const lastAction = room.last_action || {};
+    const streetNames = {preflop:'翻前', flop:'翻牌', turn:'转牌', river:'河牌', waiting:'等待中'};
 
-    // Board
+    // Board cards
     document.getElementById('pvp-board').innerHTML = board.map(c => {
         const rank = c[0], sc = c[1];
         const sm = {c:'♣',d:'♦',h:'♥',s:'♠'};
@@ -4487,7 +4501,23 @@ function pvpRenderGame(room) {
             <span class="card-rank" style="font-size:13px;">${rank==='T'?'10':rank}</span>
             <span class="card-suit" style="font-size:11px;">${sm[sc]||sc}</span></div>`;
     }).join('');
-    document.getElementById('pvp-pot').textContent = (room.pot||0).toFixed(1) + ' BB';
+
+    // Pot + street info
+    const streetLabel = streetNames[room.street] || room.street;
+    if (room.street === 'waiting' && lastAction.type) {
+        // Show result
+        const winnerSeat = lastAction.winner;
+        const winAmount = lastAction.amount || 0;
+        const winnerName = winnerSeat >= 0 ? (seats[winnerSeat]?.name || 'Seat ' + winnerSeat) : '?';
+        const resultType = lastAction.type === 'showdown' ? '摊牌' : '弃牌';
+        document.getElementById('pvp-pot').innerHTML =
+            `<span style="color:var(--accent-green);font-weight:700;">${winnerName} 赢得 ${winAmount.toFixed(1)}BB</span>` +
+            `<span style="font-size:10px;opacity:0.6;margin-left:4px;">(${resultType})</span>`;
+    } else {
+        document.getElementById('pvp-pot').textContent =
+            `${streetLabel} | 底池 ${(room.pot||0).toFixed(1)} BB` +
+            (room.hand_number ? ` | #${room.hand_number}` : '');
+    }
 
     // Seats
     let html = '';
@@ -4496,28 +4526,59 @@ function pvpRenderGame(room) {
         const isMe = s.user_id === userId;
         const isActing = vp === room.acting_seat;
         const isFolded = room.folded?.[vp];
-        const cls = ['cg-seat', isFolded&&'folded', isActing&&'acting', isMe&&'hero-seat'].filter(Boolean).join(' ');
-        const bet = room.bets?.[vp]||0;
+        const isAllIn = room.all_in?.[vp];
+        const isWinner = room.street === 'waiting' && lastAction.winner === vp;
+        const cls = ['cg-seat',
+            isFolded && 'folded',
+            isActing && 'acting',
+            isMe && 'hero-seat',
+            isWinner && 'winner-seat'
+        ].filter(Boolean).join(' ');
+        const bet = room.bets?.[vp] || 0;
 
+        // Card display: face-down for non-folded opponents
         let cards = '';
-        if (!isFolded && !isMe) cards = `<div class="cg-seat-cards"><div class="playing-card facedown" style="width:24px;height:33px;"></div><div class="playing-card facedown" style="width:24px;height:33px;"></div></div>`;
+        if (room.street !== 'waiting' && !isFolded && !isMe) {
+            cards = `<div class="cg-seat-cards"><div class="playing-card facedown" style="width:24px;height:33px;"></div><div class="playing-card facedown" style="width:24px;height:33px;"></div></div>`;
+        }
 
-        html += `<div class="${cls}" data-pos="${vp}">
+        // Position labels
+        const posLabels = ['', '', '', '', '', ''];
+        const d = room.dealer_seat || 0;
+        posLabels[d] = 'D';
+        posLabels[(d+1)%6] = 'SB';
+        posLabels[(d+2)%6] = 'BB';
+
+        html += `<div class="${cls}" data-pos="${vp}" ${isWinner ? 'style="box-shadow:0 0 12px var(--accent-green);"' : ''}>
             ${vp>=1&&vp<=3?cards:''}
             <div class="cg-seat-info">
-                <div class="cg-seat-name" style="font-size:10px;">${isMe?'⭐ ':''}${s.name||'Bot'}</div>
+                <div class="cg-seat-name" style="font-size:10px;">${isMe?'⭐ ':''}${s.name||'Bot'}${pvpIsBot(s)?'🤖':''}</div>
                 <div class="cg-seat-stack">${(s.stack||0).toFixed(1)}BB</div>
-                ${vp===room.dealer_seat?'<span class="cg-dealer-btn">D</span>':''}
+                ${posLabels[vp]?`<span class="cg-dealer-btn">${posLabels[vp]}</span>`:''}
             </div>
             ${bet>0?`<div class="cg-seat-bet">${bet.toFixed(1)}</div>`:''}
-            ${room.all_in?.[vp]?'<div style="color:var(--accent-purple);font-size:9px;font-weight:700;">ALL-IN</div>':''}
+            ${isAllIn&&!isFolded?'<div style="color:var(--accent-purple);font-size:9px;font-weight:700;">ALL-IN</div>':''}
             ${vp===0||vp>=4?cards:''}
         </div>`;
     }
     document.getElementById('pvp-game-seats').innerHTML = html;
 
-    // Actions
-    if (room.acting_seat === pvpMySeat && pvpMySeat >= 0) {
+    // Show last action (except during waiting with result already shown above)
+    if (room.street !== 'waiting' && lastAction.seat !== undefined && lastAction.action) {
+        const actorName = seats[lastAction.seat]?.name || 'Seat ' + lastAction.seat;
+        const actMap = {fold:'弃牌',check:'过牌',call:'跟注',raise:'加注',bet:'下注',allin:'ALL-IN'};
+        const actLabel = actMap[lastAction.action] || lastAction.action;
+        const amtStr = lastAction.amount > 0 ? ` ${lastAction.amount.toFixed?.(1) || lastAction.amount}BB` : '';
+        document.getElementById('pvp-status').textContent = `${actorName}: ${actLabel}${amtStr}`;
+    } else if (room.street === 'waiting') {
+        document.getElementById('pvp-status').textContent = '等待发牌...';
+    } else if (room.acting_seat >= 0) {
+        const actorName = seats[room.acting_seat]?.name || '';
+        document.getElementById('pvp-status').textContent = `等待 ${actorName} 行动`;
+    }
+
+    // Show action buttons if it's my turn
+    if (room.acting_seat === pvpMySeat && pvpMySeat >= 0 && room.street !== 'waiting') {
         pvpRenderActions(room);
     } else {
         document.getElementById('pvp-actions').style.display = 'none';
@@ -4529,12 +4590,14 @@ async function pvpFetchMyCards(handNum) {
     try {
         const cards = await supabase.select('pvp_hands', `room_id=eq.1&seat_idx=eq.${pvpMySeat}&hand_number=eq.${handNum}`);
         if (cards?.[0]?.cards) { pvpMyCards = cards[0].cards; pvpRenderHeroHand(); }
-    } catch(e) {}
+    } catch(e) { console.warn('Fetch cards failed:', e); }
 }
 
 function pvpRenderHeroHand() {
+    const el = document.getElementById('pvp-hero-hand');
+    if (!el) return;
     const sm = {c:'♣',d:'♦',h:'♥',s:'♠'}, sc = {c:'clubs',d:'diamonds',h:'hearts',s:'spades'};
-    document.getElementById('pvp-hero-hand').innerHTML = pvpMyCards.map(c => {
+    el.innerHTML = pvpMyCards.map(c => {
         const r = c[0], s = sm[c[1]]||c[1], cl = sc[c[1]]||'';
         return `<div class="playing-card ${cl}" data-rank="${r==='T'?'10':r}" style="width:44px;height:60px;">
             <span class="card-rank" style="font-size:16px;">${r==='T'?'10':r}</span>
@@ -4544,35 +4607,47 @@ function pvpRenderHeroHand() {
 
 function pvpRenderActions(room) {
     pvpCurrentRoom = room;
-    const myBet = room.bets?.[pvpMySeat]||0;
+    const myBet = room.bets?.[pvpMySeat] || 0;
     const toCall = Math.max(0, room.current_bet - myBet);
-    const stack = room.seats?.[pvpMySeat]?.stack||0;
-    const pot = room.pot||0;
-    const minRaise = Math.max(room.current_bet*2, room.current_bet+1);
+    const stack = room.seats?.[pvpMySeat]?.stack || 0;
+    const pot = room.pot || 0;
+    const minRaise = Math.max(room.current_bet * 2, room.current_bet + 1);
 
     let html = '';
     const slider = document.getElementById('pvp-slider-area');
 
     if (toCall <= 0) {
+        // Can check or bet
         html += `<button class="action-btn check-btn" onclick="pvpAct('check')" style="flex:1;">过牌</button>`;
-        html += `<button class="action-btn raise-btn" onclick="pvpAct('bet',${(pot*0.33).toFixed(1)})" style="flex:1;">1/3池</button>`;
-        html += `<button class="action-btn raise-btn" onclick="pvpAct('bet',${(pot*0.66).toFixed(1)})" style="flex:1;">2/3池</button>`;
-        html += `<button class="action-btn raise-btn" onclick="pvpActSlider('bet')" style="flex:1;">自定义</button>`;
-        const sl = document.getElementById('pvp-bet-slider');
-        sl.min=1; sl.max=stack; sl.value=Math.round(pot*0.5);
-        slider.style.display = 'block';
+        if (stack > 0) {
+            html += `<button class="action-btn raise-btn" onclick="pvpAct('bet',${Math.max(1,(pot*0.33)).toFixed(1)})" style="flex:1;">1/3池</button>`;
+            html += `<button class="action-btn raise-btn" onclick="pvpAct('bet',${Math.max(1,(pot*0.66)).toFixed(1)})" style="flex:1;">2/3池</button>`;
+            html += `<button class="action-btn raise-btn" onclick="pvpActSlider('bet')" style="flex:1;">自定义</button>`;
+        }
+        if (slider) {
+            const sl = document.getElementById('pvp-bet-slider');
+            sl.min = 1; sl.max = stack; sl.value = Math.round(Math.max(1, pot * 0.5));
+            slider.style.display = 'block';
+        }
     } else {
+        // Must call, raise, or fold
         html += `<button class="action-btn fold-btn" onclick="pvpAct('fold')" style="flex:1;">弃牌</button>`;
-        if (toCall<=stack) html += `<button class="action-btn call-btn" onclick="pvpAct('call')" style="flex:1;">跟注 ${toCall.toFixed(1)}</button>`;
-        if (minRaise<=stack+myBet) {
-            html += `<button class="action-btn raise-btn" onclick="pvpAct('raise',${minRaise.toFixed(1)})" style="flex:1;">加注</button>`;
+        if (toCall <= stack) {
+            html += `<button class="action-btn call-btn" onclick="pvpAct('call')" style="flex:1;">跟注 ${toCall.toFixed(1)}</button>`;
+        }
+        if (minRaise <= stack + myBet) {
+            html += `<button class="action-btn raise-btn" onclick="pvpAct('raise',${minRaise.toFixed(1)})" style="flex:1;">加注 ${minRaise.toFixed(1)}</button>`;
             html += `<button class="action-btn raise-btn" onclick="pvpActSlider('raise')" style="flex:1;">自定义</button>`;
         }
-        const sl = document.getElementById('pvp-bet-slider');
-        sl.min=minRaise; sl.max=stack+myBet; sl.value=minRaise;
-        slider.style.display = 'block';
+        if (slider) {
+            const sl = document.getElementById('pvp-bet-slider');
+            sl.min = minRaise; sl.max = stack + myBet; sl.value = minRaise;
+            slider.style.display = 'block';
+        }
     }
-    if (stack>0) html += `<button class="action-btn raise-btn" onclick="pvpAct('allin')" style="flex:1;">全压</button>`;
+    if (stack > 0) {
+        html += `<button class="action-btn raise-btn" onclick="pvpAct('allin')" style="flex:1;background:var(--accent-purple);">全压 ${stack.toFixed(1)}</button>`;
+    }
 
     document.getElementById('pvp-action-btns').innerHTML = html;
     document.getElementById('pvp-actions').style.display = 'block';
@@ -4580,9 +4655,13 @@ function pvpRenderActions(room) {
 }
 
 function pvpUpdateSliderLabel() {
-    document.getElementById('pvp-slider-val').textContent = parseFloat(document.getElementById('pvp-bet-slider').value).toFixed(1)+'BB';
+    const sl = document.getElementById('pvp-bet-slider');
+    const lbl = document.getElementById('pvp-slider-val');
+    if (sl && lbl) lbl.textContent = parseFloat(sl.value).toFixed(1) + 'BB';
 }
-function pvpActSlider(action) { pvpAct(action, parseFloat(document.getElementById('pvp-bet-slider').value)); }
+function pvpActSlider(action) {
+    pvpAct(action, parseFloat(document.getElementById('pvp-bet-slider').value));
+}
 
 async function pvpJoin(seat) {
     if (!supabase.user) { toggleAuthModal(); return; }
@@ -4598,19 +4677,22 @@ async function pvpJoin(seat) {
 async function pvpLeave() {
     if (pvpPollId) { supabase.stopPoll(pvpPollId); pvpPollId = null; }
     try { await supabase.rpc('pvp_leave'); } catch(e) {
-        // Fallback: direct update
+        // Fallback: direct update if RPC fails
         if (supabase.user) {
             try {
                 const rooms = await supabase.select('pvp_room', 'id=eq.1');
                 if (rooms?.[0]) {
                     const seats = (rooms[0].seats||[]).map(s =>
-                        s.user_id === supabase.user.id ? {...s,user_id:null,name:'Bot '+(s.seat_idx+1),is_bot:true,stack:100} : s);
+                        s.user_id === supabase.user.id
+                            ? {...s, user_id: null, name: 'Bot '+(s.seat_idx+1), is_bot: true, stack: 100}
+                            : s);
                     await supabase.update('pvp_room', {id:1}, {seats, updated_at: new Date().toISOString()});
                 }
-            } catch(e2) {}
+            } catch(e2) { console.warn('Leave fallback failed:', e2); }
         }
     }
-    pvpMySeat = -1; pvpMyCards = []; pvpBotPending = false; pvpLastHandNum = 0;
+    pvpMySeat = -1; pvpMyCards = []; pvpBotPending = false; pvpDealPending = false;
+    pvpLastHandNum = 0; pvpLastActingSeat = -2;
     document.getElementById('pvp-hero-hand').innerHTML = '';
     const pvp = document.getElementById('pvp-container');
     if (pvp) pvp.style.display = 'none';
@@ -4619,21 +4701,56 @@ async function pvpLeave() {
 
 async function pvpAct(action, amount) {
     document.getElementById('pvp-actions').style.display = 'none';
-    try { await supabase.rpc('pvp_action', {p_action: action, p_amount: amount||0}); } catch(e) { alert('操作失败: '+e.message); }
+    try {
+        const res = await supabase.rpc('pvp_action', { p_action: action, p_amount: amount || 0 });
+        console.log('pvp_action:', action, amount, res);
+        if (res?.error) { alert('操作失败: ' + res.error); }
+        // Force refresh after action
+        pvpLoadRoom();
+    } catch(e) { alert('操作失败: ' + e.message); }
 }
 
 async function pvpBotAction(room) {
     const seat = room.acting_seat;
     const s = room.seats?.[seat];
     if (!s || !pvpIsBot(s)) return;
-    const toCall = Math.max(0, room.current_bet-(room.bets?.[seat]||0));
-    const stack = s.stack||0;
+
+    const toCall = Math.max(0, room.current_bet - (room.bets?.[seat] || 0));
+    const stack = s.stack || 0;
+    const pot = room.pot || 0;
     const r = Math.random();
+
     let action, amount = 0;
-    if (toCall<=0) { action = r<0.65?'check':'bet'; amount = Math.round(room.pot*0.5*10)/10; }
-    else if (toCall>stack*0.5) { action = r<0.55?'fold':'call'; }
-    else { if (r<0.25) action='fold'; else if (r<0.75) action='call'; else { action='raise'; amount=Math.round(room.current_bet*2.5*10)/10; } }
-    try { await supabase.rpc('pvp_bot_action', {p_action:action,p_amount:amount}); } catch(e) {}
+
+    if (toCall <= 0) {
+        // No bet to face — check or bet
+        if (r < 0.55) {
+            action = 'check';
+        } else {
+            action = 'bet';
+            amount = Math.round(pot * (0.4 + r * 0.3) * 10) / 10;
+            amount = Math.max(1, Math.min(amount, stack));
+        }
+    } else if (toCall >= stack) {
+        // Facing bet >= stack — call (all-in) or fold
+        action = r < 0.4 ? 'fold' : 'call';
+    } else if (toCall > pot * 0.5) {
+        // Large bet — fold more often
+        if (r < 0.45) action = 'fold';
+        else if (r < 0.85) action = 'call';
+        else { action = 'raise'; amount = Math.round(room.current_bet * 2.5 * 10) / 10; }
+    } else {
+        // Small/medium bet
+        if (r < 0.2) action = 'fold';
+        else if (r < 0.7) action = 'call';
+        else { action = 'raise'; amount = Math.round(room.current_bet * 2.5 * 10) / 10; }
+    }
+
+    console.log(`PVP Bot seat ${seat}: ${action} ${amount}`);
+    try {
+        const res = await supabase.rpc('pvp_bot_action', { p_action: action, p_amount: amount });
+        console.log('pvp_bot_action result:', res);
+    } catch(e) { console.warn('Bot action RPC failed:', e); }
 }
 
 // Cash Game Controller

@@ -2095,6 +2095,8 @@ label {
 }
 .cg-seat.acting .cg-seat-info { border-color: var(--accent-blue); background: rgba(79,143,247,0.12); }
 .cg-seat.hero-seat .cg-seat-info { border-color: var(--accent-green); background: rgba(52,211,153,0.08); }
+.cg-seat.winner-seat .cg-seat-info { border-color: var(--accent-green); background: rgba(52,211,153,0.2); animation: pvp-win-pulse 0.5s ease 2; }
+@keyframes pvp-win-pulse { 0%,100%{box-shadow:none;} 50%{box-shadow:0 0 12px var(--accent-green);} }
 .cg-seat-name { font-weight: 700; font-size: 11px; white-space: nowrap; }
 .cg-seat-stack { color: var(--text-muted); font-size: 10px; font-variant-numeric: tabular-nums; }
 .cg-seat-cards { display: flex; gap: 2px; justify-content: center; margin-top: 3px; }
