@@ -616,7 +616,10 @@
         <p class="section-subtitle">和5个AI对手打真实的6人桌</p>
 
         <div class="ui-card" style="padding:16px;">
-            <div style="font-weight:700; margin-bottom:12px;">买入筹码</div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                <div style="font-weight:700;">买入筹码</div>
+                <div style="font-size:13px;">余额: <strong id="cg-bankroll" style="color:var(--accent-orange);">0</strong> 筹码</div>
+            </div>
             <div style="display:flex; gap:8px; margin-bottom:16px;">
                 <button class="pos-btn" onclick="setCGBuyIn(50)">50BB</button>
                 <button class="pos-btn active" onclick="setCGBuyIn(100)">100BB</button>
@@ -3699,8 +3702,7 @@ async function syncFromCloud() {
             const p = profiles[0];
             // Sync bankroll to casino
             if (p.bankroll !== undefined) {
-                casinoBalance = p.bankroll;
-                saveCasinoBalance();
+                setBankroll(p.bankroll);
             }
         }
     } catch(e) { console.warn('Sync failed:', e); }
@@ -3711,7 +3713,7 @@ async function syncToCloud() {
     if (!supabase.user) return;
     try {
         await supabase.update('profiles', { id: supabase.user.id }, {
-            bankroll: casinoBalance,
+            bankroll: bankroll,
             updated_at: new Date().toISOString(),
         });
     } catch(e) { console.warn('Cloud save failed:', e); }
@@ -3719,19 +3721,27 @@ async function syncToCloud() {
 
 // Casino — Roulette & Slots
 // ============================================================
-let casinoBalance = parseInt(localStorage.getItem('casino_balance') || '1000');
+// Global bankroll — shared across casino + cash game
+let bankroll = parseInt(localStorage.getItem('pokergto_bankroll') || '1000');
 let rouletteBet = 10;
 let slotsBet = 5;
+
+function getBankroll() { return bankroll; }
+function setBankroll(val) {
+    bankroll = Math.round(val * 10) / 10;
+    localStorage.setItem('pokergto_bankroll', Math.round(bankroll));
+    // Update all displays
+    const casinoEl = document.getElementById('casino-balance');
+    if (casinoEl) casinoEl.textContent = Math.round(bankroll);
+    const cgBalEl = document.getElementById('cg-bankroll');
+    if (cgBalEl) cgBalEl.textContent = Math.round(bankroll);
+    // Debounced cloud sync
+    clearTimeout(setBankroll._timer);
+    setBankroll._timer = setTimeout(() => { if (typeof syncToCloud === 'function') syncToCloud(); }, 3000);
+}
 let casinoSpinning = false;
 
-function saveCasinoBalance() {
-    localStorage.setItem('casino_balance', casinoBalance);
-    const el = document.getElementById('casino-balance');
-    if (el) el.textContent = casinoBalance;
-    // Debounced cloud sync (don't spam API during rapid play)
-    clearTimeout(saveCasinoBalance._timer);
-    saveCasinoBalance._timer = setTimeout(() => { if (typeof syncToCloud === 'function') syncToCloud(); }, 3000);
-}
+function saveCasinoBalance() { setBankroll(bankroll); }
 
 function switchCasinoGame(game) {
     document.getElementById('game-roulette').style.display = game === 'roulette' ? 'block' : 'none';
@@ -3745,7 +3755,7 @@ function switchCasinoGame(game) {
 }
 
 function initCasinoPage() {
-    saveCasinoBalance();
+    setBankroll(bankroll); // refresh display
 }
 
 // ---- ROULETTE ----
@@ -3762,10 +3772,10 @@ function setRouletteBet(amt) {
 
 function placeRouletteBet(type) {
     if (casinoSpinning) return;
-    if (casinoBalance < rouletteBet) { document.getElementById('roulette-result').innerHTML = '<span style="color:var(--accent-red);">余额不足</span>'; return; }
+    if (bankroll < rouletteBet) { document.getElementById('roulette-result').innerHTML = '<span style="color:var(--accent-red);">余额不足</span>'; return; }
 
     casinoSpinning = true;
-    casinoBalance -= rouletteBet;
+    bankroll -= rouletteBet;
     saveCasinoBalance();
     document.getElementById('roulette-result').textContent = '旋转中...';
 
@@ -3797,7 +3807,7 @@ function placeRouletteBet(type) {
         else if (type === 'half1' && resultNum >= 1 && resultNum <= 18) win = rouletteBet * 2;
 
         if (win > 0) {
-            casinoBalance += win;
+            bankroll += win;
             document.getElementById('roulette-result').innerHTML = `<span style="color:#34d399;">🎉 ${resultNum} — 赢 +${win} 筹码！</span>`;
         } else {
             document.getElementById('roulette-result').innerHTML = `<span style="color:#f05252;">${resultNum} — 输 -${rouletteBet} 筹码</span>`;
@@ -3818,10 +3828,10 @@ function setSlotsBet(amt) {
 
 function spinSlots() {
     if (casinoSpinning) return;
-    if (casinoBalance < slotsBet) { document.getElementById('slots-result').innerHTML = '<span style="color:var(--accent-red);">余额不足</span>'; return; }
+    if (bankroll < slotsBet) { document.getElementById('slots-result').innerHTML = '<span style="color:var(--accent-red);">余额不足</span>'; return; }
 
     casinoSpinning = true;
-    casinoBalance -= slotsBet;
+    bankroll -= slotsBet;
     saveCasinoBalance();
     document.getElementById('slots-result').textContent = '';
     document.getElementById('spin-btn').textContent = '...';
@@ -3871,7 +3881,7 @@ function spinSlots() {
 
         const win = slotsBet * multiplier;
         if (win > 0) {
-            casinoBalance += win;
+            bankroll += win;
             const netWin = win - slotsBet;
             document.getElementById('slots-result').innerHTML = `<span style="color:#34d399;">🎉 赢 +${netWin > 0 ? netWin : win} 筹码！(${multiplier}x)</span>`;
         } else {
@@ -3890,7 +3900,8 @@ let cgBuyIn = 100;
 let cgHeroSeat = 0;
 
 function initCashGamePage() {
-    // No seat picker needed — hero always at seat 0 (visual bottom), dealer rotates randomly
+    const el = document.getElementById('cg-bankroll');
+    if (el) el.textContent = Math.round(bankroll);
 }
 
 function setCGBuyIn(bb) {
@@ -3901,9 +3912,14 @@ function setCGBuyIn(bb) {
 }
 
 function startCashGame() {
-    cgHeroSeat = 0; // hero always at visual bottom
+    if (bankroll < cgBuyIn) {
+        alert(`余额不足！需要 ${cgBuyIn} 筹码，当前余额 ${Math.round(bankroll)}`);
+        return;
+    }
+    // Deduct buy-in from bankroll
+    setBankroll(bankroll - cgBuyIn);
+    cgHeroSeat = 0;
     cashGame = new CashGameEngine({ heroSeat: cgHeroSeat, buyIn: cgBuyIn });
-    // Randomize starting dealer position
     cashGame.dealerSeat = Math.floor(Math.random() * 6);
     document.getElementById('cashgame-buyin').style.display = 'none';
     document.getElementById('cashgame-table').style.display = 'block';
@@ -3911,6 +3927,11 @@ function startCashGame() {
 }
 
 function leaveCashGame() {
+    if (cashGame) {
+        // Cash out: add remaining hero stack back to bankroll
+        const heroStack = cashGame.seats[cashGame.heroSeat].stack;
+        setBankroll(bankroll + heroStack);
+    }
     cashGame = null;
     document.getElementById('cashgame-buyin').style.display = 'block';
     document.getElementById('cashgame-table').style.display = 'none';
@@ -3927,8 +3948,10 @@ function nextCGHand() {
                 ${cashGame.stats.handsPlayed} 手 | 盈亏: ${cashGame.stats.heroProfit.toFixed(1)} BB
             </div>`;
         const btn = document.getElementById('cg-result').querySelector('button');
-        btn.textContent = '重新买入';
+        btn.textContent = `重新买入 (${cgBuyIn}BB)`;
         btn.onclick = () => {
+            if (bankroll < cgBuyIn) { alert(`余额不足！当前余额 ${Math.round(bankroll)} 筹码`); return; }
+            setBankroll(bankroll - cgBuyIn);
             cashGame.seats[cashGame.heroSeat].stack = cgBuyIn;
             document.getElementById('cg-result').style.display = 'none';
             nextCGHand();
