@@ -4651,16 +4651,43 @@ async function pvpJoin(seat) {
 }
 
 async function pvpLeave() {
+    // Stop polling first to prevent re-render fighting
+    if (pvpPollId) { supabase.stopPoll(pvpPollId); pvpPollId = null; }
+
+    // Call server to remove from seat
     try {
-        await supabase.rpc('pvp_leave');
-    } catch(e) { console.warn('Leave failed:', e); }
+        const res = await supabase.rpc('pvp_leave');
+        console.log('pvp_leave result:', res);
+    } catch(e) {
+        console.warn('pvp_leave failed:', e);
+        // If RPC fails, try direct update as fallback
+        if (supabase.user) {
+            try {
+                const rooms = await supabase.select('pvp_room', 'id=eq.1');
+                if (rooms?.[0]) {
+                    const seats = rooms[0].seats || [];
+                    const updated = seats.map(s =>
+                        s.user_id === supabase.user.id
+                            ? { ...s, user_id: null, name: 'Bot ' + (s.seat_idx + 1), is_bot: true, stack: 100 }
+                            : s
+                    );
+                    await supabase.update('pvp_room', { id: 1 }, { seats: updated, updated_at: new Date().toISOString() });
+                }
+            } catch(e2) { console.warn('Fallback leave failed:', e2); }
+        }
+    }
+
     pvpMySeat = -1;
     pvpMyCards = [];
     pvpBotPending = false;
-    if (pvpPollId) { supabase.stopPoll(pvpPollId); pvpPollId = null; }
+    pvpLastHandNum = 0;
+    document.getElementById('pvp-hero-hand').innerHTML = '';
+
     // Go back to cashgame menu
     const pvp = document.getElementById('pvp-container');
     if (pvp) pvp.style.display = 'none';
+    document.getElementById('pvp-lobby').style.display = 'block';
+    document.getElementById('pvp-game').style.display = 'none';
     initCashGamePage();
 }
 
