@@ -2137,3 +2137,9 @@ label {
     .cg-seat-cards .card-rank { font-size: 10px; }
     .cg-hero-hand .playing-card { width: 36px; height: 50px; }
 }
+
+@keyframes chipFloat {
+    0% { opacity: 1; transform: translate(-50%, -50%) scale(0.5); }
+    30% { opacity: 1; transform: translate(-50%, -70%) scale(1.2); }
+    100% { opacity: 0; transform: translate(-50%, -120%) scale(1); }
+}

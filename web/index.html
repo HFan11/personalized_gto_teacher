@@ -538,7 +538,7 @@
             <div class="cg-action-bar" id="cg-action-btns"></div>
         </div>
 
-        <!-- Hand result -->
+        <!-- Hand result (used only for bust/rebuy) -->
         <div id="cg-result" style="display:none; padding:8px 12px; text-align:center;">
             <div class="ui-card" style="padding:12px;">
                 <div id="cg-result-text" style="font-size:14px; font-weight:700; margin-bottom:8px;"></div>
@@ -3587,13 +3587,26 @@ function heroAction(action, amount) {
 function showCGResult(result) {
     document.getElementById('cg-actions').style.display = 'none';
     renderCGTable(cashGame.getState());
-    const isHeroWin = result.winner === cashGame.heroSeat;
-    const color = isHeroWin ? '#34d399' : '#f05252';
-    document.getElementById('cg-result').style.display = 'block';
-    document.getElementById('cg-result-text').innerHTML = `<span style="color:${color}; font-size:16px;">${isHeroWin ? '🎉 你赢了' : '😤 ' + result.winnerName + ' 赢了'} ${result.winAmount.toFixed(1)} BB</span>`;
-    const btn = document.getElementById('cg-result').querySelector('button');
-    btn.textContent = '下一手 →'; btn.onclick = nextCGHand;
     updateCGStats();
+
+    const isHeroWin = result.winner === cashGame.heroSeat;
+    const netProfit = result.winAmount; // already net (pot - investment)
+    const sign = netProfit >= 0 ? '+' : '';
+    const color = isHeroWin ? '#34d399' : '#f05252';
+
+    // Show chip animation overlay on the pot area
+    const potEl = document.getElementById('cg-pot-display');
+    const chipAnim = document.createElement('div');
+    chipAnim.style.cssText = `position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+        font-size:18px;font-weight:800;color:${color};z-index:10;pointer-events:none;
+        animation:chipFloat 1.5s ease-out forwards;`;
+    chipAnim.textContent = isHeroWin ? `+${netProfit.toFixed(1)}BB` : `${sign}${(-result.heroInvested).toFixed(1)}BB`;
+    const tableWrap = document.getElementById('cg-table');
+    tableWrap.appendChild(chipAnim);
+    setTimeout(() => chipAnim.remove(), 1600);
+
+    // Auto advance to next hand after delay (no blocking overlay)
+    setTimeout(() => { if (cashGame) nextCGHand(); }, 2200);
 }
 
 function updateCGStats() {

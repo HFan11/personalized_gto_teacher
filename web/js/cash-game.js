@@ -371,16 +371,23 @@ class CashGameEngine {
     }
 
     _awardPot(winnerSeat, results = null) {
-        const winAmount = this.pot;
-        this.seats[winnerSeat].stack += winAmount;
+        const potTotal = this.pot;
+        this.seats[winnerSeat].stack += potTotal;
 
-        // Track hero profit
-        const heroInvested = this.handHistory
-            .filter(h => h.seat === this.heroSeat && h.amount)
-            .reduce((s, h) => s + h.amount, 0);
+        // Calculate each player's total investment this hand
+        // (from handHistory: all actions with amount for this seat)
+        const invested = new Array(this.numSeats).fill(0);
+        for (const h of this.handHistory) {
+            if (h.amount) invested[h.seat] += h.amount;
+        }
+
+        const heroInvested = invested[this.heroSeat];
+        const winnerInvested = invested[winnerSeat];
+        // Net profit = pot won minus own investment
+        const winnerNetProfit = potTotal - winnerInvested;
 
         if (winnerSeat === this.heroSeat) {
-            this.stats.heroProfit += winAmount - heroInvested;
+            this.stats.heroProfit += winnerNetProfit;
         } else {
             this.stats.heroProfit -= heroInvested;
         }
@@ -390,9 +397,11 @@ class CashGameEngine {
             showdown: true,
             winner: winnerSeat,
             winnerName: this.seats[winnerSeat].name,
-            winAmount,
+            winAmount: winnerNetProfit, // NET profit, not total pot
+            potTotal,
             results,
             heroProfit: this.stats.heroProfit,
+            heroInvested,
             state: this.getState(),
         };
     }
