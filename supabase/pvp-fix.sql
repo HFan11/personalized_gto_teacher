@@ -356,7 +356,14 @@ BEGIN
             v_room.folded[p_seat + 1] := true;
 
         WHEN 'check' THEN
-            NULL;
+            -- If player owes money, auto-convert check to call (prevents stuck games)
+            IF v_to_call > 0 THEN
+                v_actual := LEAST(v_to_call, v_stack);
+                v_room.bets[p_seat + 1] := v_room.bets[p_seat + 1] + v_actual;
+                v_room.pot := v_room.pot + v_actual;
+                v_stack := v_stack - v_actual;
+                IF v_stack <= 0 THEN v_room.all_in[p_seat + 1] := true; END IF;
+            END IF;
 
         WHEN 'call' THEN
             v_actual := LEAST(v_to_call, v_stack);
