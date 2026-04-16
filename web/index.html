@@ -29,12 +29,6 @@
 <!-- ============================================================
      Navigation Bar (hidden on cover)
      ============================================================ -->
-<!-- User auth bar (above nav) -->
-<div id="auth-bar" style="display:none;padding:4px 12px;background:var(--bg-card);border-bottom:1px solid var(--border-color);font-size:11px;display:flex;justify-content:space-between;align-items:center;">
-    <span id="auth-user-info" style="color:var(--text-secondary);"></span>
-    <button id="auth-btn" onclick="toggleAuthModal()" style="background:var(--accent-blue);color:white;border:none;padding:3px 10px;border-radius:4px;font-size:11px;cursor:pointer;">登录</button>
-</div>
-
 <!-- Auth modal -->
 <div id="auth-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:999;align-items:center;justify-content:center;">
     <div style="background:var(--bg-card);border:1px solid var(--border-color);border-radius:16px;padding:24px;max-width:360px;width:90%;margin:auto;">
@@ -50,31 +44,98 @@
     </div>
 </div>
 
+<!-- Settings modal -->
+<div id="settings-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:999;align-items:center;justify-content:center;">
+    <div style="background:var(--bg-card);border:1px solid var(--border-color);border-radius:16px;padding:20px;max-width:380px;width:90%;margin:auto;max-height:80vh;overflow-y:auto;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+            <h3 style="margin:0;">⚙️ 设置</h3>
+            <button onclick="closeSettings()" style="background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;">×</button>
+        </div>
+
+        <!-- Profile section -->
+        <div style="margin-bottom:16px;">
+            <div style="font-weight:700;font-size:12px;color:var(--text-muted);margin-bottom:8px;">个人信息</div>
+            <div style="display:flex;gap:8px;margin-bottom:8px;">
+                <input type="text" id="set-nickname" placeholder="昵称" style="flex:1;padding:8px;background:var(--bg-elevated);border:1px solid var(--border-color);border-radius:8px;color:var(--text-primary);font-size:13px;">
+                <button onclick="saveNickname()" style="padding:8px 12px;background:var(--accent-blue);color:white;border:none;border-radius:8px;font-size:12px;cursor:pointer;">保存</button>
+            </div>
+            <div id="set-email" style="font-size:11px;color:var(--text-muted);margin-bottom:4px;"></div>
+            <div id="set-uid" style="font-size:10px;color:var(--text-muted);"></div>
+        </div>
+
+        <!-- Bankroll -->
+        <div style="margin-bottom:16px;">
+            <div style="font-weight:700;font-size:12px;color:var(--text-muted);margin-bottom:8px;">账户</div>
+            <div style="display:flex;justify-content:space-between;font-size:13px;">
+                <span>筹码余额</span>
+                <strong id="set-bankroll" style="color:var(--accent-orange);">0</strong>
+            </div>
+        </div>
+
+        <!-- App settings -->
+        <div style="margin-bottom:16px;">
+            <div style="font-weight:700;font-size:12px;color:var(--text-muted);margin-bottom:8px;">偏好设置</div>
+            <label style="display:flex;justify-content:space-between;align-items:center;font-size:13px;margin-bottom:8px;cursor:pointer;">
+                <span>音效</span>
+                <input type="checkbox" id="set-sound" onchange="saveAppSettings()" checked style="width:18px;height:18px;">
+            </label>
+            <label style="display:flex;justify-content:space-between;align-items:center;font-size:13px;margin-bottom:8px;cursor:pointer;">
+                <span>动画效果</span>
+                <input type="checkbox" id="set-animations" onchange="saveAppSettings()" checked style="width:18px;height:18px;">
+            </label>
+            <label style="display:flex;justify-content:space-between;align-items:center;font-size:13px;margin-bottom:8px;cursor:pointer;">
+                <span>显示求解器详情</span>
+                <input type="checkbox" id="set-solver-detail" onchange="saveAppSettings()" checked style="width:18px;height:18px;">
+            </label>
+        </div>
+
+        <!-- Danger zone -->
+        <div>
+            <div style="font-weight:700;font-size:12px;color:var(--text-muted);margin-bottom:8px;">账号</div>
+            <button onclick="resetBankroll()" style="width:100%;padding:8px;background:rgba(240,82,82,0.1);color:var(--accent-red);border:1px solid rgba(240,82,82,0.3);border-radius:8px;font-size:12px;cursor:pointer;margin-bottom:6px;">重置筹码 (回到1000)</button>
+            <button onclick="supabase.signOut();closeSettings();updateAuthUI();" style="width:100%;padding:8px;background:transparent;color:var(--text-muted);border:1px solid var(--border-color);border-radius:8px;font-size:12px;cursor:pointer;">退出登录</button>
+        </div>
+    </div>
+</div>
+
+<!-- Leaderboard modal -->
+<div id="leaderboard-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:999;align-items:center;justify-content:center;">
+    <div style="background:var(--bg-card);border:1px solid var(--border-color);border-radius:16px;padding:20px;max-width:420px;width:90%;margin:auto;max-height:80vh;overflow-y:auto;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <h3 style="margin:0;">🏅 排行榜</h3>
+            <button onclick="closeLeaderboard()" style="background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;">×</button>
+        </div>
+        <div id="leaderboard-content" style="font-size:12px;"><div style="text-align:center;color:var(--text-muted);">加载中...</div></div>
+    </div>
+</div>
+
 <nav class="nav-bar hidden" id="main-nav">
-    <button class="nav-btn active" onclick="switchPage('profiles')" id="nav-profiles">
-        <span class="nav-icon">👤</span>
-        <span>档案</span>
-    </button>
-    <button class="nav-btn" onclick="switchPage('preflop')" id="nav-preflop">
-        <span class="nav-icon">🃏</span>
-        <span>翻前范围</span>
-    </button>
-    <button class="nav-btn" onclick="switchPage('practice')" id="nav-practice">
-        <span class="nav-icon">🎯</span>
-        <span>1v1练习</span>
-    </button>
-    <button class="nav-btn" onclick="switchPage('cashgame')" id="nav-cashgame">
-        <span class="nav-icon">🏆</span>
-        <span>实战</span>
-    </button>
-    <button class="nav-btn" onclick="switchPage('casino')" id="nav-casino">
-        <span class="nav-icon">🎰</span>
-        <span>娱乐</span>
-    </button>
-    <button class="nav-btn nav-help-btn" onclick="openHelp()" id="nav-help" title="使用指引">
-        <span class="nav-icon">❓</span>
-        <span>帮助</span>
-    </button>
+    <!-- Left: main tabs -->
+    <div style="display:flex;flex:1;gap:2px;justify-content:center;">
+        <button class="nav-btn active" onclick="switchPage('profiles')" id="nav-profiles">
+            <span class="nav-icon">👤</span><span>档案</span>
+        </button>
+        <button class="nav-btn" onclick="switchPage('preflop')" id="nav-preflop">
+            <span class="nav-icon">🃏</span><span>范围</span>
+        </button>
+        <button class="nav-btn" onclick="switchPage('practice')" id="nav-practice">
+            <span class="nav-icon">🎯</span><span>练习</span>
+        </button>
+        <button class="nav-btn" onclick="switchPage('cashgame')" id="nav-cashgame">
+            <span class="nav-icon">🏆</span><span>实战</span>
+        </button>
+        <button class="nav-btn" onclick="switchPage('casino')" id="nav-casino">
+            <span class="nav-icon">🎰</span><span>娱乐</span>
+        </button>
+    </div>
+    <!-- Right: help + leaderboard + user -->
+    <div style="display:flex;gap:4px;align-items:center;padding-right:4px;">
+        <button onclick="openHelp()" style="background:none;border:none;color:var(--text-muted);font-size:14px;cursor:pointer;padding:4px;" title="帮助">❓</button>
+        <button onclick="openLeaderboard()" style="background:none;border:none;color:var(--text-muted);font-size:14px;cursor:pointer;padding:4px;" title="排行榜">🏅</button>
+        <button id="nav-user-btn" onclick="onUserBtnClick()" style="background:none;border:none;color:var(--text-muted);font-size:11px;cursor:pointer;padding:4px 8px;border-radius:6px;border:1px solid var(--border-color);white-space:nowrap;" title="用户">
+            <span id="nav-user-label">登录</span>
+        </button>
+    </div>
 </nav>
 
 <!-- ============================================================
@@ -3628,7 +3689,6 @@ function openHelp() {
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
     document.getElementById('page-help').style.display = 'block';
     document.getElementById('page-help').classList.add('active');
-    document.getElementById('nav-help').classList.add('active');
     window.scrollTo(0, 0);
 }
 
@@ -3659,20 +3719,114 @@ function initAuth() {
 }
 
 function updateAuthUI() {
-    const bar = document.getElementById('auth-bar');
-    const btn = document.getElementById('auth-btn');
-    const info = document.getElementById('auth-user-info');
-    bar.style.display = 'flex';
+    const label = document.getElementById('nav-user-label');
+    const btn = document.getElementById('nav-user-btn');
+    if (!label || !btn) return;
 
     if (supabase.user) {
         const name = supabase.user.user_metadata?.display_name || supabase.user.email?.split('@')[0] || '用户';
-        info.textContent = `👤 ${name}`;
-        btn.textContent = '退出';
-        btn.onclick = async () => { await supabase.signOut(); updateAuthUI(); };
+        label.textContent = name;
+        btn.style.borderColor = 'var(--accent-green)';
+        btn.style.color = 'var(--accent-green)';
     } else {
-        info.textContent = '未登录';
-        btn.textContent = '登录';
-        btn.onclick = () => toggleAuthModal();
+        label.textContent = '登录';
+        btn.style.borderColor = 'var(--border-color)';
+        btn.style.color = 'var(--text-muted)';
+    }
+}
+
+function onUserBtnClick() {
+    if (supabase.user) { openSettings(); }
+    else { toggleAuthModal(); }
+}
+
+// ---- Settings ----
+function openSettings() {
+    document.getElementById('settings-modal').style.display = 'flex';
+    const u = supabase.user;
+    if (u) {
+        document.getElementById('set-nickname').value = u.user_metadata?.display_name || '';
+        document.getElementById('set-email').textContent = '邮箱: ' + (u.email || '—');
+        document.getElementById('set-uid').textContent = 'ID: ' + u.id.slice(0, 8) + '...';
+    }
+    document.getElementById('set-bankroll').textContent = Math.round(bankroll);
+    // Load app settings
+    const appSettings = JSON.parse(localStorage.getItem('pokergto_settings') || '{}');
+    document.getElementById('set-sound').checked = appSettings.sound !== false;
+    document.getElementById('set-animations').checked = appSettings.animations !== false;
+    document.getElementById('set-solver-detail').checked = appSettings.solverDetail !== false;
+}
+
+function closeSettings() {
+    document.getElementById('settings-modal').style.display = 'none';
+}
+
+async function saveNickname() {
+    const name = document.getElementById('set-nickname').value.trim();
+    if (!name || !supabase.user) return;
+    try {
+        await supabase.update('profiles', { id: supabase.user.id }, { display_name: name, username: name });
+        // Also update user metadata locally
+        supabase.user.user_metadata = supabase.user.user_metadata || {};
+        supabase.user.user_metadata.display_name = name;
+        updateAuthUI();
+        document.getElementById('set-nickname').style.borderColor = 'var(--accent-green)';
+        setTimeout(() => { document.getElementById('set-nickname').style.borderColor = 'var(--border-color)'; }, 1000);
+    } catch(e) { alert('保存失败: ' + e.message); }
+}
+
+function saveAppSettings() {
+    const settings = {
+        sound: document.getElementById('set-sound').checked,
+        animations: document.getElementById('set-animations').checked,
+        solverDetail: document.getElementById('set-solver-detail').checked,
+    };
+    localStorage.setItem('pokergto_settings', JSON.stringify(settings));
+}
+
+function resetBankroll() {
+    if (!confirm('确认重置筹码到1000？')) return;
+    setBankroll(1000);
+    document.getElementById('set-bankroll').textContent = '1000';
+    syncToCloud();
+}
+
+// ---- Leaderboard ----
+function openLeaderboard() {
+    document.getElementById('leaderboard-modal').style.display = 'flex';
+    loadLeaderboard();
+}
+
+function closeLeaderboard() {
+    document.getElementById('leaderboard-modal').style.display = 'none';
+}
+
+async function loadLeaderboard() {
+    const el = document.getElementById('leaderboard-content');
+    el.innerHTML = '<div style="text-align:center;color:var(--text-muted);">加载中...</div>';
+    try {
+        const data = await supabase.select('profiles', 'order=bankroll.desc&limit=50');
+        if (!data || data.length === 0) {
+            el.innerHTML = '<div style="text-align:center;color:var(--text-muted);">暂无数据</div>';
+            return;
+        }
+        let html = `<div style="display:grid;grid-template-columns:30px 1fr 80px;gap:4px;font-size:12px;padding:4px 0;border-bottom:1px solid var(--border-color);font-weight:700;color:var(--text-muted);">
+            <span>#</span><span>玩家</span><span style="text-align:right;">筹码</span>
+        </div>`;
+        data.forEach((p, i) => {
+            const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1);
+            const isMe = supabase.user && p.id === supabase.user.id;
+            const bg = isMe ? 'rgba(79,143,247,0.1)' : 'transparent';
+            const name = p.display_name || p.username || 'Anonymous';
+            html += `<div style="display:grid;grid-template-columns:30px 1fr 80px;gap:4px;padding:6px 4px;border-bottom:1px solid var(--border-color);background:${bg};border-radius:4px;">
+                <span style="font-size:${i < 3 ? '14px' : '12px'};">${medal}</span>
+                <span style="font-weight:${isMe ? '700' : '400'};${isMe ? 'color:var(--accent-blue);' : ''}">${name}</span>
+                <span style="text-align:right;color:var(--accent-orange);font-weight:600;">${Math.round(p.bankroll || 0)}</span>
+            </div>`;
+        });
+        el.innerHTML = html;
+    } catch(e) {
+        el.innerHTML = `<div style="text-align:center;color:var(--accent-red);">加载失败: ${e.message}</div>`;
     }
 }
 
