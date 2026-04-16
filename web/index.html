@@ -4676,7 +4676,9 @@ function startCashGame() {
         return;
     }
     // Deduct buy-in from bankroll
+    console.log(`StartGame: bankroll=${bankroll}, buyIn=${cgBuyIn}`);
     setBankroll(bankroll - cgBuyIn);
+    console.log(`StartGame: bankroll after deduct=${bankroll}`);
     cgHeroSeat = 0;
     cashGame = new CashGameEngine({ heroSeat: cgHeroSeat, buyIn: cgBuyIn });
     cashGame.dealerSeat = Math.floor(Math.random() * 6);
@@ -4687,11 +4689,15 @@ function startCashGame() {
 
 function leaveCashGame() {
     if (cashGame) {
-        // Cash out: add remaining hero stack back to bankroll
+        // Cash out: return hero's remaining stack to bankroll
+        // This is correct — any chips in the pot are forfeit (like leaving mid-hand)
         const heroStack = cashGame.seats[cashGame.heroSeat].stack;
+        console.log(`Leave: heroStack=${heroStack}, bankroll before=${bankroll}`);
         setBankroll(bankroll + heroStack);
+        console.log(`Leave: bankroll after=${bankroll}`);
     }
     cashGame = null;
+    cgRenderedBoardCount = 0;
     document.getElementById('cashgame-buyin').style.display = 'block';
     document.getElementById('cashgame-table').style.display = 'none';
     initCashGamePage();
@@ -4823,8 +4829,9 @@ function showCGResult(result) {
     tableWrap.appendChild(chipAnim);
     setTimeout(() => chipAnim.remove(), 1600);
 
-    // Auto advance to next hand after delay (no blocking overlay)
-    setTimeout(() => { if (cashGame) nextCGHand(); }, 2200);
+    // Auto advance to next hand after delay
+    const savedGame = cashGame;
+    setTimeout(() => { if (cashGame === savedGame && cashGame) nextCGHand(); }, 2200);
 }
 
 function updateCGStats() {
