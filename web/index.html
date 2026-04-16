@@ -645,9 +645,8 @@
     <!-- ======== SLOTS ======== -->
     <div id="game-slots" style="padding:12px;display:none;">
         <div style="max-width:340px;margin:0 auto;">
-            <div style="text-align:center;font-size:11px;color:#8b6914;font-weight:700;margin-bottom:8px;letter-spacing:2px;">★ LUCKY SLOTS ★</div>
             <div style="display:flex;justify-content:center;margin-bottom:12px;">
-                <canvas id="slots-canvas" style="max-width:320px;width:100%;border-radius:8px;"></canvas>
+                <canvas id="slots-canvas" style="max-width:420px;width:100%;border-radius:10px;"></canvas>
             </div>
             <!-- Payout line -->
             <div id="slots-result" style="text-align:center;font-size:14px;font-weight:700;min-height:24px;margin-bottom:8px;"></div>
@@ -659,7 +658,7 @@
                 <button class="pos-btn" onclick="setSlotsBet(50)">50</button>
             </div>
             <!-- Spin button -->
-            <button class="btn btn-primary btn-block" onclick="spinSlots()" id="spin-btn" style="padding:14px;font-size:18px;font-weight:800;letter-spacing:2px;border-radius:30px;">
+            <button class="casino-spin-btn" onclick="spinSlots()" id="spin-btn">
                 🎰 SPIN
             </button>
         </div>
@@ -1166,8 +1165,9 @@
 <script src="js/profiles.js?v=20"></script>
 <script src="js/preflop-practice.js?v=23"></script>
 <script src="js/practice.js?v=27"></script>
-<script src="js/roulette.js?v=2"></script>
-<script src="js/slots.js?v=1"></script>
+<script src="js/casino-fx.js?v=1"></script>
+<script src="js/roulette.js?v=3"></script>
+<script src="js/slots.js?v=2"></script>
 <script src="js/cash-game.js?v=1"></script>
 <script src="js/bot-ai.js?v=1"></script>
 <script>
@@ -4275,10 +4275,28 @@ function confirmRouletteBet() {
             document.getElementById('roulette-result').innerHTML = `<div style="font-size:16px;margin-bottom:4px;color:${net >= 0 ? '#34d399' : '#f05252'};">
                 ${resultNum}${colorEmoji} — ${net >= 0 ? '赢 +' + net : '亏 ' + net} 筹码</div>
                 <div style="font-size:11px;">${details.join(' | ')}</div>`;
+            // Win celebration: particles + sound + floating text + bet flash
+            const tier = bets.some(b => b.type === 'num') && net > 0 ? 3 : net > totalBet ? 2 : 1;
+            casinoAudio.winJingle(tier);
+            if (rouletteWheel) {
+                const cx = rouletteWheel.cx || rouletteWheel.size / 2;
+                const cy = rouletteWheel.cy || rouletteWheel.size / 2;
+                casinoParticles.emit(cx, cy, tier >= 3 ? 50 : tier >= 2 ? 30 : 15,
+                    { colors: ['#fbbf24','#f59e0b','#34d399','#fff'], speed: tier >= 3 ? 5 : 3, life: 1.2 });
+                casinoFloatingText.add('+' + (net >= 0 ? net : totalWin), cx, cy - 20, '#34d399', 1.5, tier >= 3 ? 28 : 20);
+            }
+            // Flash winning bet cells
+            document.querySelectorAll('.rb-cell.selected').forEach(el => { el.classList.add('rb-win-flash'); setTimeout(() => el.classList.remove('rb-win-flash'), 1000); });
+            // Balance flash
+            const balEl = document.getElementById('casino-balance');
+            if (balEl) { balEl.classList.add('balance-win'); setTimeout(() => balEl.classList.remove('balance-win'), 500); }
         } else {
             document.getElementById('roulette-result').innerHTML = `<div style="font-size:16px;color:#f05252;">
                 ${resultNum}${colorEmoji} — 输 -${totalBet} 筹码</div>
                 <div style="font-size:11px;">${details.join(' | ')}</div>`;
+            casinoAudio.loseThud();
+            const balEl = document.getElementById('casino-balance');
+            if (balEl) { balEl.classList.add('balance-loss'); setTimeout(() => balEl.classList.remove('balance-loss'), 400); }
         }
         casinoSpinning = false;
     });
@@ -4310,6 +4328,7 @@ function spinSlots() {
     // Pick weighted results as symbol INDICES
     const resultIdx = [slotMachine._pickWeighted(), slotMachine._pickWeighted(), slotMachine._pickWeighted()];
 
+    document.getElementById('spin-btn').disabled = true;
     slotMachine.spin(resultIdx, () => {
         const [a, b, c] = resultIdx;
         let multiplier = 0;
@@ -4324,15 +4343,29 @@ function spinSlots() {
         }
 
         const win = slotsBet * multiplier;
+        const tier = multiplier >= 30 ? 3 : multiplier >= 5 ? 2 : multiplier >= 1 ? 1 : 0;
+
         if (win > 0) {
             setBankroll(bankroll + win);
             const netWin = win - slotsBet;
-            document.getElementById('slots-result').innerHTML = `<span style="color:#34d399;">🎉 ${SLOT_SYMBOLS[resultIdx[0]]}${SLOT_SYMBOLS[resultIdx[1]]}${SLOT_SYMBOLS[resultIdx[2]]} — 赢 +${netWin > 0 ? netWin : win} 筹码！(${multiplier}x)</span>`;
+            document.getElementById('slots-result').innerHTML = `<span style="color:#34d399;font-size:16px;">🎉 ${SLOT_SYMBOLS[a]}${SLOT_SYMBOLS[b]}${SLOT_SYMBOLS[c]} — 赢 +${netWin > 0 ? netWin : win} 筹码！(${multiplier}x)</span>`;
+            // Celebration via slot machine
+            if (slotMachine.celebrate) slotMachine.celebrate(tier);
+            else casinoAudio.winJingle(tier);
+            const balEl = document.getElementById('casino-balance');
+            if (balEl) { balEl.classList.add('balance-win'); setTimeout(() => balEl.classList.remove('balance-win'), 500); }
         } else {
-            document.getElementById('slots-result').innerHTML = `<span style="color:#f05252;">${SLOT_SYMBOLS[resultIdx[0]]}${SLOT_SYMBOLS[resultIdx[1]]}${SLOT_SYMBOLS[resultIdx[2]]} — 输 -${slotsBet} 筹码</span>`;
+            document.getElementById('slots-result').innerHTML = `<span style="color:#f05252;">${SLOT_SYMBOLS[a]}${SLOT_SYMBOLS[b]}${SLOT_SYMBOLS[c]} — 输 -${slotsBet} 筹码</span>`;
+            casinoAudio.loseThud();
+            const balEl = document.getElementById('casino-balance');
+            if (balEl) { balEl.classList.add('balance-loss'); setTimeout(() => balEl.classList.remove('balance-loss'), 400); }
         }
-        document.getElementById('spin-btn').textContent = '🎰 SPIN';
-        casinoSpinning = false;
+        const delay = tier >= 3 ? 1500 : tier >= 2 ? 800 : 300;
+        setTimeout(() => {
+            document.getElementById('spin-btn').textContent = '🎰 SPIN';
+            document.getElementById('spin-btn').disabled = false;
+            casinoSpinning = false;
+        }, delay);
     });
 }
 
