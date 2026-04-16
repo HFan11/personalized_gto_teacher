@@ -42,6 +42,10 @@
         <span class="nav-icon">🎯</span>
         <span>1v1练习</span>
     </button>
+    <button class="nav-btn" onclick="switchPage('cashgame')" id="nav-cashgame">
+        <span class="nav-icon">🏆</span>
+        <span>实战</span>
+    </button>
     <button class="nav-btn nav-help-btn" onclick="openHelp()" id="nav-help" title="使用指引">
         <span class="nav-icon">❓</span>
         <span>帮助</span>
@@ -482,6 +486,73 @@
 <!-- Result overlay removed - now uses inline result strip -->
 
 <!-- ============================================================
+     Cash Game (6-Max AI Battle)
+     ============================================================ -->
+<div class="page" id="page-cashgame">
+
+    <!-- Buy-in Screen -->
+    <div id="cashgame-buyin" style="padding:16px;">
+        <h2 class="section-title">🏆 6-Max 实战</h2>
+        <p class="section-subtitle">和5个AI对手打真实的6人桌</p>
+
+        <div class="ui-card" style="padding:16px;">
+            <div style="font-weight:700; margin-bottom:12px;">选择位置</div>
+            <div id="cg-seat-picker" style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:16px;"></div>
+
+            <div style="font-weight:700; margin-bottom:8px;">买入筹码</div>
+            <div style="display:flex; gap:8px; margin-bottom:16px;">
+                <button class="pos-btn" onclick="setCGBuyIn(50)">50BB</button>
+                <button class="pos-btn active" onclick="setCGBuyIn(100)">100BB</button>
+                <button class="pos-btn" onclick="setCGBuyIn(200)">200BB</button>
+            </div>
+
+            <button class="btn btn-primary btn-block" onclick="startCashGame()" style="padding:14px; font-size:16px;">
+                入座开始
+            </button>
+        </div>
+    </div>
+
+    <!-- Game Table -->
+    <div id="cashgame-table" style="display:none;">
+        <!-- Stats bar -->
+        <div style="display:flex; justify-content:space-between; padding:4px 10px; font-size:11px; color:var(--text-muted); background:var(--bg-secondary); border-bottom:1px solid var(--border-color);">
+            <span>手数: <strong id="cg-hand-num">0</strong></span>
+            <span>盈亏: <strong id="cg-profit" style="color:var(--text-primary);">0.0 BB</strong></span>
+            <span>BB/100: <strong id="cg-bb100">0.0</strong></span>
+            <button onclick="leaveCashGame()" style="background:none;border:1px solid var(--border-color);color:var(--text-muted);padding:2px 8px;border-radius:4px;font-size:10px;cursor:pointer;">离开</button>
+        </div>
+
+        <!-- 6-seat poker table -->
+        <div class="poker-table" id="cg-table" style="min-height:280px; position:relative;">
+            <!-- Seats rendered dynamically -->
+            <div id="cg-seats"></div>
+            <!-- Board -->
+            <div style="text-align:center;">
+                <div class="pot-badge" id="cg-pot-display">0 BB</div>
+                <div id="cg-street-label" style="font-size:10px;color:rgba(255,255,255,0.5);margin-bottom:4px;"></div>
+                <div class="cards-row" id="cg-board-cards" style="justify-content:center; min-height:52px;"></div>
+            </div>
+            <!-- Hero area -->
+            <div style="text-align:center; margin-top:8px;">
+                <div class="cards-row" id="cg-hero-cards" style="justify-content:center;"></div>
+                <div id="cg-hero-info" style="font-size:11px; color:rgba(255,255,255,0.7); margin-top:4px;"></div>
+            </div>
+        </div>
+
+        <!-- Action buttons (shown when hero's turn) -->
+        <div id="cg-actions" style="display:none;">
+            <div class="action-buttons" id="cg-action-btns"></div>
+        </div>
+
+        <!-- Hand result overlay -->
+        <div id="cg-result" style="display:none;" class="ui-card" style="padding:12px; text-align:center;">
+            <div id="cg-result-text" style="font-size:14px; font-weight:700; margin-bottom:8px;"></div>
+            <button class="btn btn-primary btn-block" onclick="nextCGHand()">下一手 →</button>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================
      Setup Wizard (first-time users)
      ============================================================ -->
 <div class="page wizard-page" id="page-wizard">
@@ -825,6 +896,8 @@
 <script src="js/profiles.js?v=20"></script>
 <script src="js/preflop-practice.js?v=23"></script>
 <script src="js/practice.js?v=27"></script>
+<script src="js/cash-game.js?v=1"></script>
+<script src="js/bot-ai.js?v=1"></script>
 <script>
 // ============================================================
 // App State
@@ -895,6 +968,7 @@ function switchPage(pageName) {
         }
     }
     if (pageName === 'profiles') renderProfiles();
+    if (pageName === 'cashgame') initCashGamePage();
 }
 
 // ============================================================
@@ -3420,6 +3494,173 @@ function closeHelp() {
     document.getElementById('page-help').classList.remove('active');
     switchPage(helpReturnPage);
 }
+// ============================================================
+// Cash Game Controller
+// ============================================================
+let cashGame = null;
+let cgBuyIn = 100;
+let cgHeroSeat = 0;
+
+function initCashGamePage() {
+    const positions = ['Seat 1','Seat 2','Seat 3','Seat 4','Seat 5','Seat 6'];
+    document.getElementById('cg-seat-picker').innerHTML = positions.map((p, i) =>
+        `<button class="pos-btn ${i === cgHeroSeat ? 'active' : ''}" onclick="setCGSeat(${i})">${p}</button>`
+    ).join('');
+}
+
+function setCGSeat(seat) {
+    cgHeroSeat = seat;
+    document.querySelectorAll('#cg-seat-picker .pos-btn').forEach((b, i) => b.classList.toggle('active', i === seat));
+}
+
+function setCGBuyIn(bb) {
+    cgBuyIn = bb;
+    document.querySelectorAll('#cashgame-buyin .pos-btn').forEach(b => {
+        b.classList.toggle('active', b.textContent.trim() === bb + 'BB');
+    });
+}
+
+function startCashGame() {
+    cashGame = new CashGameEngine({ heroSeat: cgHeroSeat, buyIn: cgBuyIn });
+    document.getElementById('cashgame-buyin').style.display = 'none';
+    document.getElementById('cashgame-table').style.display = 'block';
+    nextCGHand();
+}
+
+function leaveCashGame() {
+    cashGame = null;
+    document.getElementById('cashgame-buyin').style.display = 'block';
+    document.getElementById('cashgame-table').style.display = 'none';
+    initCashGamePage();
+}
+
+function nextCGHand() {
+    if (!cashGame) return;
+    if (cashGame.seats[cashGame.heroSeat].stack <= 0) {
+        document.getElementById('cg-result').style.display = 'block';
+        document.getElementById('cg-result-text').innerHTML = `
+            <div style="font-size:20px; margin-bottom:8px;">💸 筹码耗尽</div>
+            <div style="font-size:13px; color:var(--text-secondary);">
+                ${cashGame.stats.handsPlayed} 手 | 盈亏: ${cashGame.stats.heroProfit.toFixed(1)} BB
+            </div>`;
+        const btn = document.getElementById('cg-result').querySelector('button');
+        btn.textContent = '重新买入';
+        btn.onclick = () => {
+            cashGame.seats[cashGame.heroSeat].stack = cgBuyIn;
+            document.getElementById('cg-result').style.display = 'none';
+            nextCGHand();
+        };
+        return;
+    }
+    document.getElementById('cg-result').style.display = 'none';
+    document.getElementById('cg-actions').style.display = 'none';
+    cashGame.startHand();
+    renderCGTable(cashGame.getState());
+    advanceCGAction();
+}
+
+function advanceCGAction() {
+    if (!cashGame) return;
+    const state = cashGame.getState();
+    if (state.street === 'showdown' || state.actingSeat < 0) return;
+
+    if (state.seats[state.actingSeat].isHero) {
+        renderCGActions();
+    } else {
+        setTimeout(() => {
+            if (!cashGame) return;
+            const decision = BotAI.decide(cashGame, state.actingSeat);
+            const result = cashGame.processAction(state.actingSeat, decision.action, decision.amount);
+            renderCGTable(cashGame.getState());
+            if (result?.showdown) { showCGResult(result); }
+            else if (result?.nextStreet || result?.nextActor !== undefined) { advanceCGAction(); }
+        }, 300 + Math.random() * 500);
+    }
+}
+
+function heroAction(action, amount) {
+    if (!cashGame) return;
+    document.getElementById('cg-actions').style.display = 'none';
+    const result = cashGame.processAction(cashGame.heroSeat, action, amount);
+    renderCGTable(cashGame.getState());
+    if (result?.showdown) { showCGResult(result); }
+    else if (result?.nextStreet || result?.nextActor !== undefined) { advanceCGAction(); }
+}
+
+function showCGResult(result) {
+    document.getElementById('cg-actions').style.display = 'none';
+    renderCGTable(cashGame.getState());
+    const isHeroWin = result.winner === cashGame.heroSeat;
+    const color = isHeroWin ? '#34d399' : '#f05252';
+    document.getElementById('cg-result').style.display = 'block';
+    document.getElementById('cg-result-text').innerHTML = `<span style="color:${color}; font-size:16px;">${isHeroWin ? '🎉 你赢了' : '😤 ' + result.winnerName + ' 赢了'} ${result.winAmount.toFixed(1)} BB</span>`;
+    const btn = document.getElementById('cg-result').querySelector('button');
+    btn.textContent = '下一手 →'; btn.onclick = nextCGHand;
+    updateCGStats();
+}
+
+function updateCGStats() {
+    if (!cashGame) return;
+    const s = cashGame.stats;
+    document.getElementById('cg-hand-num').textContent = s.handsPlayed;
+    document.getElementById('cg-profit').style.color = s.heroProfit >= 0 ? '#34d399' : '#f05252';
+    document.getElementById('cg-profit').textContent = (s.heroProfit >= 0 ? '+' : '') + s.heroProfit.toFixed(1) + ' BB';
+    document.getElementById('cg-bb100').textContent = s.handsPlayed > 0 ? (s.heroProfit / s.handsPlayed * 100).toFixed(1) : '0.0';
+}
+
+function renderCGTable(state) {
+    const boardHtml = state.board.map(c => renderPlayingCard(c, 'card-flip-in')).join('');
+    document.getElementById('cg-board-cards').innerHTML = boardHtml;
+    document.getElementById('cg-pot-display').textContent = state.pot.toFixed(1) + ' BB';
+    document.getElementById('cg-street-label').textContent = state.street === 'preflop' ? '' : state.street.charAt(0).toUpperCase() + state.street.slice(1);
+
+    const hero = state.seats[state.heroSeat];
+    document.getElementById('cg-hero-cards').innerHTML = hero.holeCards ? hero.holeCards.map(c => renderPlayingCard(c, '')).join('') : '';
+    document.getElementById('cg-hero-info').innerHTML = `<span class="position-badge" style="font-size:10px;">${hero.position}</span> <span>${hero.stack.toFixed(1)}BB</span>${hero.bet > 0 ? ` <span style="color:var(--accent-orange);">bet ${hero.bet.toFixed(1)}</span>` : ''}`;
+
+    let seatsHtml = '<div style="display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-bottom:6px;">';
+    for (let i = 0; i < state.seats.length; i++) {
+        if (i === state.heroSeat) continue;
+        const s = state.seats[i];
+        if (s.isSittingOut) continue;
+        const isActing = s.isActing;
+        const bg = s.folded ? 'rgba(255,255,255,0.03)' : isActing ? 'rgba(79,143,247,0.15)' : 'rgba(255,255,255,0.06)';
+        const border = isActing ? '1px solid var(--accent-blue)' : '1px solid rgba(255,255,255,0.08)';
+        const cards = s.holeCards && state.street === 'showdown' && !s.folded
+            ? s.holeCards.map(c => `<span style="font-size:10px;">${c.rank}${c.suit}</span>`).join('') : (!s.folded ? '🂠🂠' : '');
+        seatsHtml += `<div style="background:${bg};border:${border};border-radius:8px;padding:4px 8px;font-size:10px;opacity:${s.folded?'0.4':'1'};min-width:80px;text-align:center;">
+            <div style="font-weight:600;">${s.name}</div>
+            <div style="color:var(--text-muted);">${s.position}·${s.stack.toFixed(0)}BB</div>
+            <div>${cards}</div>
+            ${s.bet > 0 ? `<div style="color:var(--accent-orange);font-size:9px;">bet ${s.bet.toFixed(1)}</div>` : ''}
+            ${s.allIn ? '<div style="color:var(--accent-purple);font-size:9px;font-weight:700;">ALL-IN</div>' : ''}
+        </div>`;
+    }
+    seatsHtml += '</div>';
+    document.getElementById('cg-seats').innerHTML = seatsHtml;
+    updateCGStats();
+}
+
+function renderCGActions() {
+    if (!cashGame) return;
+    const actions = cashGame.getAvailableActions(cashGame.heroSeat);
+    let html = '';
+    for (const a of actions) {
+        let cls = '', label = '', onclick = '';
+        switch (a.action) {
+            case 'fold': cls='fold-btn'; label='弃牌'; onclick=`heroAction('fold')`; break;
+            case 'check': cls='check-btn'; label='过牌'; onclick=`heroAction('check')`; break;
+            case 'call': cls='call-btn'; label=`跟注 ${a.amount.toFixed(1)}BB`; onclick=`heroAction('call',${a.amount})`; break;
+            case 'bet': cls='raise-btn'; label=a.label||`下注 ${a.amount.toFixed(1)}BB`; onclick=`heroAction('bet',${a.amount})`; break;
+            case 'raise': cls='raise-btn'; label=a.label||`加注到 ${a.amount.toFixed(1)}BB`; onclick=`heroAction('raise',${a.amount})`; break;
+            case 'allin': cls='raise-btn'; label=`全压 ${a.amount.toFixed(1)}BB`; onclick=`heroAction('allin',${a.amount})`; break;
+        }
+        html += `<button class="action-btn ${cls}" onclick="${onclick}" style="flex:1;">${label}</button>`;
+    }
+    document.getElementById('cg-action-btns').innerHTML = html;
+    document.getElementById('cg-actions').style.display = 'block';
+}
+
 // ============================================================
 // Browser Batch Solver
 // Usage: open browser console on your deployed app, then:
