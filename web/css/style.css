@@ -2144,3 +2144,30 @@ label {
     30% { opacity: 1; transform: translate(-50%, -70%) scale(1.2); }
     100% { opacity: 0; transform: translate(-50%, -120%) scale(1); }
 }
+
+/* ============================================================
+   Casino — Roulette & Slots
+   ============================================================ */
+.slot-reel {
+    width: 80px; height: 80px;
+    background: linear-gradient(180deg, #1a1a2e, #0d0d1a);
+    border: 2px solid #8b6914;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 40px;
+    box-shadow: inset 0 2px 8px rgba(0,0,0,0.5);
+    transition: none;
+}
+.slot-reel.spinning {
+    animation: reelSpin 0.1s linear infinite;
+}
+@keyframes reelSpin {
+    0% { transform: translateY(-5px); }
+    50% { transform: translateY(5px); }
+    100% { transform: translateY(-5px); }
+}
+
+.casino-tab.active {
+    color: var(--text-primary) !important;
+    border-bottom-color: var(--accent-blue) !important;
+}

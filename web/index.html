@@ -46,6 +46,10 @@
         <span class="nav-icon">🏆</span>
         <span>实战</span>
     </button>
+    <button class="nav-btn" onclick="switchPage('casino')" id="nav-casino">
+        <span class="nav-icon">🎰</span>
+        <span>娱乐</span>
+    </button>
     <button class="nav-btn nav-help-btn" onclick="openHelp()" id="nav-help" title="使用指引">
         <span class="nav-icon">❓</span>
         <span>帮助</span>
@@ -484,6 +488,101 @@
 </div><!-- close page-practice -->
 
 <!-- Result overlay removed - now uses inline result strip -->
+
+<!-- ============================================================
+     Casino — Roulette & Slots
+     ============================================================ -->
+<div class="page" id="page-casino">
+    <!-- Balance bar -->
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 14px;background:var(--bg-secondary);border-bottom:1px solid var(--border-color);">
+        <span style="font-size:13px;font-weight:700;">🎰 娱乐场</span>
+        <span style="font-size:13px;">余额: <strong id="casino-balance" style="color:var(--accent-orange);">1000</strong> 筹码</span>
+    </div>
+
+    <!-- Game tabs -->
+    <div style="display:flex;gap:0;border-bottom:1px solid var(--border-color);">
+        <button class="casino-tab active" id="tab-roulette" onclick="switchCasinoGame('roulette')" style="flex:1;padding:10px;border:none;background:transparent;color:var(--text-primary);font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid var(--accent-blue);">🎡 轮盘</button>
+        <button class="casino-tab" id="tab-slots" onclick="switchCasinoGame('slots')" style="flex:1;padding:10px;border:none;background:transparent;color:var(--text-muted);font-size:13px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;">🍒 老虎机</button>
+    </div>
+
+    <!-- ======== ROULETTE ======== -->
+    <div id="game-roulette" style="padding:12px;">
+        <!-- Wheel -->
+        <div style="display:flex;justify-content:center;margin-bottom:12px;">
+            <div id="roulette-wheel" style="width:200px;height:200px;border-radius:50%;border:6px solid #8b6914;background:conic-gradient(
+                #c0392b 0deg 9.7deg, #1a1a2e 9.7deg 19.4deg, #c0392b 19.4deg 29.1deg, #1a1a2e 29.1deg 38.8deg,
+                #c0392b 38.8deg 48.5deg, #1a1a2e 48.5deg 58.2deg, #c0392b 58.2deg 67.9deg, #1a1a2e 67.9deg 77.6deg,
+                #c0392b 77.6deg 87.3deg, #1a1a2e 87.3deg 97deg, #27ae60 97deg 106.7deg, #c0392b 106.7deg 116.4deg,
+                #1a1a2e 116.4deg 126.1deg, #c0392b 126.1deg 135.8deg, #1a1a2e 135.8deg 145.5deg, #c0392b 145.5deg 155.2deg,
+                #1a1a2e 155.2deg 164.9deg, #c0392b 164.9deg 174.6deg, #1a1a2e 174.6deg 184.3deg, #c0392b 184.3deg 194deg,
+                #1a1a2e 194deg 203.7deg, #c0392b 203.7deg 213.4deg, #1a1a2e 213.4deg 223.1deg, #c0392b 223.1deg 232.8deg,
+                #1a1a2e 232.8deg 242.5deg, #c0392b 242.5deg 252.2deg, #1a1a2e 252.2deg 261.9deg, #c0392b 261.9deg 271.6deg,
+                #1a1a2e 271.6deg 281.3deg, #c0392b 281.3deg 291deg, #1a1a2e 291deg 300.7deg, #c0392b 300.7deg 310.4deg,
+                #1a1a2e 310.4deg 320.1deg, #c0392b 320.1deg 329.8deg, #1a1a2e 329.8deg 339.5deg, #c0392b 339.5deg 349.2deg, #27ae60 349.2deg 360deg
+            );position:relative;box-shadow:0 0 20px rgba(0,0,0,0.5);transition:transform 4s cubic-bezier(0.17,0.67,0.12,0.99);">
+                <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:50px;height:50px;border-radius:50%;background:var(--bg-card);border:2px solid #8b6914;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;" id="roulette-number">—</div>
+            </div>
+            <div style="position:relative;"><div style="position:absolute;top:50%;left:-8px;transform:translateY(-50%);width:0;height:0;border-top:10px solid transparent;border-bottom:10px solid transparent;border-right:14px solid var(--accent-orange);z-index:5;"></div></div>
+        </div>
+
+        <!-- Bet selector -->
+        <div style="display:flex;gap:6px;justify-content:center;margin-bottom:8px;flex-wrap:wrap;">
+            <button class="pos-btn active" onclick="setRouletteBet(10)">10</button>
+            <button class="pos-btn" onclick="setRouletteBet(25)">25</button>
+            <button class="pos-btn" onclick="setRouletteBet(50)">50</button>
+            <button class="pos-btn" onclick="setRouletteBet(100)">100</button>
+        </div>
+
+        <!-- Bet type buttons -->
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px;">
+            <button class="action-btn raise-btn" onclick="placeRouletteBet('red')" style="font-size:12px;">🔴 红 (2x)</button>
+            <button class="action-btn" onclick="placeRouletteBet('black')" style="font-size:12px;border-color:#555;color:#aaa;background:rgba(40,40,40,0.3);">⚫ 黑 (2x)</button>
+            <button class="action-btn call-btn" onclick="placeRouletteBet('green')" style="font-size:12px;">🟢 绿 (35x)</button>
+            <button class="action-btn check-btn" onclick="placeRouletteBet('odd')" style="font-size:12px;">奇数 (2x)</button>
+            <button class="action-btn check-btn" onclick="placeRouletteBet('even')" style="font-size:12px;">偶数 (2x)</button>
+            <button class="action-btn fold-btn" onclick="placeRouletteBet('half1')" style="font-size:12px;">1-18 (2x)</button>
+        </div>
+
+        <div id="roulette-result" style="text-align:center;font-size:14px;font-weight:700;min-height:24px;"></div>
+    </div>
+
+    <!-- ======== SLOTS ======== -->
+    <div id="game-slots" style="padding:12px;display:none;">
+        <!-- Slot machine frame -->
+        <div style="max-width:320px;margin:0 auto;background:linear-gradient(180deg,#2c1810,#1a0f08);border:3px solid #8b6914;border-radius:16px;padding:16px;box-shadow:0 4px 20px rgba(0,0,0,0.5);">
+            <div style="text-align:center;font-size:11px;color:#8b6914;font-weight:700;margin-bottom:8px;letter-spacing:2px;">★ LUCKY SLOTS ★</div>
+            <!-- Reels -->
+            <div style="display:flex;gap:8px;justify-content:center;margin-bottom:12px;">
+                <div class="slot-reel" id="reel-0">🃏</div>
+                <div class="slot-reel" id="reel-1">🃏</div>
+                <div class="slot-reel" id="reel-2">🃏</div>
+            </div>
+            <!-- Payout line -->
+            <div id="slots-result" style="text-align:center;font-size:14px;font-weight:700;min-height:24px;margin-bottom:8px;"></div>
+            <!-- Bet selector -->
+            <div style="display:flex;gap:6px;justify-content:center;margin-bottom:10px;">
+                <button class="pos-btn active" onclick="setSlotsBet(5)">5</button>
+                <button class="pos-btn" onclick="setSlotsBet(10)">10</button>
+                <button class="pos-btn" onclick="setSlotsBet(25)">25</button>
+                <button class="pos-btn" onclick="setSlotsBet(50)">50</button>
+            </div>
+            <!-- Spin button -->
+            <button class="btn btn-primary btn-block" onclick="spinSlots()" id="spin-btn" style="padding:14px;font-size:18px;font-weight:800;letter-spacing:2px;border-radius:30px;">
+                🎰 SPIN
+            </button>
+        </div>
+        <!-- Payout table -->
+        <div style="margin-top:12px;padding:8px;background:var(--bg-card);border-radius:8px;font-size:10px;color:var(--text-muted);">
+            <div style="font-weight:700;margin-bottom:4px;color:var(--text-secondary);">赔率表</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px;">
+                <span>💎💎💎 = 50x</span><span>7️⃣7️⃣7️⃣ = 30x</span>
+                <span>🍒🍒🍒 = 15x</span><span>🔔🔔🔔 = 10x</span>
+                <span>🍋🍋🍋 = 8x</span><span>🍊🍊🍊 = 5x</span>
+                <span>任意2同 = 2x</span><span>🍒任意位 = 1x</span>
+            </div>
+        </div>
+    </div>
+</div>
 
 <!-- ============================================================
      Cash Game (6-Max AI Battle)
@@ -965,6 +1064,7 @@ function switchPage(pageName) {
     }
     if (pageName === 'profiles') renderProfiles();
     if (pageName === 'cashgame') initCashGamePage();
+    if (pageName === 'casino') initCasinoPage();
 }
 
 // ============================================================
@@ -3491,6 +3591,169 @@ function closeHelp() {
     switchPage(helpReturnPage);
 }
 // ============================================================
+// ============================================================
+// Casino — Roulette & Slots
+// ============================================================
+let casinoBalance = parseInt(localStorage.getItem('casino_balance') || '1000');
+let rouletteBet = 10;
+let slotsBet = 5;
+let casinoSpinning = false;
+
+function saveCasinoBalance() {
+    localStorage.setItem('casino_balance', casinoBalance);
+    document.getElementById('casino-balance').textContent = casinoBalance;
+}
+
+function switchCasinoGame(game) {
+    document.getElementById('game-roulette').style.display = game === 'roulette' ? 'block' : 'none';
+    document.getElementById('game-slots').style.display = game === 'slots' ? 'block' : 'none';
+    document.getElementById('tab-roulette').classList.toggle('active', game === 'roulette');
+    document.getElementById('tab-slots').classList.toggle('active', game === 'slots');
+    document.getElementById('tab-roulette').style.borderBottomColor = game === 'roulette' ? 'var(--accent-blue)' : 'transparent';
+    document.getElementById('tab-slots').style.borderBottomColor = game === 'slots' ? 'var(--accent-blue)' : 'transparent';
+    document.getElementById('tab-roulette').style.color = game === 'roulette' ? 'var(--text-primary)' : 'var(--text-muted)';
+    document.getElementById('tab-slots').style.color = game === 'slots' ? 'var(--text-primary)' : 'var(--text-muted)';
+}
+
+function initCasinoPage() {
+    saveCasinoBalance();
+}
+
+// ---- ROULETTE ----
+const ROULETTE_NUMBERS = [
+    0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10,
+    5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26, 0
+];
+const RED_NUMBERS = [1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36];
+
+function setRouletteBet(amt) {
+    rouletteBet = amt;
+    document.querySelectorAll('#game-roulette .pos-btn').forEach(b => b.classList.toggle('active', parseInt(b.textContent) === amt));
+}
+
+function placeRouletteBet(type) {
+    if (casinoSpinning) return;
+    if (casinoBalance < rouletteBet) { document.getElementById('roulette-result').innerHTML = '<span style="color:var(--accent-red);">余额不足</span>'; return; }
+
+    casinoSpinning = true;
+    casinoBalance -= rouletteBet;
+    saveCasinoBalance();
+    document.getElementById('roulette-result').textContent = '旋转中...';
+
+    // Determine result
+    const resultNum = Math.floor(Math.random() * 37); // 0-36
+    const isRed = RED_NUMBERS.includes(resultNum);
+    const isGreen = resultNum === 0;
+
+    // Spin wheel animation
+    const wheel = document.getElementById('roulette-wheel');
+    const currentRotation = parseFloat(wheel.dataset.rotation || 0);
+    const spins = 5 + Math.random() * 3; // 5-8 full rotations
+    const slotAngle = (resultNum / 37) * 360;
+    const targetRotation = currentRotation + spins * 360 + (360 - slotAngle);
+    wheel.style.transform = `rotate(${targetRotation}deg)`;
+    wheel.dataset.rotation = targetRotation;
+
+    setTimeout(() => {
+        document.getElementById('roulette-number').textContent = resultNum;
+        document.getElementById('roulette-number').style.color = isGreen ? '#27ae60' : isRed ? '#e74c3c' : '#e8ecf1';
+
+        // Check win
+        let win = 0;
+        if (type === 'red' && isRed) win = rouletteBet * 2;
+        else if (type === 'black' && !isRed && !isGreen) win = rouletteBet * 2;
+        else if (type === 'green' && isGreen) win = rouletteBet * 35;
+        else if (type === 'odd' && resultNum > 0 && resultNum % 2 === 1) win = rouletteBet * 2;
+        else if (type === 'even' && resultNum > 0 && resultNum % 2 === 0) win = rouletteBet * 2;
+        else if (type === 'half1' && resultNum >= 1 && resultNum <= 18) win = rouletteBet * 2;
+
+        if (win > 0) {
+            casinoBalance += win;
+            document.getElementById('roulette-result').innerHTML = `<span style="color:#34d399;">🎉 ${resultNum} — 赢 +${win} 筹码！</span>`;
+        } else {
+            document.getElementById('roulette-result').innerHTML = `<span style="color:#f05252;">${resultNum} — 输 -${rouletteBet} 筹码</span>`;
+        }
+        saveCasinoBalance();
+        casinoSpinning = false;
+    }, 4200);
+}
+
+// ---- SLOTS ----
+const SLOT_SYMBOLS = ['🍒', '🍋', '🍊', '🔔', '7️⃣', '💎'];
+const SLOT_WEIGHTS = [25, 20, 18, 15, 12, 10]; // lower = rarer
+
+function setSlotsBet(amt) {
+    slotsBet = amt;
+    document.querySelectorAll('#game-slots .pos-btn').forEach(b => b.classList.toggle('active', parseInt(b.textContent) === amt));
+}
+
+function spinSlots() {
+    if (casinoSpinning) return;
+    if (casinoBalance < slotsBet) { document.getElementById('slots-result').innerHTML = '<span style="color:var(--accent-red);">余额不足</span>'; return; }
+
+    casinoSpinning = true;
+    casinoBalance -= slotsBet;
+    saveCasinoBalance();
+    document.getElementById('slots-result').textContent = '';
+    document.getElementById('spin-btn').textContent = '...';
+
+    // Start spinning animation
+    const reels = [document.getElementById('reel-0'), document.getElementById('reel-1'), document.getElementById('reel-2')];
+    reels.forEach(r => r.classList.add('spinning'));
+
+    // Pick weighted random symbols for each reel
+    function pickSymbol() {
+        const totalWeight = SLOT_WEIGHTS.reduce((s, w) => s + w, 0);
+        let r = Math.random() * totalWeight;
+        for (let i = 0; i < SLOT_SYMBOLS.length; i++) {
+            r -= SLOT_WEIGHTS[i];
+            if (r <= 0) return SLOT_SYMBOLS[i];
+        }
+        return SLOT_SYMBOLS[0];
+    }
+
+    const results = [pickSymbol(), pickSymbol(), pickSymbol()];
+
+    // Stop reels one by one
+    const stopTimes = [800, 1400, 2000];
+    stopTimes.forEach((t, i) => {
+        setTimeout(() => {
+            reels[i].classList.remove('spinning');
+            reels[i].textContent = results[i];
+            reels[i].style.transform = 'scale(1.15)';
+            setTimeout(() => { reels[i].style.transform = 'scale(1)'; }, 150);
+        }, t);
+    });
+
+    // Calculate payout
+    setTimeout(() => {
+        let multiplier = 0;
+        const [a, b, c] = results;
+
+        if (a === b && b === c) {
+            // Three of a kind
+            const payouts = { '💎': 50, '7️⃣': 30, '🍒': 15, '🔔': 10, '🍋': 8, '🍊': 5 };
+            multiplier = payouts[a] || 5;
+        } else if (a === b || b === c || a === c) {
+            multiplier = 2; // any pair
+        } else if (results.includes('🍒')) {
+            multiplier = 1; // cherry anywhere = money back
+        }
+
+        const win = slotsBet * multiplier;
+        if (win > 0) {
+            casinoBalance += win;
+            const netWin = win - slotsBet;
+            document.getElementById('slots-result').innerHTML = `<span style="color:#34d399;">🎉 赢 +${netWin > 0 ? netWin : win} 筹码！(${multiplier}x)</span>`;
+        } else {
+            document.getElementById('slots-result').innerHTML = `<span style="color:#f05252;">💨 -${slotsBet} 筹码</span>`;
+        }
+        saveCasinoBalance();
+        document.getElementById('spin-btn').textContent = '🎰 SPIN';
+        casinoSpinning = false;
+    }, 2300);
+}
+
 // Cash Game Controller
 // ============================================================
 let cashGame = null;
