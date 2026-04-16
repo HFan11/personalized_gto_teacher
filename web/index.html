@@ -3752,6 +3752,8 @@ function saveCasinoBalance() { setBankroll(bankroll); }
 function switchCasinoGame(game) {
     document.getElementById('game-roulette').style.display = game === 'roulette' ? 'block' : 'none';
     document.getElementById('game-slots').style.display = game === 'slots' ? 'block' : 'none';
+    if (game === 'roulette') initRouletteBoard();
+    if (game === 'slots') { setTimeout(initSlotMachine, 50); } // delay for DOM visibility
     document.getElementById('tab-roulette').classList.toggle('active', game === 'roulette');
     document.getElementById('tab-slots').classList.toggle('active', game === 'slots');
     document.getElementById('tab-roulette').style.borderBottomColor = game === 'roulette' ? 'var(--accent-blue)' : 'transparent';
