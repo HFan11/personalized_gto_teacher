@@ -3809,9 +3809,19 @@ function placeRouletteBet(type, value) {
     if (casinoSpinning) return;
     if (bankroll < rouletteBet) { document.getElementById('roulette-result').innerHTML = '<span style="color:var(--accent-red);">余额不足</span>'; return; }
 
-    // Add to pending bets (allow same bet type multiple times too)
-    pendingBets.push({ type, value, amount: rouletteBet });
-    renderRouletteBetPanel();
+    // Toggle: if same type+value exists, remove it; otherwise add
+    const existIdx = pendingBets.findIndex(b => b.type === type && b.value === value);
+    if (existIdx >= 0) {
+        pendingBets.splice(existIdx, 1);
+    } else {
+        pendingBets.push({ type, value, amount: rouletteBet });
+    }
+
+    if (pendingBets.length > 0) {
+        renderRouletteBetPanel();
+    } else {
+        document.getElementById('roulette-confirm').style.display = 'none';
+    }
 }
 
 function renderRouletteBetPanel() {

@@ -144,49 +144,43 @@ class RouletteWheel {
         this.spinning = true;
         this.lastResult = null;
 
-        const duration = 5500;
+        const duration = 5000;
         const startTime = performance.now();
         const startWheel = this.wheelAngle;
-        const startBall = Math.random() * Math.PI * 2;
 
-        // Wheel: slow clockwise rotation (1.5-2.5 turns)
-        const wheelTurns = 1.5 + Math.random();
+        // Wheel: slow clockwise (2-3 turns)
+        const wheelTurns = 2 + Math.random();
         const endWheel = startWheel + wheelTurns * Math.PI * 2;
 
-        // Ball: fast counter-clockwise, then lands in target pocket
-        // At rest, pocket i is at angle: wheelAngle + i*slotArc - PI/2 + slotArc/2
-        // Ball must be at that same absolute angle
+        // Final ball absolute angle = where the pocket will be when wheel stops
         const endPocketAngle = endWheel + targetPocketIdx * this.slotArc - Math.PI / 2 + this.slotArc / 2;
-        const ballTurns = -(5 + Math.random() * 3); // counter-clockwise fast
-        const endBall = endPocketAngle; // final position = in the pocket
+
+        // Ball: counter-clockwise fast, total rotation = endPocketAngle + extra full turns
+        const ballExtraTurns = 4 + Math.random() * 2; // 4-6 extra loops
+        const startBallAngle = endPocketAngle + ballExtraTurns * Math.PI * 2;
+        // Ball goes from startBallAngle DOWN to endPocketAngle (decelerating)
 
         const animate = (now) => {
             const elapsed = now - startTime;
             let t = Math.min(elapsed / duration, 1);
 
-            // Wheel: linear spin then decelerate
-            const wheelEase = t < 0.3 ? t / 0.3 : 1 - Math.pow((t - 0.3) / 0.7, 0.5) * 0 + 1;
+            // Wheel: smooth deceleration
             const wEase = 1 - Math.pow(1 - t, 2.5);
             this.wheelAngle = startWheel + (endWheel - startWheel) * wEase;
 
-            // Ball: fast orbit decelerating, then converge to pocket
-            const ballEase = 1 - Math.pow(1 - t, 3.5);
-            // During spin (t<0.65): ball orbits on outer track
-            // During drop (0.65-0.85): ball spirals in
-            // During settle (0.85-1): ball in pocket
-            const orbitAngle = startBall + ballTurns * Math.PI * 2 * ballEase;
-            const settleT = Math.max(0, (t - 0.6) / 0.4);
-            // Blend from orbit to final pocket position
-            this.ballAngle = orbitAngle + (endBall - orbitAngle) * Math.pow(settleT, 2);
+            // Ball: single smooth deceleration from fast orbit to pocket
+            // Use a strong ease-out so ball slows down naturally
+            const bEase = 1 - Math.pow(1 - t, 3);
+            this.ballAngle = startBallAngle + (endPocketAngle - startBallAngle) * bEase;
 
-            if (t < 0.6) {
+            // Ball radius: on track → drop in → settle
+            if (t < 0.55) {
                 this.ballR = this.trackRadius;
-            } else if (t < 0.85) {
-                const dropT = (t - 0.6) / 0.25;
-                const dropEase = dropT * dropT;
-                this.ballR = this.trackRadius - (this.trackRadius - this.pocketRadius) * dropEase;
-                // Bounces
-                this.ballR += Math.sin(dropT * Math.PI * 4) * 5 * (1 - dropT);
+            } else if (t < 0.8) {
+                const dropT = (t - 0.55) / 0.25;
+                this.ballR = this.trackRadius - (this.trackRadius - this.pocketRadius) * (dropT * dropT);
+                // Small bounces
+                this.ballR += Math.sin(dropT * Math.PI * 3) * 4 * (1 - dropT);
             } else {
                 this.ballR = this.pocketRadius;
             }
