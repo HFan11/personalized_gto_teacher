@@ -4808,8 +4808,8 @@ function advanceCGAction() {
     } else {
         // Bot thinking delay — preflop faster, postflop slower (more "thinking")
         const isPreflop = state.street === 'preflop';
-        const baseDelay = isPreflop ? 300 : 500;
-        const jitter = isPreflop ? 200 : 400;
+        const baseDelay = isPreflop ? 600 : 1200;
+        const jitter = isPreflop ? 400 : 800;
         const delay = baseDelay + Math.random() * jitter;
 
         setTimeout(() => {
