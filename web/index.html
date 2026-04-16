@@ -36,7 +36,7 @@
 </div>
 
 <!-- Auth modal -->
-<div id="auth-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:999;display:none;align-items:center;justify-content:center;">
+<div id="auth-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:999;align-items:center;justify-content:center;">
     <div style="background:var(--bg-card);border:1px solid var(--border-color);border-radius:16px;padding:24px;max-width:360px;width:90%;margin:auto;">
         <h3 style="margin-bottom:16px;text-align:center;">🔐 登录 / 注册</h3>
         <div id="auth-error" style="display:none;color:var(--accent-red);font-size:12px;margin-bottom:8px;text-align:center;"></div>
@@ -1095,6 +1095,20 @@ function switchPage(pageName) {
             switchPracticeMode(currentPracticeMode);
         }
     }
+let _pendingAuthPage = null; // page to navigate to after login
+
+// Login-gated pages
+    if ((pageName === 'cashgame' || pageName === 'casino') && !supabase.user) {
+        _pendingAuthPage = pageName;
+        toggleAuthModal();
+        // Revert to previous page
+        document.getElementById('page-' + pageName).classList.remove('active');
+        document.getElementById('nav-' + pageName).classList.remove('active');
+        document.getElementById('page-profiles').classList.add('active');
+        document.getElementById('nav-profiles').classList.add('active');
+        return;
+    }
+
     if (pageName === 'profiles') renderProfiles();
     if (pageName === 'cashgame') initCashGamePage();
     if (pageName === 'casino') initCasinoPage();
@@ -3682,19 +3696,32 @@ async function doEmailAuth(mode) {
 
     try {
         if (mode === 'signup') {
-            await supabase.signUp(email, password, { display_name: email.split('@')[0] });
-            errorEl.style.color = 'var(--accent-green)';
-            errorEl.textContent = '注册成功！请查看邮箱确认链接';
-            errorEl.style.display = 'block';
+            const result = await supabase.signUp(email, password, { display_name: email.split('@')[0] });
+            if (result.access_token) {
+                // Auto-confirmed (no email verification required)
+                closeAuthModal();
+                updateAuthUI();
+                syncFromCloud();
+                if (_pendingAuthPage) { switchPage(_pendingAuthPage); _pendingAuthPage = null; }
+            } else {
+                errorEl.style.color = 'var(--accent-green)';
+                errorEl.textContent = '注册成功！请查看邮箱确认链接后登录';
+                errorEl.style.display = 'block';
+            }
         } else {
             await supabase.signIn(email, password);
             closeAuthModal();
             updateAuthUI();
             syncFromCloud();
+            if (_pendingAuthPage) { switchPage(_pendingAuthPage); _pendingAuthPage = null; }
         }
     } catch(e) {
         errorEl.style.color = 'var(--accent-red)';
-        errorEl.textContent = e.message === 'Invalid login credentials' ? '邮箱或密码错误' : e.message;
+        const msg = e.message;
+        if (msg.includes('Invalid login credentials')) errorEl.textContent = '邮箱或密码错误';
+        else if (msg.includes('Email not confirmed')) errorEl.textContent = '请先确认邮箱（查看收件箱）';
+        else if (msg.includes('already registered')) errorEl.textContent = '该邮箱已注册，请直接登录';
+        else errorEl.textContent = msg;
         errorEl.style.display = 'block';
     }
 }
