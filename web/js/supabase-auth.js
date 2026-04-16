@@ -162,6 +162,38 @@ class SupabaseClient {
             body: JSON.stringify(data),
         });
     }
+
+    // ---- RPC (call server functions) ----
+    async rpc(fnName, params = {}) {
+        return this._fetch(`/rest/v1/rpc/${fnName}`, {
+            method: 'POST',
+            body: JSON.stringify(params),
+        });
+    }
+
+    // ---- Realtime (SSE-based polling fallback) ----
+    // Supabase Realtime needs WebSocket library, so we poll instead
+    pollTable(table, intervalMs, callback) {
+        let lastUpdated = '';
+        const poll = async () => {
+            try {
+                const rows = await this.select(table, 'order=updated_at.desc&limit=1');
+                if (rows && rows.length > 0) {
+                    const ts = rows[0].updated_at;
+                    if (ts !== lastUpdated) {
+                        lastUpdated = ts;
+                        callback(rows[0]);
+                    }
+                }
+            } catch(e) { /* ignore poll errors */ }
+        };
+        poll(); // initial fetch
+        return setInterval(poll, intervalMs);
+    }
+
+    stopPoll(intervalId) {
+        clearInterval(intervalId);
+    }
 }
 
 // Global instance
