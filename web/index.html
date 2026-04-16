@@ -63,13 +63,17 @@
             <div id="set-uid" style="font-size:10px;color:var(--text-muted);"></div>
         </div>
 
-        <!-- Bankroll -->
+        <!-- Bankroll + Daily Check-in -->
         <div style="margin-bottom:16px;">
             <div style="font-weight:700;font-size:12px;color:var(--text-muted);margin-bottom:8px;">账户</div>
-            <div style="display:flex;justify-content:space-between;font-size:13px;">
+            <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:8px;">
                 <span>筹码余额</span>
                 <strong id="set-bankroll" style="color:var(--accent-orange);">0</strong>
             </div>
+            <button id="checkin-btn" onclick="dailyCheckIn()" style="width:100%;padding:10px;background:linear-gradient(135deg,rgba(251,191,36,0.15),rgba(251,191,36,0.08));color:var(--accent-orange);border:1px solid rgba(251,191,36,0.3);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;">
+                🎁 每日签到 +500BB
+            </button>
+            <div id="checkin-status" style="font-size:11px;color:var(--text-muted);text-align:center;margin-top:4px;"></div>
         </div>
 
         <!-- App settings -->
@@ -80,19 +84,14 @@
                 <input type="checkbox" id="set-sound" onchange="saveAppSettings()" checked style="width:18px;height:18px;">
             </label>
             <label style="display:flex;justify-content:space-between;align-items:center;font-size:13px;margin-bottom:8px;cursor:pointer;">
-                <span>动画效果</span>
-                <input type="checkbox" id="set-animations" onchange="saveAppSettings()" checked style="width:18px;height:18px;">
-            </label>
-            <label style="display:flex;justify-content:space-between;align-items:center;font-size:13px;margin-bottom:8px;cursor:pointer;">
                 <span>显示求解器详情</span>
                 <input type="checkbox" id="set-solver-detail" onchange="saveAppSettings()" checked style="width:18px;height:18px;">
             </label>
         </div>
 
-        <!-- Danger zone -->
+        <!-- Account -->
         <div>
             <div style="font-weight:700;font-size:12px;color:var(--text-muted);margin-bottom:8px;">账号</div>
-            <button onclick="resetBankroll()" style="width:100%;padding:8px;background:rgba(240,82,82,0.1);color:var(--accent-red);border:1px solid rgba(240,82,82,0.3);border-radius:8px;font-size:12px;cursor:pointer;margin-bottom:6px;">重置筹码 (回到1000)</button>
             <button onclick="supabase.signOut();closeSettings();updateAuthUI();" style="width:100%;padding:8px;background:transparent;color:var(--text-muted);border:1px solid var(--border-color);border-radius:8px;font-size:12px;cursor:pointer;">退出登录</button>
         </div>
     </div>
@@ -3753,8 +3752,9 @@ function openSettings() {
     // Load app settings
     const appSettings = JSON.parse(localStorage.getItem('pokergto_settings') || '{}');
     document.getElementById('set-sound').checked = appSettings.sound !== false;
-    document.getElementById('set-animations').checked = appSettings.animations !== false;
     document.getElementById('set-solver-detail').checked = appSettings.solverDetail !== false;
+    // Update check-in status
+    updateCheckInUI();
 }
 
 function closeSettings() {
@@ -3784,11 +3784,61 @@ function saveAppSettings() {
     localStorage.setItem('pokergto_settings', JSON.stringify(settings));
 }
 
-function resetBankroll() {
-    if (!confirm('确认重置筹码到1000？')) return;
-    setBankroll(1000);
-    document.getElementById('set-bankroll').textContent = '1000';
-    syncToCloud();
+function getTodayStr() {
+    return new Date().toISOString().slice(0, 10); // "2026-04-16"
+}
+
+function updateCheckInUI() {
+    const btn = document.getElementById('checkin-btn');
+    const status = document.getElementById('checkin-status');
+    const lastCheckin = localStorage.getItem('pokergto_last_checkin');
+    const today = getTodayStr();
+
+    if (lastCheckin === today) {
+        btn.disabled = true;
+        btn.style.opacity = '0.4';
+        btn.style.cursor = 'default';
+        btn.textContent = '✅ 今日已签到';
+        status.textContent = '明天再来领取 +500BB';
+    } else {
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        btn.style.cursor = 'pointer';
+        btn.textContent = '🎁 每日签到 +500BB';
+        status.textContent = '';
+    }
+}
+
+async function dailyCheckIn() {
+    if (!supabase.user) { toggleAuthModal(); return; }
+    const today = getTodayStr();
+    const lastCheckin = localStorage.getItem('pokergto_last_checkin');
+    if (lastCheckin === today) return;
+
+    // Grant bonus
+    setBankroll(bankroll + 500);
+    localStorage.setItem('pokergto_last_checkin', today);
+
+    // Save to cloud
+    try {
+        await supabase.update('profiles', { id: supabase.user.id }, {
+            bankroll: Math.round(bankroll),
+            last_checkin: today,
+            updated_at: new Date().toISOString(),
+        });
+    } catch(e) { console.warn('Check-in sync failed:', e); }
+
+    // Update UI
+    document.getElementById('set-bankroll').textContent = Math.round(bankroll);
+    updateCheckInUI();
+
+    // Celebrate animation
+    const btn = document.getElementById('checkin-btn');
+    btn.textContent = '🎉 +500BB 到账！';
+    btn.style.background = 'linear-gradient(135deg,rgba(52,211,153,0.2),rgba(52,211,153,0.1))';
+    btn.style.borderColor = 'rgba(52,211,153,0.4)';
+    btn.style.color = 'var(--accent-green)';
+    setTimeout(updateCheckInUI, 2000);
 }
 
 // ---- Leaderboard ----
@@ -3888,9 +3938,8 @@ async function syncFromCloud() {
         if (profiles && profiles.length > 0) {
             const p = profiles[0];
             // Sync bankroll to casino
-            if (p.bankroll !== undefined) {
-                setBankroll(p.bankroll);
-            }
+            if (p.bankroll !== undefined) setBankroll(p.bankroll);
+            if (p.last_checkin) localStorage.setItem('pokergto_last_checkin', p.last_checkin);
         }
     } catch(e) { console.warn('Sync failed:', e); }
 }

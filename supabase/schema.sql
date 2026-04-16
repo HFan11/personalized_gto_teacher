@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     display_name TEXT,
     avatar_url TEXT,
     bankroll INTEGER DEFAULT 1000,       -- casino chips
+    last_checkin DATE,                    -- daily check-in date
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
