@@ -4128,6 +4128,17 @@ let casinoSpinning = false;
 
 function saveCasinoBalance() { setBankroll(bankroll); }
 
+// Safety net: cash out any active AI game stack on page close/refresh
+// so the user never loses chips from browser close/tab close
+window.addEventListener('beforeunload', () => {
+    if (typeof cashGame !== 'undefined' && cashGame && cashGame.seats?.[cashGame.heroSeat]?.stack > 0) {
+        const stack = cashGame.seats[cashGame.heroSeat].stack;
+        // Synchronous localStorage write (async syncToCloud may not complete in time)
+        const newBankroll = Math.round(bankroll + stack);
+        localStorage.setItem('pokergto_bankroll', newBankroll);
+    }
+});
+
 function switchCasinoGame(game) {
     document.getElementById('game-roulette').style.display = game === 'roulette' ? 'block' : 'none';
     document.getElementById('game-slots').style.display = game === 'slots' ? 'block' : 'none';
@@ -4793,6 +4804,15 @@ let cgBuyIn = 100;
 let cgHeroSeat = 0;
 
 function initCashGamePage() {
+    // Auto-cashout: if an orphaned AI game has a remaining stack, return it to bankroll
+    // Prevents chip loss when user navigates away without clicking 离开
+    if (cashGame && cashGame.seats?.[cashGame.heroSeat]?.stack > 0) {
+        const heroStack = cashGame.seats[cashGame.heroSeat].stack;
+        console.log(`Auto-cashout on page init: +${heroStack.toFixed(1)} BB → bankroll`);
+        setBankroll(bankroll + heroStack);
+        cashGame = null;
+        cgRenderedBoardCount = 0;
+    }
     const el = document.getElementById('cg-bankroll');
     if (el) el.textContent = Math.round(bankroll);
     // Reset sub-views
@@ -4809,6 +4829,12 @@ function showAIBuyIn() {
 
 function showPVPRoom() {
     if (!supabase.user) { toggleAuthModal(); return; }
+    // Defensive: auto-cashout any orphaned AI game before entering PVP
+    if (cashGame && cashGame.seats?.[cashGame.heroSeat]?.stack > 0) {
+        setBankroll(bankroll + cashGame.seats[cashGame.heroSeat].stack);
+        cashGame = null;
+        cgRenderedBoardCount = 0;
+    }
     document.getElementById('cashgame-buyin').style.display = 'none';
     const pvp = document.getElementById('pvp-container');
     if (pvp) pvp.style.display = 'block';
