@@ -566,19 +566,21 @@
             </div>
         </div>
 
+        <!-- Confirm panel -->
+        <div id="roulette-confirm" style="display:none;text-align:center;margin-top:6px;padding:8px;background:var(--bg-elevated);border-radius:8px;">
+            <div style="font-size:12px;color:var(--text-secondary);margin-bottom:6px;">下注: <strong id="rc-bet-desc">—</strong> | 金额: <strong id="rc-bet-amt">0</strong> 筹码</div>
+            <button onclick="confirmRouletteBet()" style="padding:8px 24px;background:var(--accent-green);color:white;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;margin-right:6px;">确认下注 ✓</button>
+            <button onclick="cancelRouletteBet()" style="padding:8px 16px;background:transparent;color:var(--text-muted);border:1px solid var(--border-color);border-radius:8px;font-size:12px;cursor:pointer;">取消</button>
+        </div>
         <div id="roulette-result" style="text-align:center;font-size:14px;font-weight:700;min-height:24px;margin-top:6px;"></div>
     </div>
 
     <!-- ======== SLOTS ======== -->
     <div id="game-slots" style="padding:12px;display:none;">
-        <!-- Slot machine frame -->
-        <div style="max-width:320px;margin:0 auto;background:linear-gradient(180deg,#2c1810,#1a0f08);border:3px solid #8b6914;border-radius:16px;padding:16px;box-shadow:0 4px 20px rgba(0,0,0,0.5);">
+        <div style="max-width:340px;margin:0 auto;">
             <div style="text-align:center;font-size:11px;color:#8b6914;font-weight:700;margin-bottom:8px;letter-spacing:2px;">★ LUCKY SLOTS ★</div>
-            <!-- Reels — vertical scroll containers -->
-            <div style="display:flex;gap:8px;justify-content:center;margin-bottom:12px;">
-                <div class="slot-reel-wrap"><div class="slot-reel" id="reel-0"><span>🃏</span></div></div>
-                <div class="slot-reel-wrap"><div class="slot-reel" id="reel-1"><span>🃏</span></div></div>
-                <div class="slot-reel-wrap"><div class="slot-reel" id="reel-2"><span>🃏</span></div></div>
+            <div style="display:flex;justify-content:center;margin-bottom:12px;">
+                <canvas id="slots-canvas" style="max-width:320px;width:100%;border-radius:8px;"></canvas>
             </div>
             <!-- Payout line -->
             <div id="slots-result" style="text-align:center;font-size:14px;font-weight:700;min-height:24px;margin-bottom:8px;"></div>
@@ -1018,7 +1020,8 @@
 <script src="js/profiles.js?v=20"></script>
 <script src="js/preflop-practice.js?v=23"></script>
 <script src="js/practice.js?v=27"></script>
-<script src="js/roulette.js?v=1"></script>
+<script src="js/roulette.js?v=2"></script>
+<script src="js/slots.js?v=1"></script>
 <script src="js/cash-game.js?v=1"></script>
 <script src="js/bot-ai.js?v=1"></script>
 <script>
@@ -3792,18 +3795,42 @@ function setRouletteBet(amt) {
     document.querySelectorAll('#game-roulette .pos-btn').forEach(b => b.classList.toggle('active', parseInt(b.textContent) === amt));
 }
 
+let pendingRBet = null; // { type, value }
+
 function placeRouletteBet(type, value) {
     if (casinoSpinning) return;
     if (bankroll < rouletteBet) { document.getElementById('roulette-result').innerHTML = '<span style="color:var(--accent-red);">余额不足</span>'; return; }
-    if (!rouletteWheel) rouletteWheel = new RouletteWheel('roulette-canvas');
 
+    // Show confirm panel
+    pendingRBet = { type, value };
+    const labels = {
+        num: `数字 ${value} (36x)`, red: '🔴 红色 (2x)', black: '⚫ 黑色 (2x)',
+        odd: '奇数 (2x)', even: '偶数 (2x)', half1: '1-18 (2x)', half2: '19-36 (2x)',
+        col: `第${value}列 (3x)`, green: '🟢 0 (36x)',
+    };
+    document.getElementById('rc-bet-desc').textContent = labels[type] || type;
+    document.getElementById('rc-bet-amt').textContent = rouletteBet;
+    document.getElementById('roulette-confirm').style.display = 'block';
+    document.getElementById('roulette-result').textContent = '';
+}
+
+function cancelRouletteBet() {
+    pendingRBet = null;
+    document.getElementById('roulette-confirm').style.display = 'none';
+}
+
+function confirmRouletteBet() {
+    if (!pendingRBet || casinoSpinning) return;
+    const { type, value } = pendingRBet;
+    pendingRBet = null;
+    document.getElementById('roulette-confirm').style.display = 'none';
+
+    if (!rouletteWheel) rouletteWheel = new RouletteWheel('roulette-canvas');
     casinoSpinning = true;
     setBankroll(bankroll - rouletteBet);
     document.getElementById('roulette-result').textContent = '旋转中...';
 
-    // Pick random pocket
     const pocketIdx = Math.floor(Math.random() * 37);
-
     rouletteWheel.spin(pocketIdx, (resultNum) => {
         const isRed = RED_NUMBERS.has(resultNum);
         const isGreen = resultNum === 0;
@@ -3835,86 +3862,55 @@ function placeRouletteBet(type, value) {
 }
 
 // ---- SLOTS ----
+let slotMachine = null;
 const SLOT_SYMBOLS = ['🍒', '🍋', '🍊', '🔔', '7️⃣', '💎'];
-const SLOT_WEIGHTS = [25, 20, 18, 15, 12, 10];
-
-function pickSymbol() {
-    const totalWeight = SLOT_WEIGHTS.reduce((s, w) => s + w, 0);
-    let r = Math.random() * totalWeight;
-    for (let i = 0; i < SLOT_SYMBOLS.length; i++) { r -= SLOT_WEIGHTS[i]; if (r <= 0) return SLOT_SYMBOLS[i]; }
-    return SLOT_SYMBOLS[0];
-}
 
 function setSlotsBet(amt) {
     slotsBet = amt;
     document.querySelectorAll('#game-slots .pos-btn').forEach(b => b.classList.toggle('active', parseInt(b.textContent) === amt));
 }
 
+function initSlotMachine() {
+    if (!slotMachine) slotMachine = new SlotMachine('slots-canvas');
+}
+
 function spinSlots() {
     if (casinoSpinning) return;
     if (bankroll < slotsBet) { document.getElementById('slots-result').innerHTML = '<span style="color:var(--accent-red);">余额不足</span>'; return; }
+    initSlotMachine();
 
     casinoSpinning = true;
     setBankroll(bankroll - slotsBet);
     document.getElementById('slots-result').textContent = '';
     document.getElementById('spin-btn').textContent = '...';
 
-    const results = [pickSymbol(), pickSymbol(), pickSymbol()];
-    const reels = [document.getElementById('reel-0'), document.getElementById('reel-1'), document.getElementById('reel-2')];
+    // Pick weighted results as symbol INDICES
+    const resultIdx = [slotMachine._pickWeighted(), slotMachine._pickWeighted(), slotMachine._pickWeighted()];
 
-    // Fill reels with scrolling symbols + final result at bottom
-    reels.forEach((reel, i) => {
-        const scrollCount = 12 + i * 4; // more symbols = longer spin
-        let html = '';
-        for (let j = 0; j < scrollCount; j++) html += `<span>${SLOT_SYMBOLS[Math.floor(Math.random() * SLOT_SYMBOLS.length)]}</span>`;
-        html += `<span>${results[i]}</span>`; // final symbol at end
-        reel.innerHTML = html;
-        reel.style.transition = 'none';
-        reel.style.transform = 'translateY(0)';
-        // Start scrolling
-        reel.classList.add('spinning');
-    });
-
-    // Stop reels one by one with smooth deceleration
-    const stopTimes = [1000, 1600, 2200];
-    stopTimes.forEach((t, i) => {
-        setTimeout(() => {
-            const reel = reels[i];
-            reel.classList.remove('spinning');
-            // Smooth scroll to final position
-            const totalSymbols = reel.querySelectorAll('span').length;
-            const offset = -(totalSymbols - 1) * 80; // each symbol 80px tall
-            reel.style.transition = 'transform 0.5s cubic-bezier(0.2, 0.8, 0.3, 1)';
-            reel.style.transform = `translateY(${offset}px)`;
-        }, t);
-    });
-
-    // Calculate payout
-    setTimeout(() => {
+    slotMachine.spin(resultIdx, () => {
+        const [a, b, c] = resultIdx;
         let multiplier = 0;
-        const [a, b, c] = results;
 
         if (a === b && b === c) {
-            // Three of a kind
-            const payouts = { '💎': 50, '7️⃣': 30, '🍒': 15, '🔔': 10, '🍋': 8, '🍊': 5 };
+            const payouts = [15, 8, 5, 10, 30, 50]; // matches SLOT_SYMBOLS order
             multiplier = payouts[a] || 5;
         } else if (a === b || b === c || a === c) {
-            multiplier = 2; // any pair
-        } else if (results.includes('🍒')) {
-            multiplier = 1; // cherry anywhere = money back
+            multiplier = 2;
+        } else if (a === 0 || b === 0 || c === 0) {
+            multiplier = 1; // cherry anywhere
         }
 
         const win = slotsBet * multiplier;
         if (win > 0) {
             setBankroll(bankroll + win);
             const netWin = win - slotsBet;
-            document.getElementById('slots-result').innerHTML = `<span style="color:#34d399;">🎉 赢 +${netWin > 0 ? netWin : win} 筹码！(${multiplier}x)</span>`;
+            document.getElementById('slots-result').innerHTML = `<span style="color:#34d399;">🎉 ${SLOT_SYMBOLS[resultIdx[0]]}${SLOT_SYMBOLS[resultIdx[1]]}${SLOT_SYMBOLS[resultIdx[2]]} — 赢 +${netWin > 0 ? netWin : win} 筹码！(${multiplier}x)</span>`;
         } else {
-            document.getElementById('slots-result').innerHTML = `<span style="color:#f05252;">💨 -${slotsBet} 筹码</span>`;
+            document.getElementById('slots-result').innerHTML = `<span style="color:#f05252;">${SLOT_SYMBOLS[resultIdx[0]]}${SLOT_SYMBOLS[resultIdx[1]]}${SLOT_SYMBOLS[resultIdx[2]]} — 输 -${slotsBet} 筹码</span>`;
         }
         document.getElementById('spin-btn').textContent = '🎰 SPIN';
         casinoSpinning = false;
-    }, 2800); // wait for last reel to stop + settle
+    });
 }
 
 // Cash Game Controller
