@@ -4842,7 +4842,14 @@ function renderCGTable(state) {
     // Board cards — only animate NEW cards
     const boardEl = document.getElementById('cg-board-cards');
     const currentCount = state.board.length;
-    if (currentCount !== cgRenderedBoardCount) {
+
+    // Reset when new hand starts (preflop = no board)
+    if (currentCount === 0) {
+        if (cgRenderedBoardCount > 0 || boardEl.innerHTML !== '') {
+            boardEl.innerHTML = '';
+            cgRenderedBoardCount = 0;
+        }
+    } else if (currentCount !== cgRenderedBoardCount) {
         let html = '';
         for (let i = 0; i < currentCount; i++) {
             const c = state.board[i];
@@ -4856,8 +4863,6 @@ function renderCGTable(state) {
         boardEl.innerHTML = html;
         cgRenderedBoardCount = currentCount;
     }
-    // Reset counter when back to preflop
-    if (state.street === 'preflop' || state.board.length === 0) cgRenderedBoardCount = 0;
     document.getElementById('cg-pot-display').textContent = state.pot.toFixed(1) + ' BB';
     document.getElementById('cg-street-label').textContent = state.street === 'preflop' ? '' : state.street.charAt(0).toUpperCase() + state.street.slice(1);
 
