@@ -4096,7 +4096,7 @@ async function syncToCloud() {
     if (!supabase.user) return;
     try {
         await supabase.update('profiles', { id: supabase.user.id }, {
-            bankroll: bankroll,
+            bankroll: Math.round(bankroll),
             updated_at: new Date().toISOString(),
         });
     } catch(e) { console.warn('Cloud save failed:', e); }
@@ -4111,7 +4111,7 @@ let slotsBet = 5;
 
 function getBankroll() { return bankroll; }
 function setBankroll(val) {
-    bankroll = Math.round(val * 10) / 10;
+    bankroll = Math.round(val);
     localStorage.setItem('pokergto_bankroll', Math.round(bankroll));
     // Update all displays
     const casinoEl = document.getElementById('casino-balance');
