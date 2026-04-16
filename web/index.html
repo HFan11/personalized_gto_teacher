@@ -784,9 +784,9 @@
     <div id="cashgame-table" style="display:none;">
         <!-- Stats bar -->
         <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 12px; font-size:11px; color:var(--text-muted); background:var(--bg-secondary); border-bottom:1px solid var(--border-color); font-variant-numeric:tabular-nums;">
-            <span>手数 <strong id="cg-hand-num">0</strong></span>
+            <span>第 <strong id="cg-hand-num">0</strong> 手</span>
             <span>盈亏 <strong id="cg-profit" style="color:var(--text-primary);">0.0BB</strong></span>
-            <span>BB/100 <strong id="cg-bb100">0.0</strong></span>
+            <span>胜率 <strong id="cg-bb100">—</strong></span>
             <button onclick="leaveCashGame()" style="background:none;border:1px solid var(--border-color);color:var(--text-muted);padding:2px 8px;border-radius:4px;font-size:10px;cursor:pointer;">离开</button>
         </div>
 
@@ -4830,10 +4830,16 @@ function showCGResult(result) {
 function updateCGStats() {
     if (!cashGame) return;
     const s = cashGame.stats;
-    document.getElementById('cg-hand-num').textContent = s.handsPlayed;
+    document.getElementById('cg-hand-num').textContent = cashGame.handNumber;
     document.getElementById('cg-profit').style.color = s.heroProfit >= 0 ? '#34d399' : '#f05252';
-    document.getElementById('cg-profit').textContent = (s.heroProfit >= 0 ? '+' : '') + s.heroProfit.toFixed(1) + ' BB';
-    document.getElementById('cg-bb100').textContent = s.handsPlayed > 0 ? (s.heroProfit / s.handsPlayed * 100).toFixed(1) : '0.0';
+    document.getElementById('cg-profit').textContent = (s.heroProfit >= 0 ? '+' : '') + s.heroProfit.toFixed(1) + 'BB';
+    // Show win rate as percentage of hands won
+    if (s.handsPlayed > 0) {
+        const bb100 = (s.heroProfit / s.handsPlayed * 100).toFixed(0);
+        document.getElementById('cg-bb100').textContent = (bb100 >= 0 ? '+' : '') + bb100 + 'BB/百手';
+    } else {
+        document.getElementById('cg-bb100').textContent = '—';
+    }
 }
 
 let cgRenderedBoardCount = 0; // track how many board cards already rendered
