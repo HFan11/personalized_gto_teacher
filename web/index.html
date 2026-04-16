@@ -572,11 +572,11 @@
         <!-- Slot machine frame -->
         <div style="max-width:320px;margin:0 auto;background:linear-gradient(180deg,#2c1810,#1a0f08);border:3px solid #8b6914;border-radius:16px;padding:16px;box-shadow:0 4px 20px rgba(0,0,0,0.5);">
             <div style="text-align:center;font-size:11px;color:#8b6914;font-weight:700;margin-bottom:8px;letter-spacing:2px;">★ LUCKY SLOTS ★</div>
-            <!-- Reels -->
+            <!-- Reels — vertical scroll containers -->
             <div style="display:flex;gap:8px;justify-content:center;margin-bottom:12px;">
-                <div class="slot-reel" id="reel-0">🃏</div>
-                <div class="slot-reel" id="reel-1">🃏</div>
-                <div class="slot-reel" id="reel-2">🃏</div>
+                <div class="slot-reel-wrap"><div class="slot-reel" id="reel-0"><span>🃏</span></div></div>
+                <div class="slot-reel-wrap"><div class="slot-reel" id="reel-1"><span>🃏</span></div></div>
+                <div class="slot-reel-wrap"><div class="slot-reel" id="reel-2"><span>🃏</span></div></div>
             </div>
             <!-- Payout line -->
             <div id="slots-result" style="text-align:center;font-size:14px;font-weight:700;min-height:24px;margin-bottom:8px;"></div>
@@ -3759,11 +3759,10 @@ function initCasinoPage() {
 }
 
 // ---- ROULETTE ----
-const ROULETTE_NUMBERS = [
-    0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10,
-    5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26, 0
-];
+// European roulette wheel sequence (clockwise from the pointer)
+const WHEEL_SEQUENCE = [0,32,15,19,4,21,2,25,17,34,6,27,13,36,11,30,8,23,10,5,24,16,33,1,20,14,31,9,22,18,29,7,28,12,35,3,26];
 const RED_NUMBERS = [1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36];
+const SLOT_COUNT = WHEEL_SEQUENCE.length; // 37
 
 function setRouletteBet(amt) {
     rouletteBet = amt;
@@ -3775,29 +3774,33 @@ function placeRouletteBet(type) {
     if (bankroll < rouletteBet) { document.getElementById('roulette-result').innerHTML = '<span style="color:var(--accent-red);">余额不足</span>'; return; }
 
     casinoSpinning = true;
-    bankroll -= rouletteBet;
-    saveCasinoBalance();
+    setBankroll(bankroll - rouletteBet);
     document.getElementById('roulette-result').textContent = '旋转中...';
 
-    // Determine result
-    const resultNum = Math.floor(Math.random() * 37); // 0-36
+    // Pick a random pocket index on the wheel
+    const pocketIdx = Math.floor(Math.random() * SLOT_COUNT);
+    const resultNum = WHEEL_SEQUENCE[pocketIdx];
     const isRed = RED_NUMBERS.includes(resultNum);
     const isGreen = resultNum === 0;
 
-    // Spin wheel animation
+    // Calculate angle: each pocket = 360/37 ≈ 9.73°
+    // Pointer is on the right side. Wheel rotates clockwise.
+    // To land on pocketIdx, wheel must stop with that pocket at the pointer.
+    const degreesPerSlot = 360 / SLOT_COUNT;
+    const pocketAngle = pocketIdx * degreesPerSlot + degreesPerSlot / 2; // center of pocket
     const wheel = document.getElementById('roulette-wheel');
     const currentRotation = parseFloat(wheel.dataset.rotation || 0);
-    const spins = 5 + Math.random() * 3; // 5-8 full rotations
-    const slotAngle = (resultNum / 37) * 360;
-    const targetRotation = currentRotation + spins * 360 + (360 - slotAngle);
+    const spins = 5 + Math.random() * 3;
+    // Wheel rotates in positive direction; pointer at right (90°)
+    // To have pocketIdx at the pointer: rotate so that pocket aligns with 90°
+    const targetRotation = currentRotation + spins * 360 + (360 - pocketAngle + 90);
     wheel.style.transform = `rotate(${targetRotation}deg)`;
-    wheel.dataset.rotation = targetRotation;
+    wheel.dataset.rotation = targetRotation % 360;
 
     setTimeout(() => {
         document.getElementById('roulette-number').textContent = resultNum;
         document.getElementById('roulette-number').style.color = isGreen ? '#27ae60' : isRed ? '#e74c3c' : '#e8ecf1';
 
-        // Check win
         let win = 0;
         if (type === 'red' && isRed) win = rouletteBet * 2;
         else if (type === 'black' && !isRed && !isGreen) win = rouletteBet * 2;
@@ -3807,19 +3810,26 @@ function placeRouletteBet(type) {
         else if (type === 'half1' && resultNum >= 1 && resultNum <= 18) win = rouletteBet * 2;
 
         if (win > 0) {
-            bankroll += win;
-            document.getElementById('roulette-result').innerHTML = `<span style="color:#34d399;">🎉 ${resultNum} — 赢 +${win} 筹码！</span>`;
+            setBankroll(bankroll + win);
+            document.getElementById('roulette-result').innerHTML = `<span style="color:#34d399;">🎉 ${resultNum}${isRed ? '🔴' : isGreen ? '🟢' : '⚫'} — 赢 +${win} 筹码！</span>`;
         } else {
-            document.getElementById('roulette-result').innerHTML = `<span style="color:#f05252;">${resultNum} — 输 -${rouletteBet} 筹码</span>`;
+            document.getElementById('roulette-result').innerHTML = `<span style="color:#f05252;">${resultNum}${isRed ? '🔴' : isGreen ? '🟢' : '⚫'} — 输 -${rouletteBet} 筹码</span>`;
         }
-        saveCasinoBalance();
+        setBankroll(bankroll); // trigger save
         casinoSpinning = false;
     }, 4200);
 }
 
 // ---- SLOTS ----
 const SLOT_SYMBOLS = ['🍒', '🍋', '🍊', '🔔', '7️⃣', '💎'];
-const SLOT_WEIGHTS = [25, 20, 18, 15, 12, 10]; // lower = rarer
+const SLOT_WEIGHTS = [25, 20, 18, 15, 12, 10];
+
+function pickSymbol() {
+    const totalWeight = SLOT_WEIGHTS.reduce((s, w) => s + w, 0);
+    let r = Math.random() * totalWeight;
+    for (let i = 0; i < SLOT_SYMBOLS.length; i++) { r -= SLOT_WEIGHTS[i]; if (r <= 0) return SLOT_SYMBOLS[i]; }
+    return SLOT_SYMBOLS[0];
+}
 
 function setSlotsBet(amt) {
     slotsBet = amt;
@@ -3831,36 +3841,37 @@ function spinSlots() {
     if (bankroll < slotsBet) { document.getElementById('slots-result').innerHTML = '<span style="color:var(--accent-red);">余额不足</span>'; return; }
 
     casinoSpinning = true;
-    bankroll -= slotsBet;
-    saveCasinoBalance();
+    setBankroll(bankroll - slotsBet);
     document.getElementById('slots-result').textContent = '';
     document.getElementById('spin-btn').textContent = '...';
 
-    // Start spinning animation
-    const reels = [document.getElementById('reel-0'), document.getElementById('reel-1'), document.getElementById('reel-2')];
-    reels.forEach(r => r.classList.add('spinning'));
-
-    // Pick weighted random symbols for each reel
-    function pickSymbol() {
-        const totalWeight = SLOT_WEIGHTS.reduce((s, w) => s + w, 0);
-        let r = Math.random() * totalWeight;
-        for (let i = 0; i < SLOT_SYMBOLS.length; i++) {
-            r -= SLOT_WEIGHTS[i];
-            if (r <= 0) return SLOT_SYMBOLS[i];
-        }
-        return SLOT_SYMBOLS[0];
-    }
-
     const results = [pickSymbol(), pickSymbol(), pickSymbol()];
+    const reels = [document.getElementById('reel-0'), document.getElementById('reel-1'), document.getElementById('reel-2')];
 
-    // Stop reels one by one
-    const stopTimes = [800, 1400, 2000];
+    // Fill reels with scrolling symbols + final result at bottom
+    reels.forEach((reel, i) => {
+        const scrollCount = 12 + i * 4; // more symbols = longer spin
+        let html = '';
+        for (let j = 0; j < scrollCount; j++) html += `<span>${SLOT_SYMBOLS[Math.floor(Math.random() * SLOT_SYMBOLS.length)]}</span>`;
+        html += `<span>${results[i]}</span>`; // final symbol at end
+        reel.innerHTML = html;
+        reel.style.transition = 'none';
+        reel.style.transform = 'translateY(0)';
+        // Start scrolling
+        reel.classList.add('spinning');
+    });
+
+    // Stop reels one by one with smooth deceleration
+    const stopTimes = [1000, 1600, 2200];
     stopTimes.forEach((t, i) => {
         setTimeout(() => {
-            reels[i].classList.remove('spinning');
-            reels[i].textContent = results[i];
-            reels[i].style.transform = 'scale(1.15)';
-            setTimeout(() => { reels[i].style.transform = 'scale(1)'; }, 150);
+            const reel = reels[i];
+            reel.classList.remove('spinning');
+            // Smooth scroll to final position
+            const totalSymbols = reel.querySelectorAll('span').length;
+            const offset = -(totalSymbols - 1) * 80; // each symbol 80px tall
+            reel.style.transition = 'transform 0.5s cubic-bezier(0.2, 0.8, 0.3, 1)';
+            reel.style.transform = `translateY(${offset}px)`;
         }, t);
     });
 
@@ -3881,16 +3892,15 @@ function spinSlots() {
 
         const win = slotsBet * multiplier;
         if (win > 0) {
-            bankroll += win;
+            setBankroll(bankroll + win);
             const netWin = win - slotsBet;
             document.getElementById('slots-result').innerHTML = `<span style="color:#34d399;">🎉 赢 +${netWin > 0 ? netWin : win} 筹码！(${multiplier}x)</span>`;
         } else {
             document.getElementById('slots-result').innerHTML = `<span style="color:#f05252;">💨 -${slotsBet} 筹码</span>`;
         }
-        saveCasinoBalance();
         document.getElementById('spin-btn').textContent = '🎰 SPIN';
         casinoSpinning = false;
-    }, 2300);
+    }, 2800); // wait for last reel to stop + settle
 }
 
 // Cash Game Controller
