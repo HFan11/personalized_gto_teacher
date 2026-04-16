@@ -4699,6 +4699,7 @@ function leaveCashGame() {
 
 function nextCGHand() {
     if (!cashGame) return;
+    cgRenderedBoardCount = 0; // reset for new hand
     if (cashGame.seats[cashGame.heroSeat].stack <= 0) {
         document.getElementById('cg-result').style.display = 'block';
         document.getElementById('cg-result-text').innerHTML = `
@@ -4811,14 +4812,28 @@ function updateCGStats() {
     document.getElementById('cg-bb100').textContent = s.handsPlayed > 0 ? (s.heroProfit / s.handsPlayed * 100).toFixed(1) : '0.0';
 }
 
+let cgRenderedBoardCount = 0; // track how many board cards already rendered
+
 function renderCGTable(state) {
-    // Board cards in center
-    document.getElementById('cg-board-cards').innerHTML = state.board.map(c =>
-        `<div class="playing-card ${{'♠':'spades','♥':'hearts','♦':'diamonds','♣':'clubs'}[c.suit]} card-flip-in" data-rank="${RANK_DISPLAY[c.rank]}" style="width:32px;height:44px;">
-            <span class="card-rank" style="font-size:13px;">${RANK_DISPLAY[c.rank]}</span>
-            <span class="card-suit" style="font-size:11px;">${c.suit}</span>
-        </div>`
-    ).join('');
+    // Board cards — only animate NEW cards
+    const boardEl = document.getElementById('cg-board-cards');
+    const currentCount = state.board.length;
+    if (currentCount !== cgRenderedBoardCount) {
+        let html = '';
+        for (let i = 0; i < currentCount; i++) {
+            const c = state.board[i];
+            const suitClass = {'♠':'spades','♥':'hearts','♦':'diamonds','♣':'clubs'}[c.suit];
+            const isNew = i >= cgRenderedBoardCount;
+            html += `<div class="playing-card ${suitClass} ${isNew ? 'card-flip-in' : ''}" data-rank="${RANK_DISPLAY[c.rank]}" style="width:32px;height:44px;${isNew ? 'animation-delay:'+(i-cgRenderedBoardCount)*0.1+'s;' : ''}">
+                <span class="card-rank" style="font-size:13px;">${RANK_DISPLAY[c.rank]}</span>
+                <span class="card-suit" style="font-size:11px;">${c.suit}</span>
+            </div>`;
+        }
+        boardEl.innerHTML = html;
+        cgRenderedBoardCount = currentCount;
+    }
+    // Reset counter when back to preflop
+    if (state.street === 'preflop' || state.board.length === 0) cgRenderedBoardCount = 0;
     document.getElementById('cg-pot-display').textContent = state.pot.toFixed(1) + ' BB';
     document.getElementById('cg-street-label').textContent = state.street === 'preflop' ? '' : state.street.charAt(0).toUpperCase() + state.street.slice(1);
 
