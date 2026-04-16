@@ -2064,7 +2064,7 @@ label {
     transition: opacity 0.3s, filter 0.3s;
 }
 
-.cg-seat[data-pos="0"] { bottom: -36px; left: 50%; transform: translateX(-50%); }
+.cg-seat[data-pos="0"] { bottom: -48px; left: 50%; transform: translateX(-50%); }
 .cg-seat[data-pos="1"] { bottom: 6%; left: 2%; }
 .cg-seat[data-pos="2"] { top: 6%; left: 2%; }
 .cg-seat[data-pos="3"] { top: -36px; left: 50%; transform: translateX(-50%); }
@@ -2072,7 +2072,17 @@ label {
 .cg-seat[data-pos="5"] { bottom: 6%; right: 2%; }
 
 .cg-seat.folded { opacity: 0.3; }
+.cg-seat.folded .cg-seat-cards,
+.cg-seat.folded .cg-hero-hand {
+    animation: foldCards 0.4s ease-out forwards;
+}
 .cg-seat.acting { filter: drop-shadow(0 0 10px rgba(79,143,247,0.6)); }
+
+@keyframes foldCards {
+    0% { transform: scale(1) translateY(0); opacity: 1; }
+    60% { transform: scale(0.7) translateY(-20px); opacity: 0.5; }
+    100% { transform: scale(0) translateY(-40px); opacity: 0; }
+}
 
 .cg-seat-info {
     background: var(--bg-card);
@@ -2117,7 +2127,7 @@ label {
 .cg-hero-hand .card-rank { font-size: 16px; }
 .cg-hero-hand .card-suit { font-size: 14px; }
 
-.cg-action-bar { display: flex; gap: 6px; padding: 8px 12px; max-width: 480px; margin: 0 auto; }
+.cg-action-bar { display: flex; gap: 6px; padding: 12px 12px 8px; max-width: 480px; margin: 0 auto; margin-top: 28px; }
 
 @media (max-width: 420px) {
     .cg-table-wrap { aspect-ratio: 1.3; }
