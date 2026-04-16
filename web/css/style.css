@@ -2066,9 +2066,9 @@ label {
 
 .cg-seat[data-pos="0"] { bottom: -48px; left: 50%; transform: translateX(-50%); }
 .cg-seat[data-pos="1"] { bottom: 6%; left: 2%; }
-.cg-seat[data-pos="2"] { top: 6%; left: 2%; }
-.cg-seat[data-pos="3"] { top: -36px; left: 50%; transform: translateX(-50%); }
-.cg-seat[data-pos="4"] { top: 6%; right: 2%; }
+.cg-seat[data-pos="2"] { top: 22%; left: 2%; }
+.cg-seat[data-pos="3"] { top: -40px; left: 50%; transform: translateX(-50%); }
+.cg-seat[data-pos="4"] { top: 22%; right: 2%; }
 .cg-seat[data-pos="5"] { bottom: 6%; right: 2%; }
 
 .cg-seat.folded { opacity: 0.3; }
