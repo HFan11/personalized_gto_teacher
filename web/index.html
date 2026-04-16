@@ -699,11 +699,6 @@
 
     <!-- Active game table -->
     <div id="pvp-game" style="display:none;">
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 12px;font-size:11px;color:var(--text-muted);background:var(--bg-secondary);border-bottom:1px solid var(--border-color);font-variant-numeric:tabular-nums;">
-            <span>手数 <strong id="pvp-hand-num">0</strong></span>
-            <span id="pvp-street-display" style="font-weight:600;color:var(--text-secondary);"></span>
-            <button onclick="pvpLeave()" style="background:none;border:1px solid var(--border-color);color:var(--text-muted);padding:2px 8px;border-radius:4px;font-size:10px;cursor:pointer;">离开</button>
-        </div>
         <div style="padding:40px 8px 56px;">
             <div class="cg-table-wrap" id="pvp-table-game">
                 <div id="pvp-game-seats"></div>
@@ -717,11 +712,24 @@
         <div id="pvp-hero-hand" style="display:flex;justify-content:center;gap:6px;margin-bottom:8px;"></div>
         <!-- Action buttons -->
         <div id="pvp-actions" style="display:none;">
+            <!-- Bet slider -->
+            <div id="pvp-slider-area" style="display:none;max-width:480px;margin:0 auto;padding:0 12px 4px;">
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <span style="font-size:11px;color:var(--text-muted);min-width:24px;">1BB</span>
+                    <input type="range" id="pvp-bet-slider" min="1" max="100" value="3" step="0.5"
+                        style="flex:1;accent-color:var(--accent-red);" oninput="pvpUpdateSliderLabel()">
+                    <span id="pvp-slider-val" style="font-size:13px;font-weight:700;color:var(--accent-orange);min-width:50px;text-align:right;">3.0</span>
+                </div>
+            </div>
             <div class="cg-action-bar" id="pvp-action-btns"></div>
         </div>
         <!-- Result -->
         <div id="pvp-result" style="display:none;text-align:center;padding:8px;">
             <div id="pvp-result-text" style="font-size:14px;font-weight:700;margin-bottom:8px;"></div>
+        </div>
+        <!-- Leave button always visible -->
+        <div style="text-align:center;padding:8px;">
+            <button onclick="pvpLeave()" style="background:none;border:1px solid var(--border-color);color:var(--text-muted);padding:6px 20px;border-radius:6px;font-size:11px;cursor:pointer;">离开房间</button>
         </div>
     </div>
 </div>
@@ -4438,7 +4446,7 @@ function pvpRenderLobby(room) {
     for (let vp = 0; vp < 6; vp++) {
         const s = seats[vp] || { name: 'Empty', is_bot: true, stack: 0, seat_idx: vp };
         const isMe = s.user_id === userId;
-        const isBot = s.is_bot;
+        const isBot = s.is_bot === true || s.is_bot === 'true';
         const cls = isMe ? 'cg-seat hero-seat' : 'cg-seat';
 
         html += `<div class="${cls}" data-pos="${vp}" style="cursor:${isBot ? 'pointer' : 'default'};" ${isBot ? `onclick="pvpJoin(${vp})"` : ''}>
@@ -4452,7 +4460,7 @@ function pvpRenderLobby(room) {
     }
     document.getElementById('pvp-lobby-seats').innerHTML = html;
 
-    const humanCount = seats.filter(s => !s.is_bot).length;
+    const humanCount = seats.filter(s => s.is_bot !== true && s.is_bot !== 'true').length;
     document.getElementById('pvp-status').textContent = humanCount > 0 ? `${humanCount} 位玩家在座` : '等待玩家入座...';
 
     // Show/hide buttons
@@ -4477,8 +4485,7 @@ function pvpRenderGame(room) {
         </div>`;
     }).join('');
     document.getElementById('pvp-pot').textContent = (room.pot || 0).toFixed(1) + ' BB';
-    document.getElementById('pvp-hand-num').textContent = room.hand_number || 0;
-    document.getElementById('pvp-street-display').textContent = room.street || '';
+    // Hand number / street tracked internally (no UI bar)
 
     // Seats
     let html = '';
@@ -4550,38 +4557,71 @@ function pvpRenderHeroHand() {
     }).join('');
 }
 
+let pvpCurrentRoom = null; // for slider reference
+
 function pvpRenderActions(room) {
+    pvpCurrentRoom = room;
     const myBet = room.bets?.[pvpMySeat] || 0;
     const toCall = Math.max(0, room.current_bet - myBet);
     const stack = room.seats?.[pvpMySeat]?.stack || 0;
     const pot = room.pot || 0;
+    const minRaise = Math.max(room.current_bet * 2, room.current_bet + 1);
 
     let html = '';
+    const slider = document.getElementById('pvp-slider-area');
+
     if (toCall <= 0) {
+        // Not facing bet
         html += `<button class="action-btn check-btn" onclick="pvpAct('check')" style="flex:1;">过牌</button>`;
-        if (pot * 0.33 >= 1 && pot * 0.33 <= stack) html += `<button class="action-btn raise-btn" onclick="pvpAct('bet',${(pot*0.33).toFixed(1)})" style="flex:1;">下注 ${(pot*0.33).toFixed(1)}</button>`;
-        if (pot * 0.66 >= 1 && pot * 0.66 <= stack) html += `<button class="action-btn raise-btn" onclick="pvpAct('bet',${(pot*0.66).toFixed(1)})" style="flex:1;">下注 ${(pot*0.66).toFixed(1)}</button>`;
-        if (pot <= stack) html += `<button class="action-btn raise-btn" onclick="pvpAct('bet',${pot.toFixed(1)})" style="flex:1;">下注 ${pot.toFixed(1)}</button>`;
+        html += `<button class="action-btn raise-btn" onclick="pvpAct('bet',${(pot*0.33).toFixed(1)})" style="flex:1;">1/3池</button>`;
+        html += `<button class="action-btn raise-btn" onclick="pvpAct('bet',${(pot*0.66).toFixed(1)})" style="flex:1;">2/3池</button>`;
+        html += `<button class="action-btn raise-btn" onclick="pvpActSlider('bet')" style="flex:1;">自定义</button>`;
+        // Configure slider for bet
+        const sliderEl = document.getElementById('pvp-bet-slider');
+        sliderEl.min = 1; sliderEl.max = stack; sliderEl.value = Math.round(pot * 0.5);
+        slider.style.display = 'block';
     } else {
+        // Facing bet
         html += `<button class="action-btn fold-btn" onclick="pvpAct('fold')" style="flex:1;">弃牌</button>`;
         if (toCall <= stack) html += `<button class="action-btn call-btn" onclick="pvpAct('call')" style="flex:1;">跟注 ${toCall.toFixed(1)}</button>`;
-        const raise = room.current_bet * 2.5;
-        if (raise <= stack + myBet) html += `<button class="action-btn raise-btn" onclick="pvpAct('raise',${raise.toFixed(1)})" style="flex:1;">加注 ${raise.toFixed(1)}</button>`;
+        if (minRaise <= stack + myBet) {
+            html += `<button class="action-btn raise-btn" onclick="pvpAct('raise',${minRaise.toFixed(1)})" style="flex:1;">加注 ${minRaise.toFixed(1)}</button>`;
+            html += `<button class="action-btn raise-btn" onclick="pvpActSlider('raise')" style="flex:1;">自定义</button>`;
+        }
+        // Configure slider for raise
+        const sliderEl = document.getElementById('pvp-bet-slider');
+        sliderEl.min = minRaise; sliderEl.max = stack + myBet; sliderEl.value = minRaise;
+        slider.style.display = 'block';
     }
-    if (stack > 0) html += `<button class="action-btn raise-btn" onclick="pvpAct('allin')" style="flex:1;">全压 ${(stack+myBet).toFixed(1)}</button>`;
+    if (stack > 0) html += `<button class="action-btn raise-btn" onclick="pvpAct('allin')" style="flex:1;">全压</button>`;
 
     document.getElementById('pvp-action-btns').innerHTML = html;
     document.getElementById('pvp-actions').style.display = 'block';
+    pvpUpdateSliderLabel();
+}
+
+function pvpUpdateSliderLabel() {
+    const val = parseFloat(document.getElementById('pvp-bet-slider').value);
+    document.getElementById('pvp-slider-val').textContent = val.toFixed(1) + 'BB';
+}
+
+function pvpActSlider(action) {
+    const val = parseFloat(document.getElementById('pvp-bet-slider').value);
+    pvpAct(action, val);
 }
 
 async function pvpJoin(seat) {
     if (!supabase.user) { toggleAuthModal(); return; }
     try {
         const res = await supabase.rpc('pvp_join', { p_seat: seat });
-        if (res?.error) { alert(res.error); return; }
+        console.log('pvp_join result:', res);
+        if (res && res.error) { alert(res.error); return; }
         pvpMySeat = seat;
         pvpLoadRoom();
-    } catch(e) { alert('加入失败: ' + e.message); }
+    } catch(e) {
+        console.error('pvp_join error:', e);
+        alert('加入失败: ' + e.message);
+    }
 }
 
 async function pvpLeave() {
