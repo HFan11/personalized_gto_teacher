@@ -100,9 +100,14 @@
 <!-- Leaderboard modal -->
 <div id="leaderboard-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:999;align-items:center;justify-content:center;">
     <div style="background:var(--bg-card);border:1px solid var(--border-color);border-radius:16px;padding:20px;max-width:420px;width:90%;margin:auto;max-height:80vh;overflow-y:auto;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
             <h3 style="margin:0;">🏅 排行榜</h3>
             <button onclick="closeLeaderboard()" style="background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;">×</button>
+        </div>
+        <!-- Tabs -->
+        <div style="display:flex;gap:0;margin-bottom:12px;border-bottom:1px solid var(--border-color);">
+            <button id="lb-tab-daily" onclick="switchLBTab('daily')" style="flex:1;padding:8px;border:none;background:transparent;color:var(--accent-orange);font-size:12px;font-weight:600;cursor:pointer;border-bottom:2px solid var(--accent-orange);">📊 今日盈亏</button>
+            <button id="lb-tab-total" onclick="switchLBTab('total')" style="flex:1;padding:8px;border:none;background:transparent;color:var(--text-muted);font-size:12px;font-weight:600;cursor:pointer;border-bottom:2px solid transparent;">💰 总筹码</button>
         </div>
         <div id="leaderboard-content" style="font-size:12px;"><div style="text-align:center;color:var(--text-muted);">加载中...</div></div>
     </div>
@@ -3710,7 +3715,7 @@ function initAuth() {
     // Restore session from localStorage
     supabase.getSession().then(user => {
         updateAuthUI();
-        if (user) syncFromCloud();
+        if (user) { syncFromCloud(); ensureDayStart(); }
     });
 
     // Listen for auth changes
@@ -3842,42 +3847,103 @@ async function dailyCheckIn() {
 }
 
 // ---- Leaderboard ----
+let currentLBTab = 'daily';
+
 function openLeaderboard() {
     document.getElementById('leaderboard-modal').style.display = 'flex';
-    loadLeaderboard();
+    loadLeaderboard(currentLBTab);
 }
 
 function closeLeaderboard() {
     document.getElementById('leaderboard-modal').style.display = 'none';
 }
 
-async function loadLeaderboard() {
+function switchLBTab(tab) {
+    currentLBTab = tab;
+    document.getElementById('lb-tab-daily').style.color = tab === 'daily' ? 'var(--accent-orange)' : 'var(--text-muted)';
+    document.getElementById('lb-tab-daily').style.borderBottomColor = tab === 'daily' ? 'var(--accent-orange)' : 'transparent';
+    document.getElementById('lb-tab-total').style.color = tab === 'total' ? 'var(--accent-orange)' : 'var(--text-muted)';
+    document.getElementById('lb-tab-total').style.borderBottomColor = tab === 'total' ? 'var(--accent-orange)' : 'transparent';
+    loadLeaderboard(tab);
+}
+
+function renderLBRows(data, valueKey, valueFn, emptyMsg) {
+    const el = document.getElementById('leaderboard-content');
+    if (!data || data.length === 0) { el.innerHTML = `<div style="text-align:center;color:var(--text-muted);">${emptyMsg}</div>`; return; }
+
+    let html = `<div style="display:grid;grid-template-columns:28px 1fr 90px;gap:4px;font-size:11px;padding:4px 0;border-bottom:1px solid var(--border-color);font-weight:700;color:var(--text-muted);">
+        <span>#</span><span>玩家</span><span style="text-align:right;">${valueKey}</span>
+    </div>`;
+    data.forEach((p, i) => {
+        const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1);
+        const isMe = supabase.user && p.id === supabase.user.id;
+        const bg = isMe ? 'rgba(79,143,247,0.08)' : 'transparent';
+        const name = p.display_name || p.username || 'Anonymous';
+        const { text, color } = valueFn(p);
+        html += `<div style="display:grid;grid-template-columns:28px 1fr 90px;gap:4px;padding:5px 4px;border-bottom:1px solid rgba(255,255,255,0.04);background:${bg};border-radius:4px;">
+            <span style="font-size:${i < 3 ? '14px' : '11px'};">${medal}</span>
+            <span style="font-weight:${isMe ? '700' : '400'};${isMe ? 'color:var(--accent-blue);' : ''}font-size:12px;">${name}</span>
+            <span style="text-align:right;color:${color};font-weight:600;font-size:12px;">${text}</span>
+        </div>`;
+    });
+    el.innerHTML = html;
+}
+
+async function loadLeaderboard(tab) {
     const el = document.getElementById('leaderboard-content');
     el.innerHTML = '<div style="text-align:center;color:var(--text-muted);">加载中...</div>';
+
     try {
-        const data = await supabase.select('profiles', 'order=bankroll.desc&limit=50');
-        if (!data || data.length === 0) {
-            el.innerHTML = '<div style="text-align:center;color:var(--text-muted);">暂无数据</div>';
-            return;
+        const data = await supabase.select('profiles', 'select=id,username,display_name,bankroll,bankroll_day_start,last_checkin,last_day_reset&limit=100');
+        if (!data) { el.innerHTML = '<div style="text-align:center;color:var(--text-muted);">暂无数据</div>'; return; }
+
+        const today = getTodayStr();
+
+        if (tab === 'total') {
+            // Sort by total bankroll
+            data.sort((a, b) => (b.bankroll || 0) - (a.bankroll || 0));
+            renderLBRows(data.slice(0, 50), '总筹码', p => ({
+                text: Math.round(p.bankroll || 0) + '',
+                color: 'var(--accent-orange)',
+            }), '暂无数据');
+        } else {
+            // Daily P&L = current bankroll - day_start - checkin_bonus
+            const withProfit = data.map(p => {
+                const dayStart = (p.last_day_reset === today) ? (p.bankroll_day_start || p.bankroll) : (p.bankroll || 1000);
+                const checkinBonus = (p.last_checkin === today) ? 500 : 0;
+                const dailyPL = (p.bankroll || 0) - dayStart - checkinBonus;
+                return { ...p, dailyPL };
+            });
+            // Sort by daily P&L descending
+            withProfit.sort((a, b) => b.dailyPL - a.dailyPL);
+            renderLBRows(withProfit.slice(0, 50), '今日盈亏', p => {
+                const v = p.dailyPL;
+                return {
+                    text: (v > 0 ? '+' : '') + v,
+                    color: v > 0 ? '#34d399' : v < 0 ? '#f05252' : 'var(--text-muted)',
+                };
+            }, '今日暂无对局数据');
         }
-        let html = `<div style="display:grid;grid-template-columns:30px 1fr 80px;gap:4px;font-size:12px;padding:4px 0;border-bottom:1px solid var(--border-color);font-weight:700;color:var(--text-muted);">
-            <span>#</span><span>玩家</span><span style="text-align:right;">筹码</span>
-        </div>`;
-        data.forEach((p, i) => {
-            const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1);
-            const isMe = supabase.user && p.id === supabase.user.id;
-            const bg = isMe ? 'rgba(79,143,247,0.1)' : 'transparent';
-            const name = p.display_name || p.username || 'Anonymous';
-            html += `<div style="display:grid;grid-template-columns:30px 1fr 80px;gap:4px;padding:6px 4px;border-bottom:1px solid var(--border-color);background:${bg};border-radius:4px;">
-                <span style="font-size:${i < 3 ? '14px' : '12px'};">${medal}</span>
-                <span style="font-weight:${isMe ? '700' : '400'};${isMe ? 'color:var(--accent-blue);' : ''}">${name}</span>
-                <span style="text-align:right;color:var(--accent-orange);font-weight:600;">${Math.round(p.bankroll || 0)}</span>
-            </div>`;
-        });
-        el.innerHTML = html;
     } catch(e) {
         el.innerHTML = `<div style="text-align:center;color:var(--accent-red);">加载失败: ${e.message}</div>`;
     }
+}
+
+// Reset daily bankroll snapshot at start of each day
+async function ensureDayStart() {
+    if (!supabase.user) return;
+    const today = getTodayStr();
+    const lastReset = localStorage.getItem('pokergto_last_day_reset');
+    if (lastReset === today) return; // already done today
+
+    // Save current bankroll as day start
+    localStorage.setItem('pokergto_last_day_reset', today);
+    try {
+        await supabase.update('profiles', { id: supabase.user.id }, {
+            bankroll_day_start: Math.round(bankroll),
+            last_day_reset: today,
+        });
+    } catch(e) { console.warn('Day start sync failed:', e); }
 }
 
 function toggleAuthModal() {
