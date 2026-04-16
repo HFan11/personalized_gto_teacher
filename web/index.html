@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Personalized Poker Teacher</title>
     <link rel="stylesheet" href="css/style.css?v=31">
@@ -34,10 +34,12 @@
     <div style="background:var(--bg-card);border:1px solid var(--border-color);border-radius:16px;padding:24px;max-width:360px;width:90%;margin:auto;">
         <h3 style="margin-bottom:16px;text-align:center;">🔐 登录 / 注册</h3>
         <div id="auth-error" style="display:none;color:var(--accent-red);font-size:12px;margin-bottom:8px;text-align:center;"></div>
-        <input type="email" id="auth-email" placeholder="邮箱" style="width:100%;padding:10px;margin-bottom:8px;background:var(--bg-elevated);border:1px solid var(--border-color);border-radius:8px;color:var(--text-primary);font-size:14px;">
-        <input type="password" id="auth-password" placeholder="密码 (最少6位)" style="width:100%;padding:10px;margin-bottom:12px;background:var(--bg-elevated);border:1px solid var(--border-color);border-radius:8px;color:var(--text-primary);font-size:14px;">
-        <button onclick="doEmailAuth('login')" style="width:100%;padding:10px;background:var(--accent-blue);color:white;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:6px;">邮箱登录</button>
-        <button onclick="doEmailAuth('signup')" style="width:100%;padding:10px;background:transparent;color:var(--accent-blue);border:1px solid var(--accent-blue);border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:12px;">注册新账号</button>
+        <form onsubmit="event.preventDefault(); doEmailAuth('login');" autocomplete="on">
+        <input type="email" id="auth-email" placeholder="邮箱" autocomplete="email" style="width:100%;padding:10px;margin-bottom:8px;background:var(--bg-elevated);border:1px solid var(--border-color);border-radius:8px;color:var(--text-primary);font-size:14px;">
+        <input type="password" id="auth-password" placeholder="密码 (最少6位)" autocomplete="current-password" style="width:100%;padding:10px;margin-bottom:12px;background:var(--bg-elevated);border:1px solid var(--border-color);border-radius:8px;color:var(--text-primary);font-size:14px;">
+        <button type="submit" style="width:100%;padding:10px;background:var(--accent-blue);color:white;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:6px;">邮箱登录</button>
+        <button type="button" onclick="doEmailAuth('signup')" style="width:100%;padding:10px;background:transparent;color:var(--accent-blue);border:1px solid var(--accent-blue);border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:12px;">注册新账号</button>
+        </form>
         <div style="text-align:center;color:var(--text-muted);font-size:11px;margin-bottom:8px;">或</div>
         <button onclick="supabase.signInWithOAuth('google')" style="width:100%;padding:10px;background:#4285f4;color:white;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;margin-bottom:6px;">Google 登录</button>
         <button onclick="closeAuthModal()" style="width:100%;padding:8px;background:transparent;color:var(--text-muted);border:none;font-size:12px;cursor:pointer;margin-top:4px;">取消</button>
