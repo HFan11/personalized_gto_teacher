@@ -4778,17 +4778,14 @@ function showActionToast(seatIdx, action, amount) {
     const label = labels[action] || action;
     const amtText = (action === 'call' || action === 'bet' || action === 'raise') && amount ? ` ${amount.toFixed?.(1) ?? amount}` : '';
 
+    // Position using getBoundingClientRect — doesn't affect layout
+    const rect = seatEl.getBoundingClientRect();
     const toast = document.createElement('div');
     toast.className = 'cg-action-toast';
-    toast.style.cssText = `color:${color};background:rgba(0,0,0,0.7);border:1px solid ${color}40;`;
+    toast.style.cssText = `position:fixed;color:${color};background:rgba(0,0,0,0.75);border:1px solid ${color}40;
+        left:${rect.left + rect.width / 2}px;top:${rect.top - 5}px;transform:translateX(-50%);`;
     toast.textContent = label + amtText;
-
-    // Position relative to seat
-    seatEl.style.position = 'relative';
-    toast.style.left = '50%';
-    toast.style.bottom = '100%';
-    toast.style.transform = 'translateX(-50%)';
-    seatEl.appendChild(toast);
+    document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 1300);
 }
 
