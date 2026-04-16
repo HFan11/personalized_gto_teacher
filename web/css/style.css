@@ -2212,3 +2212,21 @@ label {
 .rb-black { background: #1a1a2e; border: 1px solid #444; }
 .rb-green { background: #0d6b2e; }
 .rb-outline { background: rgba(255,255,255,0.06); border: 1px solid #444; color: var(--text-secondary); }
+
+/* Action toast — floats up from seat */
+.cg-action-toast {
+    position: absolute;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 6px;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 10;
+    animation: actionToastUp 1.2s ease-out forwards;
+}
+@keyframes actionToastUp {
+    0% { opacity: 1; transform: translateY(0) scale(1); }
+    70% { opacity: 1; transform: translateY(-20px) scale(1.05); }
+    100% { opacity: 0; transform: translateY(-35px) scale(0.9); }
+}
