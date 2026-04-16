@@ -3566,9 +3566,13 @@ function advanceCGAction() {
 
         setTimeout(() => {
             if (!cashGame) return;
-            const decision = BotAI.decide(cashGame, state.actingSeat);
-            const result = cashGame.processAction(state.actingSeat, decision.action, decision.amount);
+            const actorSeat = state.actingSeat;
+            const decision = BotAI.decide(cashGame, actorSeat);
+            const didFold = decision.action === 'fold';
+            const result = cashGame.processAction(actorSeat, decision.action, decision.amount);
             renderCGTable(cashGame.getState());
+            // Trigger fold animation on the specific seat that just folded
+            if (didFold) triggerFoldAnim(actorSeat);
             if (result?.showdown) { showCGResult(result); }
             else if (result?.nextStreet || result?.nextActor !== undefined) { advanceCGAction(); }
         }, delay);
@@ -3578,10 +3582,23 @@ function advanceCGAction() {
 function heroAction(action, amount) {
     if (!cashGame) return;
     document.getElementById('cg-actions').style.display = 'none';
+    const didFold = action === 'fold';
     const result = cashGame.processAction(cashGame.heroSeat, action, amount);
     renderCGTable(cashGame.getState());
+    if (didFold) triggerFoldAnim(cashGame.heroSeat);
     if (result?.showdown) { showCGResult(result); }
     else if (result?.nextStreet || result?.nextActor !== undefined) { advanceCGAction(); }
+}
+
+function triggerFoldAnim(seatIdx) {
+    // Find the visual seat element for this seat index
+    const heroSeat = cashGame.heroSeat;
+    const visualPos = (seatIdx - heroSeat + 6) % 6;
+    const seatEl = document.querySelector(`.cg-seat[data-pos="${visualPos}"]`);
+    if (seatEl) {
+        seatEl.classList.add('cg-fold-anim');
+        setTimeout(() => seatEl.classList.remove('cg-fold-anim'), 500);
+    }
 }
 
 function showCGResult(result) {
@@ -3590,17 +3607,16 @@ function showCGResult(result) {
     updateCGStats();
 
     const isHeroWin = result.winner === cashGame.heroSeat;
-    const netProfit = result.winAmount; // already net (pot - investment)
-    const sign = netProfit >= 0 ? '+' : '';
-    const color = isHeroWin ? '#34d399' : '#f05252';
+    const heroNet = isHeroWin ? result.winAmount : -result.heroInvested;
+    const color = heroNet >= 0 ? '#34d399' : '#f05252';
+    const label = heroNet >= 0 ? `+${heroNet.toFixed(1)}BB` : `${heroNet.toFixed(1)}BB`;
 
-    // Show chip animation overlay on the pot area
-    const potEl = document.getElementById('cg-pot-display');
+    // Show chip float animation from pot center
     const chipAnim = document.createElement('div');
     chipAnim.style.cssText = `position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
         font-size:18px;font-weight:800;color:${color};z-index:10;pointer-events:none;
         animation:chipFloat 1.5s ease-out forwards;`;
-    chipAnim.textContent = isHeroWin ? `+${netProfit.toFixed(1)}BB` : `${sign}${(-result.heroInvested).toFixed(1)}BB`;
+    chipAnim.textContent = label;
     const tableWrap = document.getElementById('cg-table');
     tableWrap.appendChild(chipAnim);
     setTimeout(() => chipAnim.remove(), 1600);

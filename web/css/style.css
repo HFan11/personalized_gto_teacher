@@ -2072,12 +2072,13 @@ label {
 .cg-seat[data-pos="5"] { bottom: 6%; right: 2%; }
 
 .cg-seat.folded { opacity: 0.3; }
-.cg-seat.folded .cg-seat-cards,
-.cg-seat.folded .cg-hero-hand {
-    animation: foldCards 0.4s ease-out forwards;
-}
 .cg-seat.acting { filter: drop-shadow(0 0 10px rgba(79,143,247,0.6)); }
 
+/* Fold animation — applied via JS only to the seat that JUST folded */
+.cg-fold-anim .cg-seat-cards,
+.cg-fold-anim .cg-hero-hand {
+    animation: foldCards 0.4s ease-out forwards;
+}
 @keyframes foldCards {
     0% { transform: scale(1) translateY(0); opacity: 1; }
     60% { transform: scale(0.7) translateY(-20px); opacity: 0.5; }
