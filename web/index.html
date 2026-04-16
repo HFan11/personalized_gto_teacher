@@ -4349,23 +4349,6 @@ function initPVPPage() {
     if (pvpPollId) supabase.stopPoll(pvpPollId);
     pvpPollId = supabase.pollTable('pvp_room', 1500, pvpOnRoomUpdate);
 
-    // Auto-leave when closing/navigating away
-    window.addEventListener('beforeunload', pvpAutoLeave);
-}
-
-function pvpAutoLeave() {
-    if (pvpMySeat >= 0 && supabase.user) {
-        // Fire-and-forget leave (navigator.sendBeacon doesn't work with RPC)
-        // Use synchronous XHR as last resort
-        try {
-            const xhr = new XMLHttpRequest();
-            xhr.open('POST', supabase.url + '/rest/v1/rpc/pvp_leave', false); // sync
-            xhr.setRequestHeader('apikey', supabase.key);
-            xhr.setRequestHeader('Authorization', 'Bearer ' + supabase.token);
-            xhr.setRequestHeader('Content-Type', 'application/json');
-            xhr.send('{}');
-        } catch(e) {}
-    }
 }
 
 async function pvpLoadRoom() {
@@ -4403,13 +4386,48 @@ function pvpOnRoomUpdate(room) {
         if (seats[i]?.user_id === userId) { pvpMySeat = i; break; }
     }
 
+    // Auto-timeout: if game has been stuck for > 30 seconds, auto-fold acting seat
+    if (room.street !== 'waiting' && room.street !== 'showdown' && room.acting_seat >= 0) {
+        const lastActionTs = room.last_action?.ts || 0;
+        const now = Date.now() / 1000;
+        const stuckSeconds = now - lastActionTs;
+        if (stuckSeconds > 30 && pvpMySeat >= 0 && !pvpBotPending) {
+            // Game is stuck — auto-fold the acting seat
+            pvpBotPending = true;
+            console.log(`Auto-fold seat ${room.acting_seat} (stuck ${Math.round(stuckSeconds)}s)`);
+            const actingSeat = seats[room.acting_seat];
+            const isBot = actingSeat?.is_bot === true || actingSeat?.is_bot === 'true' || !actingSeat?.user_id;
+            const rpcName = isBot ? 'pvp_bot_action' : 'pvp_action';
+            supabase.rpc(rpcName, { p_action: 'fold', p_amount: 0 }).then(() => {
+                pvpBotPending = false;
+            }).catch(() => { pvpBotPending = false; });
+            return; // will update on next poll
+        }
+    }
+
+    // If game is stuck in showdown or all folded, reset to waiting
+    if (room.street !== 'waiting') {
+        const activePlayers = seats.filter((s, i) => !room.folded?.[i]).length;
+        if (activePlayers <= 1 || room.acting_seat < 0) {
+            // Hand is over — any human can reset to waiting
+            if (pvpMySeat >= 0) {
+                const lastActionTs = room.last_action?.ts || 0;
+                const now = Date.now() / 1000;
+                if (now - lastActionTs > 5) {
+                    // Wait 5s after last action then reset
+                    supabase.update('pvp_room', { id: 1 }, {
+                        street: 'waiting', acting_seat: -1, updated_at: new Date().toISOString()
+                    }).catch(() => {});
+                }
+            }
+        }
+    }
+
     if (room.street === 'waiting' || room.street === 'showdown') {
-        // Show lobby
         document.getElementById('pvp-lobby').style.display = 'block';
         document.getElementById('pvp-game').style.display = 'none';
         pvpRenderLobby(room);
     } else {
-        // Show game
         document.getElementById('pvp-lobby').style.display = 'none';
         document.getElementById('pvp-game').style.display = 'block';
         pvpRenderGame(room);
