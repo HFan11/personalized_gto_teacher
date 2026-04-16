@@ -4340,12 +4340,47 @@ function initPVPPage() {
     // Start polling room state every 1.5s
     if (pvpPollId) supabase.stopPoll(pvpPollId);
     pvpPollId = supabase.pollTable('pvp_room', 1500, pvpOnRoomUpdate);
+
+    // Auto-leave when closing/navigating away
+    window.addEventListener('beforeunload', pvpAutoLeave);
+}
+
+function pvpAutoLeave() {
+    if (pvpMySeat >= 0 && supabase.user) {
+        // Fire-and-forget leave (navigator.sendBeacon doesn't work with RPC)
+        // Use synchronous XHR as last resort
+        try {
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', supabase.url + '/rest/v1/rpc/pvp_leave', false); // sync
+            xhr.setRequestHeader('apikey', supabase.key);
+            xhr.setRequestHeader('Authorization', 'Bearer ' + supabase.token);
+            xhr.setRequestHeader('Content-Type', 'application/json');
+            xhr.send('{}');
+        } catch(e) {}
+    }
 }
 
 async function pvpLoadRoom() {
     try {
         const rooms = await supabase.select('pvp_room', 'id=eq.1');
-        if (rooms && rooms.length > 0) pvpOnRoomUpdate(rooms[0]);
+        if (rooms && rooms.length > 0) {
+            const room = rooms[0];
+            // Check if I'm already seated (page refresh recovery)
+            const seats = room.seats || [];
+            const userId = supabase.user?.id;
+            for (let i = 0; i < seats.length; i++) {
+                if (seats[i]?.user_id === userId) {
+                    pvpMySeat = i;
+                    // If game is active, fetch my cards
+                    if (room.street !== 'waiting' && room.hand_number > 0) {
+                        pvpLastHandNum = room.hand_number;
+                        pvpFetchMyCards(room.hand_number);
+                    }
+                    break;
+                }
+            }
+            pvpOnRoomUpdate(room);
+        }
     } catch(e) { console.warn('PVP load failed:', e); }
 }
 
@@ -4579,31 +4614,32 @@ async function pvpAct(action, amount) {
 }
 
 async function pvpBotAction(room) {
-    // Simple bot logic for PVP bots — server-side would be better but works for now
     const seat = room.acting_seat;
     const s = room.seats?.[seat];
-    if (!s || !s.is_bot) return;
+    if (!s) return;
+    const isBot = s.is_bot === true || s.is_bot === 'true';
+    if (!isBot) return;
 
     const toCall = Math.max(0, room.current_bet - (room.bets?.[seat] || 0));
     const stack = s.stack || 0;
 
-    // Very simple bot: fold 30%, call 50%, raise 20%
     const r = Math.random();
     let action, amount = 0;
     if (toCall <= 0) {
-        action = r < 0.7 ? 'check' : 'bet';
-        amount = room.pot * 0.5;
+        action = r < 0.65 ? 'check' : 'bet';
+        amount = Math.round(room.pot * 0.5 * 10) / 10;
     } else if (toCall > stack * 0.5) {
-        action = r < 0.6 ? 'fold' : 'call';
+        action = r < 0.55 ? 'fold' : 'call';
     } else {
-        if (r < 0.3) action = 'fold';
-        else if (r < 0.8) action = 'call';
-        else { action = 'raise'; amount = room.current_bet * 2.5; }
+        if (r < 0.25) action = 'fold';
+        else if (r < 0.75) action = 'call';
+        else { action = 'raise'; amount = Math.round(room.current_bet * 2.5 * 10) / 10; }
     }
 
     try {
-        await supabase.rpc('pvp_action', { p_action: action, p_amount: amount });
-    } catch(e) { /* bot action failed, will retry on next poll */ }
+        // Use bot-specific function (doesn't check auth.uid())
+        await supabase.rpc('pvp_bot_action', { p_action: action, p_amount: amount });
+    } catch(e) { console.warn('Bot action failed:', e.message); }
 }
 
 // Cash Game Controller
