@@ -365,43 +365,57 @@ class CashGameEngine {
         }
         results.sort((a, b) => b.score - a.score);
 
-        // Simple pot award (no side pots for now — TODO)
-        const winnerSeat = results[0].seat;
-        return this._awardPot(winnerSeat, results);
+        // Check for chop (multiple winners with same score)
+        const bestScore = results[0].score;
+        const winners = results.filter(r => r.score === bestScore).map(r => r.seat);
+
+        return this._awardPot(winners, results);
     }
 
-    _awardPot(winnerSeat, results = null) {
+    _awardPot(winners, results = null) {
+        // winners is an array (chop pot if >1)
+        if (!Array.isArray(winners)) winners = [winners];
+
         const potTotal = this.pot;
-        this.seats[winnerSeat].stack += potTotal;
+        const share = Math.round(potTotal / winners.length * 10) / 10;
+
+        // Award each winner their share
+        for (const w of winners) {
+            this.seats[w].stack += share;
+        }
 
         // Calculate each player's total investment this hand
-        // (from handHistory: all actions with amount for this seat)
         const invested = new Array(this.numSeats).fill(0);
         for (const h of this.handHistory) {
             if (h.amount) invested[h.seat] += h.amount;
         }
 
         const heroInvested = invested[this.heroSeat];
-        const winnerInvested = invested[winnerSeat];
-        // Net profit = pot won minus own investment
-        const winnerNetProfit = potTotal - winnerInvested;
+        const isHeroWinner = winners.includes(this.heroSeat);
 
-        if (winnerSeat === this.heroSeat) {
-            this.stats.heroProfit += winnerNetProfit;
+        if (isHeroWinner) {
+            this.stats.heroProfit += share - heroInvested; // net = share won - amount put in
         } else {
             this.stats.heroProfit -= heroInvested;
         }
         this.stats.handsPlayed++;
 
+        const mainWinner = winners[0];
+        const isChop = winners.length > 1;
+
         return {
             showdown: true,
-            winner: winnerSeat,
-            winnerName: this.seats[winnerSeat].name,
-            winAmount: winnerNetProfit, // NET profit, not total pot
+            winner: mainWinner,
+            winners,
+            isChop,
+            winnerName: isChop ? `${winners.length}人平分` : this.seats[mainWinner].name,
+            winAmount: isChop ? (share - invested[mainWinner]) : (potTotal - invested[mainWinner]),
             potTotal,
+            share,
             results,
             heroProfit: this.stats.heroProfit,
             heroInvested,
+            isHeroWinner,
             state: this.getState(),
         };
     }

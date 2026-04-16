@@ -3606,10 +3606,13 @@ function showCGResult(result) {
     renderCGTable(cashGame.getState());
     updateCGStats();
 
-    const isHeroWin = result.winner === cashGame.heroSeat;
-    const heroNet = isHeroWin ? result.winAmount : -result.heroInvested;
-    const color = heroNet >= 0 ? '#34d399' : '#f05252';
-    const label = heroNet >= 0 ? `+${heroNet.toFixed(1)}BB` : `${heroNet.toFixed(1)}BB`;
+    const heroNet = result.isHeroWinner
+        ? (result.share - result.heroInvested)  // won share minus investment
+        : -result.heroInvested;                   // lost investment
+    const color = heroNet > 0.05 ? '#34d399' : heroNet < -0.05 ? '#f05252' : '#8899aa';
+    const label = heroNet > 0.05 ? `+${heroNet.toFixed(1)}BB`
+        : heroNet < -0.05 ? `${heroNet.toFixed(1)}BB`
+        : (result.isChop ? 'Chop' : '0BB');
 
     // Show chip float animation from pot center
     const chipAnim = document.createElement('div');

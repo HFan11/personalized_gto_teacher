@@ -1,204 +1,270 @@
 // ============================================================
-// Bot AI — Fast decision engine for 6-max cash game bots
-// Uses precomputed GTO data + style-based adjustments
+// Bot AI — Decision engine for 6-max cash game bots
+// Style-based play: NIT, TAG, LAG, FISH, REG
 // ============================================================
 
 class BotAI {
-    // Decide bot's action given game state
-    // Returns: { action: 'fold'|'check'|'call'|'raise'|'bet'|'allin', amount?: number }
     static decide(game, seat) {
         const bot = game.seats[seat];
         const style = bot.style;
         const pos = game.getSeatPosition(seat);
         const street = game.street;
-        const toCall = game.currentBet - game.bets[seat];
+        const toCall = Math.max(0, game.currentBet - game.bets[seat]);
         const potSize = game.pot;
         const stack = bot.stack;
         const holeCards = bot.holeCards;
         const board = game.board;
+        const bb = game.bb;
+
+        // Count players still in hand (not folded)
+        const playersInHand = game.seats.filter((s, i) => !game.folded[i] && !s.isSittingOut && s.isActive).length;
+        // Was this bot the preflop raiser?
+        const isPFR = game.handHistory.some(h => h.seat === seat && (h.action === 'raise' || h.action === 'allin') && h.street === 'preflop');
 
         if (street === 'preflop') {
-            return this._preflopDecision(holeCards, pos, style, toCall, game);
+            return this._preflopDecision(holeCards, pos, style, toCall, bb, stack, seat, game, playersInHand);
         } else {
-            return this._postflopDecision(holeCards, board, pos, style, toCall, potSize, stack, game, seat);
+            return this._postflopDecision(holeCards, board, pos, style, toCall, potSize, stack, seat, game, playersInHand, isPFR);
         }
     }
 
     // ============================================================
-    // PREFLOP — use hand ranking + position + style
+    // PREFLOP
     // ============================================================
-    static _preflopDecision(holeCards, pos, style, toCall, game) {
+    static _preflopDecision(holeCards, pos, style, toCall, bb, stack, seat, game, playersInHand) {
         const handKey = this._handToKey(holeCards);
         const handRank = this._getHandRank(handKey);
-        const bb = game.bb;
 
-        // Position-based thresholds (tighter EP, wider LP)
-        const posWidths = { UTG: 15, HJ: 20, CO: 28, BTN: 45, SB: 35, BB: 100 };
+        // Position-based open range width (% of 169 hands)
+        const posWidths = { UTG: 14, HJ: 19, CO: 27, BTN: 42, SB: 32, BB: 100 };
         let baseWidth = posWidths[pos] || 25;
 
-        // Style adjustments
-        const styleMult = { NIT: 0.6, TAG: 0.9, REG: 1.0, LAG: 1.4, FISH: 1.6 };
+        // Style multiplier
+        const styleMult = { NIT: 0.6, TAG: 0.85, REG: 1.0, LAG: 1.35, FISH: 1.5 };
         const width = baseWidth * (styleMult[style] || 1.0);
 
         const isInRange = handRank <= width;
-        const isPremium = handRank <= 5; // AA, KK, QQ, AKs, AKo
-        const isStrong = handRank <= 15;
+        const isPremium = handRank <= 5;  // AA, KK, QQ, JJ, AKs
+        const isStrong = handRank <= 12;  // 99+, AQs+, AKo, KQs
+        const isMedium = handRank <= 30;
 
-        // Facing a raise
+        // ---- Facing raise ----
         if (toCall > bb) {
-            const facingRaiseBB = toCall / bb;
-            if (facingRaiseBB >= 10) {
-                // Facing 4bet+
-                if (isPremium) return { action: 'allin', amount: game.seats[game.actingSeat].stack + game.bets[game.actingSeat] };
-                if (isStrong && style === 'LAG') return { action: 'call', amount: toCall };
+            const raiseBB = toCall / bb;
+
+            // Facing 4bet+ (>= 10BB)
+            if (raiseBB >= 10) {
+                if (handRank <= 3) return this._raise(stack + game.bets[seat], game); // AA/KK/QQ jam
+                if (isPremium && style !== 'NIT') return { action: 'call', amount: toCall };
                 return { action: 'fold' };
             }
-            if (facingRaiseBB >= 3) {
-                // Facing 3bet
-                if (isPremium) {
-                    const raise4bet = Math.min(game.currentBet * 2.5, game.seats[game.actingSeat].stack + game.bets[game.actingSeat]);
-                    return { action: 'raise', amount: raise4bet };
-                }
+
+            // Facing 3bet (>= 6BB)
+            if (raiseBB >= 5) {
+                if (isPremium) return this._raise(Math.min(game.currentBet * 2.5, stack + game.bets[seat]), game);
                 if (isStrong) return { action: 'call', amount: toCall };
-                if (handRank <= width * 0.5 && style !== 'NIT') return { action: 'call', amount: toCall };
+                if (style === 'LAG' && isMedium && Math.random() < 0.2) return { action: 'call', amount: toCall };
                 return { action: 'fold' };
             }
+
             // Facing open raise
-            if (!isInRange) return { action: 'fold' };
-            // 3bet with premium + some bluffs
-            if (isPremium || (handRank <= 10 && Math.random() < 0.3)) {
-                const raise3bet = Math.min(game.currentBet * 3, game.seats[game.actingSeat].stack + game.bets[game.actingSeat]);
-                return { action: 'raise', amount: raise3bet };
+            // Tighten up in multiway (more callers = need stronger hand)
+            const mwTighten = playersInHand > 3 ? 0.8 : 1.0;
+            const defenseWidth = width * 1.2 * mwTighten;
+
+            if (handRank > defenseWidth) return { action: 'fold' };
+
+            // 3bet range
+            if (isPremium || (isStrong && Math.random() < (style === 'LAG' ? 0.4 : 0.2))) {
+                const size3bet = pos === 'BB' || pos === 'SB'
+                    ? Math.round(game.currentBet * 3.5 * 10) / 10  // OOP 3bet bigger
+                    : Math.round(game.currentBet * 3 * 10) / 10;
+                return this._raise(Math.min(size3bet, stack + game.bets[seat]), game);
             }
+
+            // SB should rarely flat (3bet or fold in GTO)
+            if (pos === 'SB' && style !== 'FISH') {
+                if (handRank <= defenseWidth * 0.6) {
+                    return this._raise(Math.min(game.currentBet * 3.5, stack + game.bets[seat]), game);
+                }
+                return { action: 'fold' };
+            }
+
+            // FISH limps and calls too wide
+            if (style === 'FISH' && handRank <= 80) return { action: 'call', amount: toCall };
+
             return { action: 'call', amount: toCall };
         }
 
-        // No raise facing (limped to us or BB option)
+        // ---- BB check option ----
         if (pos === 'BB' && toCall <= 0) {
-            // BB check option
-            if (isStrong) {
-                const raiseAmt = Math.min(3 * bb, game.seats[game.actingSeat].stack);
-                return { action: 'raise', amount: raiseAmt + game.bets[game.actingSeat] };
+            if (isStrong && Math.random() < 0.6) {
+                return this._raise(Math.min(3.5 * bb, stack + game.bets[seat]), game);
             }
             return { action: 'check' };
         }
 
-        if (!isInRange) return { action: 'fold' };
+        // ---- Open action (no raise yet) ----
+        if (!isInRange) {
+            // FISH limps with bad hands sometimes
+            if (style === 'FISH' && handRank <= 80 && Math.random() < 0.3) {
+                return { action: 'call', amount: bb }; // limp
+            }
+            return { action: 'fold' };
+        }
 
         // Open raise
         const openSize = pos === 'SB' ? 3 * bb : 2.5 * bb;
-        return { action: 'raise', amount: openSize };
+        return this._raise(openSize, game);
     }
 
     // ============================================================
-    // POSTFLOP — hand strength + board texture + style
+    // POSTFLOP
     // ============================================================
-    static _postflopDecision(holeCards, board, pos, style, toCall, potSize, stack, game, seat) {
+    static _postflopDecision(holeCards, board, pos, style, toCall, potSize, stack, seat, game, playersInHand, isPFR) {
         const eval_ = categorizeHand(holeCards, board);
         const strength = eval_ ? eval_.strength : 0;
         const category = eval_ ? eval_.category : 'unknown';
         const spr = potSize > 0 ? stack / potSize : 99;
+        const isIP = pos === 'BTN' || pos === 'CO';
+        const isMultiway = playersInHand > 2;
 
-        // Style aggression factor
-        const aggression = { NIT: 0.3, TAG: 0.6, REG: 0.65, LAG: 0.85, FISH: 0.5 };
-        const agg = aggression[style] || 0.6;
+        // Style params
+        const styleParams = {
+            NIT:  { agg: 0.3, bluff: 0.04, cbet: 0.35, callWidth: 0.35 },
+            TAG:  { agg: 0.6, bluff: 0.10, cbet: 0.65, callWidth: 0.42 },
+            REG:  { agg: 0.65, bluff: 0.12, cbet: 0.60, callWidth: 0.45 },
+            LAG:  { agg: 0.80, bluff: 0.22, cbet: 0.75, callWidth: 0.50 },
+            FISH: { agg: 0.35, bluff: 0.08, cbet: 0.40, callWidth: 0.60 }, // FISH calls wide
+        };
+        const sp = styleParams[style] || styleParams.REG;
 
-        // Bet/raise probability based on hand strength + aggression
-        const betProb = Math.min(1.0, strength * agg * 1.5);
-        const bluffProb = style === 'LAG' ? 0.25 : style === 'FISH' ? 0.15 : style === 'NIT' ? 0.05 : 0.12;
+        // Tighten in multiway pots
+        const mwAdj = isMultiway ? 0.8 : 1.0;
 
-        // Facing a bet
+        // ---- Facing a bet ----
         if (toCall > 0) {
             const potOdds = toCall / (potSize + toCall);
 
-            // Strong hands — raise or call
-            if (strength >= 0.8) {
-                // Slow play sometimes (strong on safe board)
-                if (Math.random() < 0.3 && category !== 'draw') {
-                    return { action: 'call', amount: toCall };
-                }
-                // Raise for value
-                const raiseAmt = Math.min(game.currentBet * 2.5, stack + game.bets[seat]);
-                if (raiseAmt > game.currentBet && stack > toCall * 2) {
-                    return { action: 'raise', amount: raiseAmt };
+            // Nuts / very strong (strength >= 0.82) — raise for value
+            if (strength >= 0.82) {
+                if (Math.random() < 0.35) return { action: 'call', amount: toCall }; // slowplay mix
+                const raiseAmt = this._calcRaise(game.currentBet, potSize, stack, seat, game, spr);
+                if (raiseAmt > game.currentBet) return this._raise(raiseAmt, game);
+                return { action: 'call', amount: toCall };
+            }
+
+            // Strong (0.6-0.82) — call, occasionally raise
+            if (strength >= 0.6) {
+                if (strength > potOdds + 0.1 * mwAdj) return { action: 'call', amount: toCall };
+                if (Math.random() < sp.agg * 0.3 && !isMultiway) {
+                    const raiseAmt = this._calcRaise(game.currentBet, potSize, stack, seat, game, spr);
+                    return this._raise(raiseAmt, game);
                 }
                 return { action: 'call', amount: toCall };
             }
 
-            // Medium hands — call if odds are right
-            if (strength >= 0.4) {
-                if (strength > potOdds + 0.05) return { action: 'call', amount: toCall };
-                // NIT folds medium hands more
-                if (style === 'NIT' && strength < 0.55) return { action: 'fold' };
-                if (Math.random() < 0.5) return { action: 'call', amount: toCall };
+            // Medium (0.35-0.6) — call if getting right price
+            if (strength >= 0.35) {
+                const threshold = potOdds + (isMultiway ? 0.08 : 0.03);
+                if (strength > threshold) return { action: 'call', amount: toCall };
+                if (style === 'FISH' && strength > potOdds - 0.05) return { action: 'call', amount: toCall };
+                if (style === 'NIT') return { action: 'fold' };
+                return Math.random() < sp.callWidth ? { action: 'call', amount: toCall } : { action: 'fold' };
+            }
+
+            // Draws (0.15-0.35) — call if implied odds justify
+            if (strength >= 0.15) {
+                const impliedOdds = spr > 3 ? 0.08 : 0; // deep stacks = more implied odds
+                if (strength > potOdds - impliedOdds) {
+                    if (style === 'FISH' || Math.random() < 0.4) return { action: 'call', amount: toCall };
+                }
+                // Semi-bluff raise with draws
+                if (!isMultiway && Math.random() < sp.bluff * 0.5 && stack > toCall * 3) {
+                    const raiseAmt = this._calcRaise(game.currentBet, potSize, stack, seat, game, spr);
+                    return this._raise(raiseAmt, game);
+                }
                 return { action: 'fold' };
             }
 
-            // Weak hands / draws
-            if (strength >= 0.2 && strength > potOdds) {
-                // Drawing hand — call with odds
-                if (style === 'FISH' || Math.random() < 0.4) return { action: 'call', amount: toCall };
-            }
-
-            // Bluff raise occasionally
-            if (Math.random() < bluffProb * 0.3 && stack > toCall * 3) {
-                const raiseAmt = Math.min(game.currentBet * 2.5, stack + game.bets[seat]);
-                return { action: 'raise', amount: raiseAmt };
-            }
-
+            // Trash — fold (FISH still calls sometimes)
+            if (style === 'FISH' && Math.random() < 0.15) return { action: 'call', amount: toCall };
             return { action: 'fold' };
         }
 
-        // Not facing bet (can check or bet)
-        if (strength >= 0.7) {
-            // Value bet
-            if (Math.random() < betProb) {
-                const sizePct = strength >= 0.85 ? 0.66 : 0.33;
-                const betAmt = Math.round(potSize * sizePct * 10) / 10;
-                if (betAmt >= game.bb && betAmt <= stack) {
-                    return { action: 'bet', amount: betAmt };
-                }
-            }
-            return { action: 'check' }; // slowplay
-        }
+        // ---- Not facing bet (check or bet) ----
 
-        if (strength >= 0.4) {
-            // Medium — mostly check, sometimes bet for thin value
-            if (Math.random() < agg * 0.4) {
-                const betAmt = Math.round(potSize * 0.33 * 10) / 10;
-                if (betAmt >= game.bb && betAmt <= stack) {
-                    return { action: 'bet', amount: betAmt };
-                }
+        // C-bet logic: preflop raiser should bet more often
+        const cbetBonus = isPFR ? sp.cbet : 0;
+
+        // Value bet (strong hands)
+        if (strength >= 0.7) {
+            const betChance = Math.min(1.0, sp.agg + cbetBonus * 0.3);
+            if (Math.random() < betChance) {
+                const sizing = this._chooseSizing(strength, spr, potSize, stack, game);
+                if (sizing >= game.bb) return { action: 'bet', amount: sizing };
             }
             return { action: 'check' };
         }
 
-        // Weak — bluff sometimes
-        if (Math.random() < bluffProb) {
-            const betAmt = Math.round(potSize * 0.5 * 10) / 10;
-            if (betAmt >= game.bb && betAmt <= stack) {
-                return { action: 'bet', amount: betAmt };
+        // Medium hands — thin value / protection
+        if (strength >= 0.4) {
+            const betChance = isMultiway ? sp.agg * 0.15 : sp.agg * 0.35 + cbetBonus * 0.2;
+            if (Math.random() < betChance) {
+                const sizing = Math.round(potSize * 0.33 * 10) / 10;
+                if (sizing >= game.bb && sizing <= stack) return { action: 'bet', amount: sizing };
             }
+            return { action: 'check' };
+        }
+
+        // Weak / air — bluff
+        const bluffChance = isMultiway ? sp.bluff * 0.3 : sp.bluff + cbetBonus * 0.25;
+        if (Math.random() < bluffChance) {
+            const sizing = this._chooseSizing(0.2, spr, potSize, stack, game);
+            if (sizing >= game.bb && sizing <= stack) return { action: 'bet', amount: sizing };
         }
         return { action: 'check' };
     }
 
     // ============================================================
-    // Hand ranking (1=best, 169=worst)
+    // Helpers
     // ============================================================
+    static _raise(amount, game) {
+        const rounded = Math.round(amount * 10) / 10;
+        if (rounded >= game.seats[game.actingSeat].stack + game.bets[game.actingSeat]) {
+            return { action: 'allin', amount: rounded };
+        }
+        return { action: 'raise', amount: rounded };
+    }
+
+    static _calcRaise(currentBet, potSize, stack, seat, game, spr) {
+        // Low SPR → jam more; high SPR → standard raise
+        if (spr < 2) return stack + game.bets[seat]; // jam
+        if (spr < 4) return Math.min(currentBet * 2.5, stack + game.bets[seat]);
+        return Math.min(currentBet * 2.5 + potSize * 0.3, stack + game.bets[seat]);
+    }
+
+    static _chooseSizing(strength, spr, potSize, stack, game) {
+        // Strong: bet big; medium: bet small; bluff: mixed
+        let pct;
+        if (strength >= 0.85) pct = spr < 3 ? 1.0 : 0.66;
+        else if (strength >= 0.7) pct = 0.5;
+        else if (strength >= 0.4) pct = 0.33;
+        else pct = Math.random() < 0.5 ? 0.66 : 0.33; // bluffs mix sizes
+        return Math.round(Math.min(potSize * pct, stack) * 10) / 10;
+    }
+
     static _handToKey(cards) {
-        const rv = { A:14,K:13,Q:12,J:11,T:10,'9':9,'8':8,'7':7,'6':6,'5':5,'4':4,'3':3,'2':2 };
+        const rv = {A:14,K:13,Q:12,J:11,T:10,'9':9,'8':8,'7':7,'6':6,'5':5,'4':4,'3':3,'2':2};
         const r0 = rv[cards[0].rank], r1 = rv[cards[1].rank];
         const suited = cards[0].suit === cards[1].suit;
         const hi = Math.max(r0, r1), lo = Math.min(r0, r1);
         const ranks = 'AKQJT98765432';
-        const h = ranks[14 - hi], l = ranks[14 - lo];
-        if (hi === lo) return h + l;
-        return h + l + (suited ? 's' : 'o');
+        if (hi === lo) return ranks[14-hi] + ranks[14-lo];
+        return ranks[14-hi] + ranks[14-lo] + (suited ? 's' : 'o');
     }
 
     static _getHandRank(handKey) {
-        // Simplified hand ranking: 1-169 based on equity vs random
         const top = ['AA','KK','QQ','JJ','AKs','TT','AKo','AQs','AJs','KQs',
             '99','ATs','AQo','KJs','KTs','QJs','88','AJo','A9s','QTs',
             'KQo','A8s','JTs','77','A5s','A7s','KJo','A4s','A6s','A3s',
