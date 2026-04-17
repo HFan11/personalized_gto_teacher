@@ -115,34 +115,127 @@
     </div>
 </div>
 
-<nav class="nav-bar hidden" id="main-nav">
-    <!-- Left: main tabs -->
-    <div style="display:flex;flex:1;gap:2px;justify-content:center;">
-        <button class="nav-btn active" onclick="switchPage('profiles')" id="nav-profiles">
-            <span class="nav-icon">👤</span><span>档案</span>
-        </button>
-        <button class="nav-btn" onclick="switchPage('preflop')" id="nav-preflop">
-            <span class="nav-icon">🃏</span><span>范围</span>
-        </button>
-        <button class="nav-btn" onclick="switchPage('practice')" id="nav-practice">
-            <span class="nav-icon">🎯</span><span>练习</span>
-        </button>
-        <button class="nav-btn" onclick="switchPage('cashgame')" id="nav-cashgame">
-            <span class="nav-icon">🏆</span><span>实战</span>
-        </button>
-        <button class="nav-btn" onclick="switchPage('casino')" id="nav-casino">
-            <span class="nav-icon">🎰</span><span>娱乐</span>
-        </button>
+<!-- Top header bar: brand + right icons (settings/help/leaderboard/user) -->
+<header class="app-header hidden" id="app-header">
+    <div class="app-brand" onclick="switchPage('home')">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2L3.5 12l3 3.5L12 22l5.5-6.5 3-3.5L12 2zm0 2.8l6.2 7.2L12 19l-6.2-7 6.2-7.2z"/></svg>
+        <span>GTO Poker</span>
     </div>
-    <!-- Right: help + leaderboard + user -->
-    <div style="display:flex;gap:4px;align-items:center;padding-right:4px;">
-        <button onclick="openHelp()" style="background:none;border:none;color:var(--text-muted);font-size:14px;cursor:pointer;padding:4px;" title="帮助">❓</button>
-        <button onclick="openLeaderboard()" style="background:none;border:none;color:var(--text-muted);font-size:14px;cursor:pointer;padding:4px;" title="排行榜">🏅</button>
-        <button id="nav-user-btn" onclick="onUserBtnClick()" style="background:none;border:none;color:var(--text-muted);font-size:11px;cursor:pointer;padding:4px 8px;border-radius:6px;border:1px solid var(--border-color);white-space:nowrap;" title="用户">
+    <div class="app-header-right">
+        <button class="hdr-icon-btn" onclick="openLeaderboard()" title="排行榜" aria-label="排行榜">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h12v4a6 6 0 11-12 0V4z"/><path d="M4 4h2v3a2 2 0 002 2M20 4h-2v3a2 2 0 01-2 2M9 20h6M12 14v6"/></svg>
+        </button>
+        <button class="hdr-icon-btn" onclick="openHelp()" title="帮助" aria-label="帮助">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 115 0c0 1.5-2.5 2-2.5 4M12 17.5h.01"/></svg>
+        </button>
+        <button class="hdr-icon-btn" onclick="onSettingsBtnClick()" title="设置" aria-label="设置">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.9l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.9-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.9.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.9 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.9l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.9.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.9-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.9v.1a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg>
+        </button>
+        <button id="nav-user-btn" class="hdr-user-btn" onclick="onUserBtnClick()" title="账号">
             <span id="nav-user-label">登录</span>
         </button>
     </div>
+</header>
+
+<!-- Bottom tab bar -->
+<nav class="nav-bar hidden" id="main-nav">
+    <button class="nav-btn active" onclick="switchPage('home')" id="nav-home">
+        <svg class="nav-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8M5 10v10h14V10"/></svg>
+        <span>主页</span>
+    </button>
+    <button class="nav-btn" onclick="switchPage('profiles')" id="nav-profiles">
+        <svg class="nav-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0114 0"/></svg>
+        <span>档案</span>
+    </button>
+    <button class="nav-btn" onclick="switchPage('preflop')" id="nav-preflop">
+        <svg class="nav-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="2"/><path d="M3.5 9h17M3.5 15h17M9 3.5v17M15 3.5v17"/></svg>
+        <span>范围</span>
+    </button>
+    <button class="nav-btn" onclick="switchPage('practice')" id="nav-practice">
+        <svg class="nav-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/></svg>
+        <span>练习</span>
+    </button>
+    <button class="nav-btn" onclick="switchPage('cashgame')" id="nav-cashgame">
+        <svg class="nav-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><ellipse cx="12" cy="12" rx="8.5" ry="5.5"/><ellipse cx="12" cy="12" rx="4" ry="2.5"/></svg>
+        <span>实战</span>
+    </button>
+    <button class="nav-btn" onclick="switchPage('casino')" id="nav-casino">
+        <svg class="nav-icon-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="3"/><circle cx="8.5" cy="8.5" r="1.2" fill="currentColor"/><circle cx="15.5" cy="15.5" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/><circle cx="15.5" cy="8.5" r="1.2" fill="currentColor"/><circle cx="8.5" cy="15.5" r="1.2" fill="currentColor"/></svg>
+        <span>娱乐</span>
+    </button>
 </nav>
+
+<!-- ============================================================
+     Page 0: Home (user dashboard + feature launcher)
+     ============================================================ -->
+<div class="page active" id="page-home">
+    <!-- Feature cards grid -->
+    <div class="home-grid">
+        <div class="home-card" onclick="switchPage('profiles')">
+            <svg class="home-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <div class="home-card-body">
+                <div class="home-card-title">对局档案</div>
+                <div class="home-card-desc">选择 Hero 与 Villain 风格</div>
+            </div>
+        </div>
+        <div class="home-card" onclick="switchPage('preflop')">
+            <svg class="home-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="3.5" y="3.5" width="17" height="17" rx="2" stroke-linejoin="round"/>
+                <path d="M3.5 9h17M3.5 15h17M9 3.5v17M15 3.5v17" stroke-linecap="round"/>
+            </svg>
+            <div class="home-card-body">
+                <div class="home-card-title">翻前范围</div>
+                <div class="home-card-desc">13×13 手牌矩阵与训练</div>
+            </div>
+        </div>
+        <div class="home-card" onclick="switchPage('practice')">
+            <svg class="home-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <circle cx="12" cy="12" r="9"/>
+                <circle cx="12" cy="12" r="5.5"/>
+                <circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/>
+            </svg>
+            <div class="home-card-body">
+                <div class="home-card-title">翻后实战</div>
+                <div class="home-card-desc">CFR+ Solver 策略反馈</div>
+            </div>
+        </div>
+        <div class="home-card" onclick="switchPage('cashgame')">
+            <svg class="home-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <ellipse cx="12" cy="12" rx="9" ry="6.5"/>
+                <ellipse cx="12" cy="12" rx="5" ry="3.5"/>
+                <path d="M7 8l-2 2M17 8l2 2M7 16l-2-2M17 16l2-2" stroke-linecap="round"/>
+            </svg>
+            <div class="home-card-body">
+                <div class="home-card-title">德州对战</div>
+                <div class="home-card-desc">AI 对战与 PVP 多人房</div>
+            </div>
+        </div>
+        <div class="home-card" onclick="switchPage('casino')">
+            <svg class="home-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="3.5" y="3.5" width="17" height="17" rx="3" stroke-linejoin="round"/>
+                <circle cx="8.5" cy="8.5" r="1.3" fill="currentColor" stroke="none"/>
+                <circle cx="15.5" cy="15.5" r="1.3" fill="currentColor" stroke="none"/>
+                <circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/>
+                <circle cx="15.5" cy="8.5" r="1.3" fill="currentColor" stroke="none"/>
+                <circle cx="8.5" cy="15.5" r="1.3" fill="currentColor" stroke="none"/>
+            </svg>
+            <div class="home-card-body">
+                <div class="home-card-title">娱乐场</div>
+                <div class="home-card-desc">轮盘与老虎机</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- User section -->
+    <div class="home-user-section">
+        <div id="home-user-content">
+            <!-- Rendered by renderHomeUser() -->
+            <div style="text-align:center;padding:24px;color:var(--text-muted);">加载中…</div>
+        </div>
+    </div>
+</div>
 
 <!-- ============================================================
      Page 1: Player Profiles (Accordion)
@@ -1226,11 +1319,96 @@ function enterApp() {
     if (!localStorage.getItem('pokergto_onboarded')) {
         showWizard();
     } else {
+        const hdr = document.getElementById('app-header');
+        if (hdr) hdr.classList.remove('hidden');
         document.getElementById('main-nav').classList.remove('hidden');
-        document.getElementById('page-profiles').classList.add('active');
-        document.getElementById('nav-profiles').classList.add('active');
-        renderProfiles();
+        // Land on home (user hub) by default
+        document.getElementById('page-profiles').classList.remove('active');
+        document.getElementById('page-home').classList.add('active');
+        document.getElementById('nav-home').classList.add('active');
+        document.getElementById('nav-profiles').classList.remove('active');
+        if (typeof renderHomeUser === 'function') renderHomeUser();
     }
+}
+
+function onSettingsBtnClick() {
+    if (!supabase.user) { toggleAuthModal(); return; }
+    if (typeof openSettings === 'function') openSettings();
+}
+
+// Render the user section on the home page (card + daily check-in + leaderboard)
+function renderHomeUser() {
+    const el = document.getElementById('home-user-content');
+    if (!el) return;
+
+    const loggedIn = !!supabase.user;
+    const name = loggedIn ? (supabase.user.user_metadata?.display_name || supabase.user.user_metadata?.username || supabase.user.email?.split('@')[0] || 'Player') : null;
+    const br = Math.round(getBankroll ? getBankroll() : bankroll);
+
+    // Check-in status
+    const today = typeof getTodayStr === 'function' ? getTodayStr() : new Date().toISOString().slice(0,10);
+    const lastCheckin = localStorage.getItem('pokergto_last_checkin');
+    const checkedInToday = lastCheckin === today;
+
+    if (!loggedIn) {
+        el.innerHTML = `
+            <div class="home-login-prompt">
+                <div class="home-login-title">登录后解锁</div>
+                <div class="home-login-desc">云端同步筹码、每日签到、排行榜、多人对战</div>
+                <button class="home-login-btn" onclick="toggleAuthModal()">登录 / 注册</button>
+                <div class="home-guest-actions">
+                    <button class="home-guest-btn" onclick="openLeaderboard()">查看排行榜</button>
+                </div>
+            </div>`;
+        return;
+    }
+
+    // Logged in: user card with stats, check-in, leaderboard
+    el.innerHTML = `
+        <div class="home-profile-card">
+            <div class="home-profile-avatar">${(name[0] || 'P').toUpperCase()}</div>
+            <div class="home-profile-info">
+                <div class="home-profile-name">${name}</div>
+                <div class="home-profile-stats" id="home-profile-stats">
+                    <span class="home-stat"><span class="home-stat-label">筹码</span><span class="home-stat-val">${br.toLocaleString()}</span></span>
+                </div>
+            </div>
+        </div>
+        <div class="home-actions">
+            <button class="home-action-btn ${checkedInToday ? 'disabled' : 'primary'}" id="home-checkin-btn" onclick="homeDailyCheckIn()" ${checkedInToday ? 'disabled' : ''}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5.5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="M9 15l2 2 4-4"/></svg>
+                <span>${checkedInToday ? '今日已签' : '每日签到 +500'}</span>
+            </button>
+            <button class="home-action-btn" onclick="openLeaderboard()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h12v4a6 6 0 11-12 0V4z"/><path d="M4 4h2v3a2 2 0 002 2M20 4h-2v3a2 2 0 01-2 2M9 20h6M12 14v6"/></svg>
+                <span>排行榜</span>
+            </button>
+        </div>`;
+
+    // Fetch extended stats (async)
+    if (supabase.user && typeof supabase.select === 'function') {
+        supabase.select('practice_stats', `user_id=eq.${supabase.user.id}`).then(rows => {
+            if (!rows || rows.length === 0) return;
+            const pre = rows.find(r => r.mode === 'preflop');
+            const post = rows.find(r => r.mode === 'postflop');
+            const statsEl = document.getElementById('home-profile-stats');
+            if (!statsEl) return;
+            const preAvg = pre && pre.hands_played > 0 ? Math.round(pre.total_score / pre.hands_played) : null;
+            const postAvg = post && post.hands_played > 0 ? Math.round(post.total_score / post.hands_played) : null;
+            let extra = '';
+            if (preAvg !== null) extra += `<span class="home-stat"><span class="home-stat-label">翻前均分</span><span class="home-stat-val">${preAvg}</span></span>`;
+            if (postAvg !== null) extra += `<span class="home-stat"><span class="home-stat-label">翻后均分</span><span class="home-stat-val">${postAvg}</span></span>`;
+            statsEl.innerHTML += extra;
+        }).catch(() => {});
+    }
+}
+
+// Wrapper: call dailyCheckIn then re-render home
+async function homeDailyCheckIn() {
+    if (typeof dailyCheckIn === 'function') {
+        await dailyCheckIn();
+    }
+    renderHomeUser();
 }
 
 // ============================================================
@@ -1242,9 +1420,12 @@ function switchPage(pageName) {
         if (!p.classList.contains('cover-page')) p.classList.remove('active');
     });
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-    document.getElementById('page-' + pageName).classList.add('active');
-    document.getElementById('nav-' + pageName).classList.add('active');
+    const pageEl = document.getElementById('page-' + pageName);
+    const navEl = document.getElementById('nav-' + pageName);
+    if (pageEl) pageEl.classList.add('active');
+    if (navEl) navEl.classList.add('active');
 
+    if (pageName === 'home' && typeof renderHomeUser === 'function') renderHomeUser();
     if (pageName === 'preflop') renderPreflopPage();
     if (pageName === 'practice') {
         // Always run the guard check first
@@ -1263,11 +1444,12 @@ let _pendingAuthPage = null; // page to navigate to after login
     if ((pageName === 'cashgame' || pageName === 'casino') && !supabase.user) {
         _pendingAuthPage = pageName;
         toggleAuthModal();
-        // Revert to previous page
+        // Revert to home on auth gate
         document.getElementById('page-' + pageName).classList.remove('active');
-        document.getElementById('nav-' + pageName).classList.remove('active');
-        document.getElementById('page-profiles').classList.add('active');
-        document.getElementById('nav-profiles').classList.add('active');
+        if (navEl) navEl.classList.remove('active');
+        document.getElementById('page-home').classList.add('active');
+        document.getElementById('nav-home').classList.add('active');
+        if (typeof renderHomeUser === 'function') renderHomeUser();
         return;
     }
 
@@ -3834,6 +4016,8 @@ function updateAuthUI() {
         btn.style.borderColor = 'var(--border-color)';
         btn.style.color = 'var(--text-muted)';
     }
+    // Re-render home user section on auth state change
+    if (typeof renderHomeUser === 'function') renderHomeUser();
 }
 
 function onUserBtnClick() {
