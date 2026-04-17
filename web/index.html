@@ -839,6 +839,12 @@
 
     <!-- Queued-change indicator (e.g., "将在下一手开始") -->
     <div id="pvp-pending-banner" style="display:none;max-width:480px;margin:6px auto 0;padding:8px 12px;background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.3);border-radius:8px;text-align:center;font-size:12px;color:#fbbf24;"></div>
+
+    <!-- Shown when the table has <2 seats with chips — offer to refill bots -->
+    <div id="pvp-restart-banner" style="display:none;max-width:480px;margin:8px auto 0;padding:12px;background:rgba(52,211,153,0.08);border:1px solid rgba(52,211,153,0.3);border-radius:10px;text-align:center;">
+        <div style="font-size:12px;color:var(--text-secondary);margin-bottom:6px;">桌上筹码不足 · 补充 Bot 到 100BB 继续游戏</div>
+        <button onclick="pvpRestartTable()" style="padding:8px 18px;background:var(--accent-green);color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">补台</button>
+    </div>
 </div>
 
 <!-- ============================================================
@@ -5001,6 +5007,13 @@ function pvpRenderTable(room) {
     const statusEl = document.getElementById('pvp-status');
     const leaveBtn = document.getElementById('pvp-leave-btn');
     const pendingBanner = document.getElementById('pvp-pending-banner');
+    const restartBanner = document.getElementById('pvp-restart-banner');
+
+    // Show restart button when the table has <2 seats with chips (game stuck)
+    const seatsWithChips = seats.filter(s => (s?.stack || 0) > 0.5).length;
+    if (restartBanner) {
+        restartBanner.style.display = (seatsWithChips < 2 && room.street === 'waiting') ? 'block' : 'none';
+    }
 
     if (!userId) {
         statusEl.innerHTML = '<a onclick="toggleAuthModal()" style="color:var(--accent-blue);cursor:pointer;">登录</a>后可入座';
@@ -5145,6 +5158,16 @@ async function pvpLeaveRoom() {
     } catch(e) { alert('离席失败: ' + e.message); }
 }
 
+// Admin: refill all bot seats to 100BB (no effect on humans).
+// Used when the table has <2 players with chips and game is stuck.
+async function pvpRestartTable() {
+    if (!supabase.user) { toggleAuthModal(); return; }
+    try {
+        await supabase.rpc('pvp_restart_table');
+        pvpLoadRoom();
+    } catch(e) { alert('重置失败: ' + e.message); }
+}
+
 async function pvpAct(action, amount) {
     document.getElementById('pvp-actions').style.display = 'none';
     try {
@@ -5167,24 +5190,31 @@ async function pvpFetchBotCards(handNum) {
     } catch(e) { return {}; }
 }
 
-// Fetch ALL non-folded hole cards (humans + bots) for showdown reveal.
-// RLS lets us see bot cards (user_id IS NULL) and our own. Other humans' cards
-// are never revealed at showdown due to RLS — they'd need to be fetched server-side,
-// which we skip for MVP (human-vs-human showdown reveal TBD).
+// Fetch ALL non-folded hole cards for showdown reveal (humans + bots).
+// Uses the server-side pvp_showdown_hands RPC (SECURITY DEFINER bypasses RLS)
+// to also reveal other humans' cards — previously only bots were visible.
 async function pvpFetchShowdownCards(handNum, foldedArr) {
     if (pvpShowdownCache[handNum]) return;
-    const map = {};
     try {
-        // Bot cards (user_id IS NULL — visible to all via RLS)
-        const botRows = await supabase.select('pvp_hands',
-            `room_id=eq.1&hand_number=eq.${handNum}&user_id=is.null&select=seat_idx,cards`);
-        for (const r of botRows || []) { if (r.cards?.length) map[r.seat_idx] = r.cards; }
-        // My own cards (if seated + not folded)
-        if (pvpMySeat >= 0 && !foldedArr[pvpMySeat] && pvpMyCards.length > 0) {
-            map[pvpMySeat] = pvpMyCards;
+        const res = await supabase.rpc('pvp_showdown_hands', { p_hand_num: handNum });
+        if (res?.error || !res?.hands) {
+            // Fallback: fetch visible hands directly (bot cards + my cards)
+            const map = {};
+            const botRows = await supabase.select('pvp_hands',
+                `room_id=eq.1&hand_number=eq.${handNum}&user_id=is.null&select=seat_idx,cards`);
+            for (const r of botRows || []) { if (r.cards?.length) map[r.seat_idx] = r.cards; }
+            if (pvpMySeat >= 0 && !foldedArr[pvpMySeat] && pvpMyCards.length > 0) {
+                map[pvpMySeat] = pvpMyCards;
+            }
+            pvpShowdownCache[handNum] = map;
+        } else {
+            // Server returned all hands (keys are seat_idx strings)
+            const map = {};
+            for (const [k, v] of Object.entries(res.hands)) {
+                if (Array.isArray(v) && v.length >= 2) map[parseInt(k)] = v;
+            }
+            pvpShowdownCache[handNum] = map;
         }
-        pvpShowdownCache[handNum] = map;
-        // Trigger re-render so seats pick up the reveal
         pvpLoadRoom();
     } catch(e) { console.warn('Showdown fetch failed:', e); }
 }
