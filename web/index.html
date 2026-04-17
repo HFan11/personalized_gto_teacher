@@ -807,6 +807,22 @@
 
         <!-- Action buttons -->
         <div id="cg-actions" style="display:none;">
+            <!-- Custom bet slider (shown when user clicks "自定义") -->
+            <div id="cg-slider-area" style="display:none;max-width:480px;margin:0 auto;padding:0 12px 6px;">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                    <input type="range" id="cg-bet-slider" min="1" max="100" value="3" step="0.5"
+                        oninput="cgUpdateSliderLabel()"
+                        style="flex:1;accent-color:var(--accent-orange);">
+                    <span id="cg-slider-val" style="font-size:13px;font-weight:700;color:var(--accent-orange);min-width:56px;text-align:right;">3.0BB</span>
+                </div>
+                <div style="display:flex;gap:4px;justify-content:center;">
+                    <button class="pos-btn" style="font-size:10px;padding:2px 6px;" onclick="cgSetSliderPct(0.33)">1/3池</button>
+                    <button class="pos-btn" style="font-size:10px;padding:2px 6px;" onclick="cgSetSliderPct(0.5)">1/2池</button>
+                    <button class="pos-btn" style="font-size:10px;padding:2px 6px;" onclick="cgSetSliderPct(0.66)">2/3池</button>
+                    <button class="pos-btn" style="font-size:10px;padding:2px 6px;" onclick="cgSetSliderPct(1.0)">池底</button>
+                    <button class="pos-btn" style="font-size:10px;padding:2px 6px;" onclick="cgSetSliderMax()">MAX</button>
+                </div>
+            </div>
             <div class="cg-action-bar" id="cg-action-btns"></div>
         </div>
 
@@ -4395,7 +4411,7 @@ let pvpLastHandNum = 0;
 let pvpBotPending = false;
 let pvpMyCards = [];
 let pvpDealPending = false;
-let pvpLastActingSeat = -2;   // track to avoid duplicate bot triggers
+let pvpLastActingSeat = '-';   // track to avoid duplicate bot triggers (seat@ts key)
 let pvpResultTimer = null;    // timer for showing result before next deal
 let pvpIdleResetPending = false;
 
@@ -4406,7 +4422,7 @@ function initPVPPage() {
     if (!supabase.user) { toggleAuthModal(); return; }
     pvpBotPending = false;
     pvpDealPending = false;
-    pvpLastActingSeat = -2;
+    pvpLastActingSeat = '-';
     pvpIdleResetPending = false;
     pvpLoadRoom();
     if (pvpPollId) supabase.stopPoll(pvpPollId);
@@ -4543,10 +4559,14 @@ function pvpOnRoomUpdate(room) {
     }
 
     // --- BOT ACTIONS: only host drives bots ---
+    // Key: use (acting_seat, last_action.ts) as dedup key. Previously used just
+    // acting_seat which caused a bug: when flop's first actor == last preflop
+    // bot's seat, bot wouldn't fire. Using ts ensures we fire once per state change.
+    const actingKey = `${room.acting_seat}@${room.last_action?.ts || 0}`;
     if (isHost && room.street !== 'waiting' && room.acting_seat >= 0
         && pvpIsBot(seats[room.acting_seat]) && !pvpBotPending
-        && room.acting_seat !== pvpLastActingSeat) {
-        pvpLastActingSeat = room.acting_seat;
+        && actingKey !== pvpLastActingSeat) {
+        pvpLastActingSeat = actingKey;
         pvpBotPending = true;
         setTimeout(async () => {
             try {
@@ -4555,9 +4575,9 @@ function pvpOnRoomUpdate(room) {
             pvpBotPending = false;
         }, 600 + Math.random() * 600);
     }
-    // Reset tracker when acting seat changes to non-bot or -1
-    if (room.acting_seat < 0 || !pvpIsBot(seats[room.acting_seat])) {
-        pvpLastActingSeat = -2;
+    // Reset tracker when acting seat is -1 (no actor)
+    if (room.acting_seat < 0) {
+        pvpLastActingSeat = '-';
     }
 }
 
@@ -4791,7 +4811,7 @@ async function pvpLeave() {
         }
     }
     pvpMySeat = -1; pvpMyCards = []; pvpBotPending = false; pvpDealPending = false;
-    pvpLastHandNum = 0; pvpLastActingSeat = -2; pvpIdleResetPending = false;
+    pvpLastHandNum = 0; pvpLastActingSeat = '-'; pvpIdleResetPending = false;
     document.getElementById('pvp-hero-hand').innerHTML = '';
     const pvp = document.getElementById('pvp-container');
     if (pvp) pvp.style.display = 'none';
@@ -5227,9 +5247,37 @@ function renderCGTable(state) {
     updateCGStats();
 }
 
+// Track current custom action context (for slider submit)
+let cgCustomAction = null; // 'bet' or 'raise'
+let cgCustomMin = 1;
+let cgCustomMax = 100;
+
 function renderCGActions() {
     if (!cashGame) return;
     const actions = cashGame.getAvailableActions(cashGame.heroSeat);
+    const hero = cashGame.seats[cashGame.heroSeat];
+    const heroStack = hero.stack;
+    const heroBet = cashGame.bets[cashGame.heroSeat] || 0;
+    const pot = cashGame.pot || 0;
+    const currentBet = cashGame.currentBet || 0;
+
+    // Determine if we have bet/raise options (for showing custom button)
+    let hasBetOrRaise = false;
+    let betAction = null;   // 'bet' if no prior bet, 'raise' otherwise
+    let minAmount = cashGame.bb || 1;
+    for (const a of actions) {
+        if (a.action === 'bet' || a.action === 'raise') {
+            hasBetOrRaise = true;
+            betAction = a.action;
+            // Use the smallest bet amount as min (usually min-bet or min-raise)
+            if (a.amount && (!minAmount || a.amount < minAmount || minAmount === cashGame.bb)) {
+                if (a.action === 'bet' && (!minAmount || minAmount === cashGame.bb)) minAmount = Math.max(cashGame.bb, a.amount);
+                if (a.action === 'raise') minAmount = Math.max(currentBet * 2, currentBet + cashGame.bb);
+            }
+        }
+    }
+    const maxAmount = heroStack + heroBet; // all-in value
+
     let html = '';
     for (const a of actions) {
         let cls = '', label = '', onclick = '';
@@ -5243,8 +5291,95 @@ function renderCGActions() {
         }
         html += `<button class="action-btn ${cls}" onclick="${onclick}" style="flex:1;">${label}</button>`;
     }
+    // Add "Custom" button if user can bet/raise
+    if (hasBetOrRaise && maxAmount > minAmount) {
+        html += `<button class="action-btn raise-btn" onclick="cgToggleSlider('${betAction}',${minAmount.toFixed(1)},${maxAmount.toFixed(1)})" style="flex:1;background:linear-gradient(135deg,#d97706,#f59e0b);border-color:#fbbf24;">自定义</button>`;
+    }
     document.getElementById('cg-action-btns').innerHTML = html;
     document.getElementById('cg-actions').style.display = 'block';
+    // Hide slider by default when actions re-render
+    document.getElementById('cg-slider-area').style.display = 'none';
+    cgCustomAction = null;
+}
+
+function cgToggleSlider(action, minAmt, maxAmt) {
+    const area = document.getElementById('cg-slider-area');
+    if (area.style.display === 'block' && cgCustomAction === action) {
+        // Already open for this action → submit it
+        cgSubmitSlider();
+        return;
+    }
+    cgCustomAction = action;
+    cgCustomMin = minAmt;
+    cgCustomMax = maxAmt;
+    const sl = document.getElementById('cg-bet-slider');
+    sl.min = minAmt;
+    sl.max = maxAmt;
+    sl.step = 0.5;
+    // Default: about 2/3 pot, clamped to range
+    const pot = cashGame?.pot || 0;
+    const heroBet = cashGame?.bets?.[cashGame.heroSeat] || 0;
+    const currentBet = cashGame?.currentBet || 0;
+    const toCall = Math.max(0, currentBet - heroBet);
+    const defaultVal = action === 'bet'
+        ? Math.max(minAmt, Math.min(maxAmt, Math.round(pot * 0.66 * 10) / 10))
+        : Math.max(minAmt, Math.min(maxAmt, Math.round((pot + toCall * 2) * 0.75 * 10) / 10)); // raise size ~ 2.5-3x
+    sl.value = defaultVal;
+    area.style.display = 'block';
+    cgUpdateSliderLabel();
+    // Change the custom button to a "confirm" button
+    const btns = document.querySelectorAll('#cg-action-btns .action-btn');
+    btns.forEach(b => {
+        if (b.textContent.trim() === '自定义') {
+            b.textContent = '确认';
+            b.style.background = 'linear-gradient(135deg,#059669,#10b981)';
+        }
+    });
+}
+
+function cgUpdateSliderLabel() {
+    const sl = document.getElementById('cg-bet-slider');
+    const lbl = document.getElementById('cg-slider-val');
+    if (sl && lbl) lbl.textContent = parseFloat(sl.value).toFixed(1) + 'BB';
+}
+
+function cgSetSliderPct(pct) {
+    if (!cashGame || !cgCustomAction) return;
+    const pot = cashGame.pot || 0;
+    const heroBet = cashGame.bets?.[cashGame.heroSeat] || 0;
+    const currentBet = cashGame.currentBet || 0;
+    const toCall = Math.max(0, currentBet - heroBet);
+    let amount;
+    if (cgCustomAction === 'bet') {
+        amount = pot * pct;
+    } else {
+        // Raise sizing: call amount + pct * (pot + toCall)
+        amount = currentBet + toCall + pct * (pot + toCall * 2);
+    }
+    amount = Math.round(Math.max(cgCustomMin, Math.min(cgCustomMax, amount)) * 10) / 10;
+    document.getElementById('cg-bet-slider').value = amount;
+    cgUpdateSliderLabel();
+}
+
+function cgSetSliderMax() {
+    document.getElementById('cg-bet-slider').value = cgCustomMax;
+    cgUpdateSliderLabel();
+}
+
+function cgSubmitSlider() {
+    if (!cgCustomAction) return;
+    const amount = parseFloat(document.getElementById('cg-bet-slider').value);
+    const action = cgCustomAction;
+    cgCustomAction = null;
+    document.getElementById('cg-slider-area').style.display = 'none';
+    // If amount is max (all-in), use 'allin' action
+    const heroStack = cashGame.seats[cashGame.heroSeat].stack;
+    const heroBet = cashGame.bets[cashGame.heroSeat] || 0;
+    if (amount >= heroStack + heroBet - 0.01) {
+        heroAction('allin', heroStack + heroBet);
+    } else {
+        heroAction(action, amount);
+    }
 }
 
 // ============================================================
