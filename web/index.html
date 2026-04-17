@@ -785,12 +785,12 @@
         </div>
         <!-- Payout table -->
         <div style="margin-top:12px;padding:8px;background:var(--bg-card);border-radius:8px;font-size:10px;color:var(--text-muted);">
-            <div style="font-weight:700;margin-bottom:4px;color:var(--text-secondary);">赔率表</div>
+            <div style="font-weight:700;margin-bottom:4px;color:var(--text-secondary);">赔率表 <span style="font-weight:400;font-size:9px;">(含本金)</span></div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px;">
-                <span>💎💎💎 = 50x</span><span>7️⃣7️⃣7️⃣ = 30x</span>
-                <span>🍒🍒🍒 = 15x</span><span>🔔🔔🔔 = 10x</span>
-                <span>🍋🍋🍋 = 8x</span><span>🍊🍊🍊 = 5x</span>
-                <span>任意2同 = 2x</span><span>🍒任意位 = 1x</span>
+                <span>💎💎💎 = 80x</span><span>7️⃣7️⃣7️⃣ = 30x</span>
+                <span>🔔🔔🔔 = 15x</span><span>🍊🍊🍊 = 8x</span>
+                <span>🍋🍋🍋 = 5x</span><span>🍒🍒🍒 = 3x</span>
+                <span>任意2同 = 1x (退本)</span><span></span>
             </div>
         </div>
     </div>
@@ -4630,14 +4630,23 @@ function spinSlots() {
         const [a, b, c] = resultIdx;
         let multiplier = 0;
 
+        // Payout table (GROSS multiplier = total returned per 1 unit bet).
+        // Rebalanced for ~-10% house edge (slots were +74% EV which minted chips):
+        //   Triple cherry (1.6%)    : 3x   (was 15x)
+        //   Triple lemon  (0.8%)    : 5x   (was 8x)
+        //   Triple orange (0.6%)    : 8x   (was 5x)
+        //   Triple bell   (0.3%)    : 15x  (was 10x)
+        //   Triple 7      (0.17%)   : 30x  (unchanged)
+        //   Triple diamond(0.10%)   : 80x  (was 50x)
+        //   Any two match (44%)     : 1x   (return stake, no profit — was 2x)
+        //   Cherry anywhere         : removed (was 1x)
         if (a === b && b === c) {
-            const payouts = [15, 8, 5, 10, 30, 50]; // matches SLOT_SYMBOLS order
-            multiplier = payouts[a] || 5;
+            const payouts = [3, 5, 8, 15, 30, 80]; // cherry, lemon, orange, bell, 7, diamond
+            multiplier = payouts[a] || 3;
         } else if (a === b || b === c || a === c) {
-            multiplier = 2;
-        } else if (a === 0 || b === 0 || c === 0) {
-            multiplier = 1; // cherry anywhere
+            multiplier = 1; // return stake, no profit (was 2x — too generous)
         }
+        // cherry-anywhere removed (was printing chips)
 
         const win = slotsBet * multiplier;
         const tier = multiplier >= 30 ? 3 : multiplier >= 5 ? 2 : multiplier >= 1 ? 1 : 0;
