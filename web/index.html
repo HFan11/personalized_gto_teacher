@@ -4128,8 +4128,25 @@ async function dailyCheckIn() {
     const lastCheckin = localStorage.getItem('pokergto_last_checkin');
     if (lastCheckin === today) return;
 
-    // Grant bonus
-    setBankroll(bankroll + 500);
+    // CRITICAL: also verify with server to prevent cross-device double-bonus.
+    // (Previously only localStorage was checked — a second browser could
+    // grant +500 again if the local cache hadn't synced yet.)
+    let serverBankroll = null;
+    try {
+        const profiles = await supabase.select('profiles', `id=eq.${supabase.user.id}`);
+        const p = profiles?.[0];
+        if (p?.last_checkin === today) {
+            localStorage.setItem('pokergto_last_checkin', today);
+            if (typeof p.bankroll === 'number') setBankroll(p.bankroll);
+            updateCheckInUI();
+            return;
+        }
+        if (typeof p?.bankroll === 'number') serverBankroll = p.bankroll;
+    } catch(e) { console.warn('Check-in pre-check failed:', e); }
+
+    // Use server's bankroll as base to avoid overwriting with stale local value
+    const base = serverBankroll !== null ? serverBankroll : bankroll;
+    setBankroll(base + 500);
     localStorage.setItem('pokergto_last_checkin', today);
 
     // Save to cloud
