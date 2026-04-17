@@ -616,11 +616,11 @@
             </div>
             <!-- 3×12 number grid -->
             <div id="roulette-board" style="display:grid;grid-template-columns:repeat(12,1fr);gap:1px;margin-bottom:2px;"></div>
-            <!-- Bottom bets: columns -->
+            <!-- Bottom bets: columns (rows visually) -->
             <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:2px;margin-bottom:4px;">
-                <button class="rb-cell rb-outline" onclick="placeRouletteBet('col',1)">第1行(3x)</button>
-                <button class="rb-cell rb-outline" onclick="placeRouletteBet('col',2)">第2行(3x)</button>
-                <button class="rb-cell rb-outline" onclick="placeRouletteBet('col',3)">第3行(3x)</button>
+                <button class="rb-cell rb-outline" onclick="placeRouletteBet('col',1)">上行 3·36 (3x)</button>
+                <button class="rb-cell rb-outline" onclick="placeRouletteBet('col',2)">中行 2·35 (3x)</button>
+                <button class="rb-cell rb-outline" onclick="placeRouletteBet('col',3)">下行 1·34 (3x)</button>
             </div>
             <!-- Outside bets -->
             <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:2px;">
@@ -4243,7 +4243,7 @@ let pendingBets = []; // [{type, value, amount}]
 const BET_LABELS = {
     num: v => `${v} (36x)`, red: () => '🔴红 (2x)', black: () => '⚫黑 (2x)',
     odd: () => '奇数 (2x)', even: () => '偶数 (2x)', half1: () => '1-18 (2x)', half2: () => '19-36 (2x)',
-    col: v => `第${v}行 (3x)`, green: () => '🟢0 (36x)',
+    col: v => `${v===1?'上':v===2?'中':'下'}行 (3x)`, green: () => '🟢0 (36x)',
 };
 
 function placeRouletteBet(type, value) {
