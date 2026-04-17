@@ -113,7 +113,7 @@ body {
 .hdr-user-btn:hover { border-color: var(--accent-blue); color: var(--text-primary); }
 
 /* ============================================================
-   Bottom Nav Bar
+   Bottom Nav Bar (fixed to viewport bottom)
    ============================================================ */
 .nav-bar {
     display: flex;
@@ -124,8 +124,10 @@ body {
     border-top: 1px solid var(--border-color);
     backdrop-filter: saturate(180%) blur(12px);
     -webkit-backdrop-filter: saturate(180%) blur(12px);
-    position: sticky;
+    position: fixed;
     bottom: 0;
+    left: 0;
+    right: 0;
     z-index: 100;
 }
 
@@ -2376,6 +2378,59 @@ label {
 
 .cg-seat.folded { opacity: 0.3; }
 .cg-seat.acting { filter: drop-shadow(0 0 10px rgba(79,143,247,0.6)); }
+
+/* PVP-specific: clickable empty (bot) seat */
+.cg-seat.clickable-seat {
+    cursor: pointer;
+    transition: transform 0.15s;
+}
+.cg-seat.clickable-seat:hover { transform: translateX(-50%) scale(1.05); }
+.cg-seat[data-pos="1"].clickable-seat:hover,
+.cg-seat[data-pos="2"].clickable-seat:hover,
+.cg-seat[data-pos="4"].clickable-seat:hover,
+.cg-seat[data-pos="5"].clickable-seat:hover { transform: scale(1.05); }
+.cg-seat.clickable-seat .cg-seat-info {
+    border: 1.5px dashed rgba(79,143,247,0.5);
+    background: rgba(79,143,247,0.08);
+}
+.cg-seat.clickable-seat:hover .cg-seat-info {
+    border-color: var(--accent-blue);
+    background: rgba(79,143,247,0.15);
+}
+.pvp-empty-label {
+    color: var(--accent-blue);
+    font-weight: 700;
+    letter-spacing: 0.3px;
+}
+.pvp-seat-bot .cg-seat-name { opacity: 0.75; }
+
+/* Mode picker cards (AI vs PVP) — premium hover */
+.mode-card {
+    transition: transform 0.18s, border-color 0.18s, background 0.18s;
+}
+.mode-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--accent-blue);
+    background: rgba(79,143,247,0.04);
+}
+
+/* Pending-sit tag floating above the reserved seat */
+.pvp-pending-tag {
+    position: absolute;
+    top: -18px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(135deg, #d97706, #fbbf24);
+    color: #1a1a1a;
+    font-size: 9px;
+    font-weight: 800;
+    padding: 2px 8px;
+    border-radius: 10px;
+    white-space: nowrap;
+    letter-spacing: 0.3px;
+    box-shadow: 0 2px 8px rgba(251,191,36,0.35);
+    z-index: 10;
+}
 
 /* Fold animation — applied via JS only to the seat that JUST folded */
 .cg-fold-anim .cg-seat-cards,

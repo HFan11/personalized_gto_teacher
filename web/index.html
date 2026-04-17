@@ -848,28 +848,36 @@
 
     <!-- Buy-in Screen -->
     <div id="cashgame-buyin" style="padding:16px;">
-        <h2 class="section-title">🏆 6-Max 实战</h2>
-        <div style="font-size:13px;margin-bottom:12px;">余额: <strong id="cg-bankroll" style="color:var(--accent-orange);">0</strong> 筹码</div>
+        <h2 class="section-title">6-Max 实战</h2>
+        <div style="font-size:13px;margin-bottom:16px;">余额: <strong id="cg-bankroll" style="color:var(--accent-orange);">0</strong> 筹码</div>
 
         <!-- Mode: AI or PVP -->
-        <div class="ui-card" style="padding:14px;margin-bottom:10px;cursor:pointer;" onclick="showAIBuyIn()">
-            <div style="display:flex;align-items:center;gap:12px;">
-                <span style="font-size:28px;">🤖</span>
-                <div>
+        <div class="ui-card mode-card" style="padding:14px;margin-bottom:10px;cursor:pointer;" onclick="showAIBuyIn()">
+            <div style="display:flex;align-items:center;gap:14px;">
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--accent-blue);flex-shrink:0;">
+                    <rect x="4" y="6" width="16" height="13" rx="2"/>
+                    <path d="M4 12h16M9 19v3M15 19v3M10 10h.01M14 10h.01"/>
+                </svg>
+                <div style="flex:1;min-width:0;">
                     <div style="font-weight:700;font-size:15px;">AI 对战</div>
-                    <div style="font-size:12px;color:var(--text-secondary);">和5个AI机器人打6人桌</div>
+                    <div style="font-size:12px;color:var(--text-secondary);">与 5 个 AI 机器人打 6 人桌</div>
                 </div>
-                <span style="margin-left:auto;color:var(--text-muted);">▶</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--text-muted);"><path d="M9 18l6-6-6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </div>
         </div>
-        <div class="ui-card" style="padding:14px;cursor:pointer;" onclick="showPVPRoom()">
-            <div style="display:flex;align-items:center;gap:12px;">
-                <span style="font-size:28px;">⚔️</span>
-                <div>
+        <div class="ui-card mode-card" style="padding:14px;cursor:pointer;" onclick="showPVPRoom()">
+            <div style="display:flex;align-items:center;gap:14px;">
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--accent-purple);flex-shrink:0;">
+                    <circle cx="12" cy="8" r="3.5"/>
+                    <path d="M5 20a7 7 0 0114 0"/>
+                    <circle cx="19" cy="6" r="2"/>
+                    <circle cx="5" cy="6" r="2"/>
+                </svg>
+                <div style="flex:1;min-width:0;">
                     <div style="font-weight:700;font-size:15px;">玩家对战</div>
-                    <div style="font-size:12px;color:var(--text-secondary);">真人+AI混合6人桌</div>
+                    <div style="font-size:12px;color:var(--text-secondary);">真人 + AI 混合 6 人桌 · 实时对局</div>
                 </div>
-                <span style="margin-left:auto;color:var(--text-muted);">▶</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--text-muted);"><path d="M9 18l6-6-6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </div>
         </div>
 
@@ -4835,66 +4843,63 @@ function pvpRenderTable(room) {
         potEl.textContent = `${streetLabel} · 底池 ${(room.pot||0).toFixed(1)} BB · #${room.hand_number}`;
     }
 
-    // Seats
+    // Seats — rotate so seated user appears at visual pos 0 (bottom).
+    // Spectators see seat 0 at bottom by default.
+    const heroAnchor = pvpMySeat >= 0 ? pvpMySeat : 0;
+    const d = room.dealer_seat ?? 0;
+    const posLabels = [];
+    posLabels[d] = 'D';
+    posLabels[(d+1)%6] = 'SB';
+    posLabels[(d+2)%6] = 'BB';
+
     let html = '';
     for (let vp = 0; vp < 6; vp++) {
-        const s = seats[vp];
+        const seatIdx = (heroAnchor + vp) % 6;
+        const s = seats[seatIdx];
         if (!s) continue;
         const isMe = userId && s.user_id === userId;
-        const isActing = vp === room.acting_seat;
-        const isFolded = room.folded?.[vp];
-        const isAllIn = room.all_in?.[vp];
+        const isActing = seatIdx === room.acting_seat;
+        const isFolded = room.folded?.[seatIdx];
+        const isAllIn = room.all_in?.[seatIdx];
         const isBot = pvpIsBot(s);
-        const isWinner = room.street === 'waiting' && lastAction.winner === vp;
+        const isWinner = room.street === 'waiting' && lastAction.winner === seatIdx;
 
         const cls = ['cg-seat',
             isFolded && 'folded',
             isActing && 'acting',
             isMe && 'hero-seat',
             isWinner && 'winner-seat',
-            isBot && !isFolded && 'pvp-seat-bot'
+            isBot && 'pvp-seat-bot'
         ].filter(Boolean).join(' ');
 
-        // Position labels (D/SB/BB)
-        const d = room.dealer_seat ?? 0;
-        const posLabels = [];
-        posLabels[d] = 'D';
-        posLabels[(d+1)%6] = 'SB';
-        posLabels[(d+2)%6] = 'BB';
+        const bet = room.bets?.[seatIdx] || 0;
 
-        const bet = room.bets?.[vp] || 0;
-
-        // Card display
+        // Card display: show face-down cards for non-hero active seats
         let cards = '';
-        if (room.street !== 'waiting' && !isFolded) {
-            if (isMe) {
-                // My cards rendered separately (pvp-hero-hand)
-                cards = '';
-            } else {
-                cards = `<div class="cg-seat-cards"><div class="playing-card facedown" style="width:24px;height:33px;"></div><div class="playing-card facedown" style="width:24px;height:33px;"></div></div>`;
-            }
+        if (room.street !== 'waiting' && !isFolded && !isMe) {
+            cards = `<div class="cg-seat-cards"><div class="playing-card facedown" style="width:24px;height:33px;"></div><div class="playing-card facedown" style="width:24px;height:33px;"></div></div>`;
         }
 
-        // Click handler: click bot to sit (if logged in + not already seated)
-        const clickable = isBot && !isMe && userId && pvpMySeat < 0;
-        const onclick = clickable ? `onclick="pvpSitSeat(${vp})"` : '';
-        const style = clickable ? 'cursor:pointer;' : '';
+        // Click handler: click bot seat to sit (if logged in + not seated)
+        const clickable = isBot && userId && pvpMySeat < 0 && pvpMyPendingSeat < 0;
+        const onclick = clickable ? `onclick="pvpSitSeat(${seatIdx})"` : '';
+        const clickableCls = clickable ? ' clickable-seat' : '';
 
         // Pending-sit indicator
         let pendingTag = '';
-        if (pvpMyPendingSeat === vp && !isMe) {
-            pendingTag = `<div style="position:absolute;top:-8px;left:50%;transform:translateX(-50%);background:#fbbf24;color:#000;font-size:9px;font-weight:700;padding:2px 6px;border-radius:8px;white-space:nowrap;">下一手入座</div>`;
+        if (pvpMyPendingSeat === seatIdx) {
+            pendingTag = `<div class="pvp-pending-tag">下一手入座</div>`;
         }
 
-        html += `<div class="${cls}" data-pos="${vp}" ${onclick} style="${style}position:relative;">
+        html += `<div class="${cls}${clickableCls}" data-pos="${vp}" ${onclick}>
             ${pendingTag}
             ${vp>=1&&vp<=3?cards:''}
             <div class="cg-seat-info">
-                <div class="cg-seat-name" style="font-size:10px;">
-                    ${isMe?'⭐ ':''}${isBot ? '<span style="color:var(--accent-blue);">'+ (clickable ? '空位':'Bot') +'</span>' : (s.name || 'Player')}
+                <div class="cg-seat-name">
+                    ${isMe?'⭐ ':''}${isBot ? (clickable ? '<span class="pvp-empty-label">空位</span>' : 'Bot') : (s.name || 'Player')}
                 </div>
                 <div class="cg-seat-stack">${(s.stack||0).toFixed(1)}BB</div>
-                ${posLabels[vp]?`<span class="cg-dealer-btn">${posLabels[vp]}</span>`:''}
+                ${posLabels[seatIdx]?`<span class="cg-dealer-btn">${posLabels[seatIdx]}</span>`:''}
             </div>
             ${bet>0?`<div class="cg-seat-bet">${bet.toFixed(1)}</div>`:''}
             ${isAllIn&&!isFolded?'<div style="color:var(--accent-purple);font-size:9px;font-weight:700;">ALL-IN</div>':''}
