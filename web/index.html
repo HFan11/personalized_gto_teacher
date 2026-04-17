@@ -4486,6 +4486,10 @@ function pvpOnRoomUpdate(room) {
         pvpLastHandNum = room.hand_number;
         pvpMyCards = [];
         pvpFetchMyCards(room.hand_number);
+        // Clear bot cards cache for old hands (keep memory low)
+        for (const k of Object.keys(pvpBotCardsCache)) {
+            if (parseInt(k) < room.hand_number - 1) delete pvpBotCardsCache[k];
+        }
     }
 
     // --- BOT ACTIONS: only host drives bots ---
@@ -4754,46 +4758,112 @@ async function pvpAct(action, amount) {
     } catch(e) { alert('操作失败: ' + e.message); }
 }
 
+// Persistent bot styles per seat (stable within a session)
+const PVP_BOT_STYLES = ['TAG', 'LAG', 'NIT', 'REG', 'FISH', 'TAG'];
+// Cache for bot hole cards: { handNum: { seatIdx: [card1, card2] } }
+const pvpBotCardsCache = {};
+
+async function pvpFetchBotCards(handNum) {
+    // Fetch all bot hands (user_id IS NULL rows) for current hand
+    if (pvpBotCardsCache[handNum]) return pvpBotCardsCache[handNum];
+    try {
+        const rows = await supabase.select('pvp_hands',
+            `room_id=eq.1&hand_number=eq.${handNum}&user_id=is.null&select=seat_idx,cards`);
+        const map = {};
+        for (const r of rows || []) { if (r.cards?.length) map[r.seat_idx] = r.cards; }
+        pvpBotCardsCache[handNum] = map;
+        return map;
+    } catch(e) { console.warn('Fetch bot cards failed:', e); return {}; }
+}
+
+// Convert PVP room state into a BotAI-compatible game object
+function pvpBuildGameForBot(room, seatIdx, botCards) {
+    const POS_NAMES = ['UTG','HJ','CO','BTN','SB','BB'];
+    const dealer = room.dealer_seat ?? 0;
+    // Parse card string "As" -> {rank:'A', suit:'s'}
+    const parseCards = (arr) => (arr || []).map(c => ({ rank: c[0], suit: c[1] }));
+    const board = parseCards(room.board || []);
+    // Build seats with style and (for bots) holeCards
+    const seats = (room.seats || []).map((s, i) => ({
+        stack: s.stack || 0,
+        style: s.is_bot ? PVP_BOT_STYLES[i] || 'REG' : 'REG',
+        holeCards: i === seatIdx && botCards[i] ? parseCards(botCards[i]) : null,
+        isSittingOut: false,
+        isActive: !(room.folded?.[i]) && !(room.all_in?.[i])
+    }));
+    return {
+        seats,
+        bets: room.bets || [0,0,0,0,0,0],
+        folded: room.folded || [false,false,false,false,false,false],
+        all_in: room.all_in || [false,false,false,false,false,false],
+        pot: room.pot || 0,
+        currentBet: room.current_bet || 0,
+        street: room.street || 'preflop',
+        board,
+        bb: 1,
+        actingSeat: seatIdx,
+        dealerSeat: dealer,
+        heroSeat: -1,
+        handHistory: [], // can't reconstruct accurately from room state; BotAI uses it only for isPFR detection
+        getSeatPosition(seat) {
+            // Position relative to dealer: BTN = dealer, SB = dealer+1, BB = dealer+2, etc.
+            const offset = (seat - dealer + 6) % 6;
+            // offset: 0=BTN, 1=SB, 2=BB, 3=UTG, 4=HJ, 5=CO
+            const positions = ['BTN','SB','BB','UTG','HJ','CO'];
+            return positions[offset];
+        }
+    };
+}
+
 async function pvpBotAction(room) {
     const seat = room.acting_seat;
     const s = room.seats?.[seat];
     if (!s || !pvpIsBot(s)) return;
 
-    const toCall = Math.max(0, room.current_bet - (room.bets?.[seat] || 0));
     const stack = s.stack || 0;
-    const pot = room.pot || 0;
-    const r = Math.random();
-
-    let action, amount = 0;
-
-    if (toCall <= 0) {
-        // No bet to face — check or bet
-        if (r < 0.55) {
-            action = 'check';
-        } else {
-            action = 'bet';
-            amount = Math.round(pot * (0.4 + r * 0.3) * 10) / 10;
-            amount = Math.max(1, Math.min(amount, stack));
-        }
-    } else if (toCall >= stack) {
-        // Facing bet >= stack — call (all-in) or fold
-        action = r < 0.4 ? 'fold' : 'call';
-    } else if (toCall > pot * 0.5) {
-        // Large bet — fold more often
-        if (r < 0.45) action = 'fold';
-        else if (r < 0.85) action = 'call';
-        else { action = 'raise'; amount = Math.round(room.current_bet * 2.5 * 10) / 10; }
-    } else {
-        // Small/medium bet
-        if (r < 0.2) action = 'fold';
-        else if (r < 0.7) action = 'call';
-        else { action = 'raise'; amount = Math.round(room.current_bet * 2.5 * 10) / 10; }
+    if (stack <= 0) {
+        // Can't act with no chips — fold (server should handle this, but safety net)
+        await supabase.rpc('pvp_bot_action', { p_action: 'fold', p_amount: 0 });
+        return;
     }
 
-    console.log(`PVP Bot seat ${seat}: ${action} ${amount}`);
+    let action = 'check', amount = 0;
+    const handNum = room.hand_number;
+
+    try {
+        // Fetch bot hole cards and run BotAI decision
+        const botCards = await pvpFetchBotCards(handNum);
+        if (botCards[seat] && typeof BotAI !== 'undefined' && typeof categorizeHand === 'function') {
+            const game = pvpBuildGameForBot(room, seat, botCards);
+            const decision = BotAI.decide(game, seat);
+            action = decision.action;
+            amount = decision.amount || 0;
+            console.log(`PVP Bot seat ${seat} (${PVP_BOT_STYLES[seat]}):`, action, amount, '| hand:', botCards[seat].join(''));
+        } else {
+            // Fallback: simple logic if BotAI not available or no cards
+            console.warn('BotAI unavailable or no cards for seat', seat, '— using fallback');
+            const toCall = Math.max(0, room.current_bet - (room.bets?.[seat] || 0));
+            const r = Math.random();
+            if (toCall <= 0) { action = r < 0.75 ? 'check' : 'bet'; amount = Math.max(1, Math.round((room.pot || 0) * 0.5 * 10) / 10); }
+            else if (toCall >= stack) { action = r < 0.5 ? 'fold' : 'call'; }
+            else { action = r < 0.35 ? 'fold' : 'call'; }
+        }
+    } catch(e) {
+        console.warn('Bot decision error:', e);
+        // Safest fallback: check if possible, else fold
+        const toCall = Math.max(0, room.current_bet - (room.bets?.[seat] || 0));
+        action = toCall > 0 ? 'fold' : 'check';
+    }
+
+    // Clamp amount to valid range
+    if (action === 'bet' || action === 'raise') {
+        amount = Math.min(amount, stack + (room.bets?.[seat] || 0));
+        amount = Math.max(amount, 1);
+    }
+
     try {
         const res = await supabase.rpc('pvp_bot_action', { p_action: action, p_amount: amount });
-        console.log('pvp_bot_action result:', res);
+        if (res?.error) console.warn('pvp_bot_action error:', res.error);
     } catch(e) { console.warn('Bot action RPC failed:', e); }
 }
 
