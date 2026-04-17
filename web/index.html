@@ -4660,33 +4660,33 @@ let pvpLastActingKey = '-';  // "seat@ts" dedup for bot actions
 let pvpActionPending = false;
 let pvpDealPending = false;
 
-// Style-based bot personas (random per session). Each bot seat gets
-// one of these profiles — display name shows the style + emoji, and
-// the style drives BotAI decisions (NIT=紧弱, TAG=紧凶, LAG=松凶, etc.).
-const PVP_BOT_PROFILES = [
-    { style: 'NIT',  name: '紧弱岩石', emoji: '🪨' },
-    { style: 'NIT',  name: '紧弱鳄鱼', emoji: '🐊' },
-    { style: 'TAG',  name: '紧凶猎手', emoji: '🎯' },
-    { style: 'TAG',  name: '紧凶老鹰', emoji: '🦅' },
-    { style: 'REG',  name: '职业鲨鱼', emoji: '🦈' },
-    { style: 'REG',  name: '职业狼',   emoji: '🐺' },
-    { style: 'LAG',  name: '松凶疯子', emoji: '🔥' },
-    { style: 'LAG',  name: '松凶火箭', emoji: '🚀' },
-    { style: 'FISH', name: '跟注站',   emoji: '📞' },
-    { style: 'FISH', name: '小鱼',     emoji: '🐟' },
+// Bot personas — display name is deliberately a neutral persona (like a real
+// player's handle). The playing style is HIDDEN from the user (they need to
+// read it from the opponent's play). Style still drives BotAI decisions.
+// Name pool (display): neutral, poker-player-style handles
+const PVP_NAME_POOL = [
+    'Alex 🎩', 'Luna 🌙', 'Rocky 🪨', 'Blaze 🔥', 'Sage 🦉',
+    'Viper 🐍', 'Frost ❄️', 'Phoenix 🔆', 'Shadow 🌑', 'Storm ⚡',
+    'Titan 💪', 'Ghost 👻', 'Hawk 🦅', 'Rex 🦖', 'Wolf 🐺',
+    'Jade 🐉', 'Onyx 🖤', 'Echo 🌊', 'Ace ♠️', 'King ♦️',
 ];
-// Assigned at PVP init — 6 unique profiles, one per seat, stable within the session.
+// Style pool (internal) — weighted mix so the table has variety
+const PVP_STYLE_POOL = ['NIT', 'TAG', 'TAG', 'REG', 'REG', 'LAG', 'LAG', 'FISH'];
+// Assigned at PVP init. Each seat gets { name, emoji, style }. The name is
+// uncorrelated with style — user has to figure out the style from play.
 let PVP_BOT_PROFILE_BY_SEAT = null;
 function pvpPickBotProfiles() {
-    const pool = [...PVP_BOT_PROFILES];
+    const names = [...PVP_NAME_POOL];
     const picks = [];
     for (let i = 0; i < 6; i++) {
-        const idx = Math.floor(Math.random() * pool.length);
-        picks.push(pool.splice(idx, 1)[0]);
+        const nIdx = Math.floor(Math.random() * names.length);
+        const name = names.splice(nIdx, 1)[0];
+        const style = PVP_STYLE_POOL[Math.floor(Math.random() * PVP_STYLE_POOL.length)];
+        picks.push({ name, style });
     }
     return picks;
 }
-// Legacy: some code still reads PVP_BOT_STYLES[i]. Computed from the per-seat profile.
+// Legacy API: some code reads PVP_BOT_STYLES[i]. Computed from the per-seat profile.
 let PVP_BOT_STYLES = ['REG','REG','REG','REG','REG','REG'];
 const pvpBotCardsCache = {};  // { handNum: { seatIdx: [cards] } }
 // Track the preflop raiser per hand (for BotAI c-bet logic).
@@ -4945,7 +4945,7 @@ function pvpRenderTable(room) {
             ${vp>=1&&vp<=3?cards:''}
             <div class="cg-seat-info">
                 <div class="cg-seat-name">
-                    ${isMe?'⭐ ':''}${isBot ? (clickable ? '<span class="pvp-empty-label">空位</span>' : ((PVP_BOT_PROFILE_BY_SEAT?.[seatIdx]?.emoji || '🤖') + ' ' + (PVP_BOT_PROFILE_BY_SEAT?.[seatIdx]?.name || 'Bot'))) : (s.name || 'Player')}
+                    ${isMe?'⭐ ':''}${isBot ? (clickable ? '<span class="pvp-empty-label">空位</span>' : (PVP_BOT_PROFILE_BY_SEAT?.[seatIdx]?.name || 'Player')) : (s.name || 'Player')}
                 </div>
                 <div class="cg-seat-stack">${(s.stack||0).toFixed(1)}BB</div>
                 ${posLabels[seatIdx]?`<span class="cg-dealer-btn">${posLabels[seatIdx]}</span>`:''}
