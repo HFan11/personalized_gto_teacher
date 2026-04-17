@@ -4128,7 +4128,7 @@ let rouletteBet = 10;
 let slotsBet = 5;
 
 function getBankroll() { return bankroll; }
-function setBankroll(val) {
+function setBankroll(val, opts) {
     bankroll = Math.round(val);
     localStorage.setItem('pokergto_bankroll', Math.round(bankroll));
     // Update all displays
@@ -4136,22 +4136,57 @@ function setBankroll(val) {
     if (casinoEl) casinoEl.textContent = Math.round(bankroll);
     const cgBalEl = document.getElementById('cg-bankroll');
     if (cgBalEl) cgBalEl.textContent = Math.round(bankroll);
-    // Debounced cloud sync
+    // Debounced cloud sync (or immediate on cashouts so leaderboard is fresh)
     clearTimeout(setBankroll._timer);
-    setBankroll._timer = setTimeout(() => { if (typeof syncToCloud === 'function') syncToCloud(); }, 3000);
+    if (opts?.immediate) {
+        // Fire-and-forget but flush any pending write NOW
+        if (typeof syncToCloud === 'function') syncToCloud();
+    } else {
+        setBankroll._timer = setTimeout(() => { if (typeof syncToCloud === 'function') syncToCloud(); }, 3000);
+    }
+}
+
+// Force immediate sync to cloud (used on leave/cashout)
+function flushBankrollSync() {
+    clearTimeout(setBankroll._timer);
+    if (typeof syncToCloud === 'function') return syncToCloud();
 }
 let casinoSpinning = false;
 
 function saveCasinoBalance() { setBankroll(bankroll); }
 
 // Safety net: cash out any active AI game stack on page close/refresh
-// so the user never loses chips from browser close/tab close
+// Uses sendBeacon to reliably push to Supabase (sync fetch doesn't run on unload)
 window.addEventListener('beforeunload', () => {
     if (typeof cashGame !== 'undefined' && cashGame && cashGame.seats?.[cashGame.heroSeat]?.stack > 0) {
         const stack = cashGame.seats[cashGame.heroSeat].stack;
-        // Synchronous localStorage write (async syncToCloud may not complete in time)
         const newBankroll = Math.round(bankroll + stack);
+        // Sync localStorage immediately
         localStorage.setItem('pokergto_bankroll', newBankroll);
+        // Push to Supabase via sendBeacon — reliable on page unload (browsers guarantee delivery)
+        if (supabase?.user && supabase?.token && navigator.sendBeacon) {
+            const url = SUPABASE_URL + '/rest/v1/profiles?id=eq.' + supabase.user.id;
+            const payload = JSON.stringify({
+                bankroll: newBankroll,
+                updated_at: new Date().toISOString()
+            });
+            // Build a Blob with the right headers (sendBeacon can't set custom headers
+            // directly, but the Blob's type becomes the Content-Type). Supabase requires
+            // apikey + Authorization which sendBeacon can't set, so we fall back to
+            // keepalive fetch which DOES allow custom headers.
+            try {
+                fetch(url, {
+                    method: 'PATCH',
+                    headers: {
+                        'apikey': SUPABASE_ANON_KEY,
+                        'Authorization': 'Bearer ' + supabase.token,
+                        'Content-Type': 'application/json'
+                    },
+                    body: payload,
+                    keepalive: true  // tells browser to keep the request alive after unload
+                });
+            } catch(e) {}
+        }
     }
 });
 
@@ -4950,7 +4985,7 @@ function initCashGamePage() {
     if (cashGame && cashGame.seats?.[cashGame.heroSeat]?.stack > 0) {
         const heroStack = cashGame.seats[cashGame.heroSeat].stack;
         console.log(`Auto-cashout on page init: +${heroStack.toFixed(1)} BB → bankroll`);
-        setBankroll(bankroll + heroStack);
+        setBankroll(bankroll + heroStack, { immediate: true });
         cashGame = null;
         cgRenderedBoardCount = 0;
     }
@@ -4972,7 +5007,7 @@ function showPVPRoom() {
     if (!supabase.user) { toggleAuthModal(); return; }
     // Defensive: auto-cashout any orphaned AI game before entering PVP
     if (cashGame && cashGame.seats?.[cashGame.heroSeat]?.stack > 0) {
-        setBankroll(bankroll + cashGame.seats[cashGame.heroSeat].stack);
+        setBankroll(bankroll + cashGame.seats[cashGame.heroSeat].stack, { immediate: true });
         cashGame = null;
         cgRenderedBoardCount = 0;
     }
@@ -5012,7 +5047,8 @@ function leaveCashGame() {
         // This is correct — any chips in the pot are forfeit (like leaving mid-hand)
         const heroStack = cashGame.seats[cashGame.heroSeat].stack;
         console.log(`Leave: heroStack=${heroStack}, bankroll before=${bankroll}`);
-        setBankroll(bankroll + heroStack);
+        // Immediate sync so leaderboard sees correct value right away
+        setBankroll(bankroll + heroStack, { immediate: true });
         console.log(`Leave: bankroll after=${bankroll}`);
     }
     cashGame = null;
