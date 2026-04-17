@@ -4389,6 +4389,7 @@ function spinSlots() {
 // Client handles: auto-deal trigger, bot AI, rendering
 // ============================================================
 let pvpPollId = null;
+let pvpHeartbeatId = null;    // heartbeat timer
 let pvpMySeat = -1;
 let pvpLastHandNum = 0;
 let pvpBotPending = false;
@@ -4396,15 +4397,29 @@ let pvpMyCards = [];
 let pvpDealPending = false;
 let pvpLastActingSeat = -2;   // track to avoid duplicate bot triggers
 let pvpResultTimer = null;    // timer for showing result before next deal
+let pvpIdleResetPending = false;
+
+const PVP_LIVENESS_SEC = 10;   // humans are "active" if last_seen within 10s
+const PVP_IDLE_RESET_SEC = 30; // reset orphaned room after 30s no activity
 
 function initPVPPage() {
     if (!supabase.user) { toggleAuthModal(); return; }
     pvpBotPending = false;
     pvpDealPending = false;
     pvpLastActingSeat = -2;
+    pvpIdleResetPending = false;
     pvpLoadRoom();
     if (pvpPollId) supabase.stopPoll(pvpPollId);
     pvpPollId = supabase.pollTable('pvp_room', 1000, pvpOnRoomUpdate);
+    // Start heartbeat (every 5s — tells other clients we're still alive)
+    if (pvpHeartbeatId) clearInterval(pvpHeartbeatId);
+    pvpHeartbeatId = setInterval(pvpSendHeartbeat, 5000);
+    pvpSendHeartbeat(); // immediate first heartbeat
+}
+
+async function pvpSendHeartbeat() {
+    if (!supabase.user || pvpMySeat < 0) return;
+    try { await supabase.rpc('pvp_heartbeat'); } catch(e) {}
 }
 
 async function pvpLoadRoom() {
@@ -4418,12 +4433,31 @@ function pvpIsBot(s) {
     return s?.is_bot === true || s?.is_bot === 'true' || !s?.user_id;
 }
 
-// Am I the "host" (lowest-indexed human)? Only host drives bots & auto-deals
+// Is this seat an active human? (human + last_seen within liveness threshold)
+function pvpIsActiveHuman(s, now) {
+    if (pvpIsBot(s)) return false;
+    const lastSeen = s.last_seen || 0;
+    return (now - lastSeen) < PVP_LIVENESS_SEC;
+}
+
+// Am I the "host"? Host = lowest-seat active human (with recent heartbeat)
+// Transparent to the user — no UI indicator. Auto-failover when host goes stale.
 function pvpAmHost(seats) {
+    const now = Date.now() / 1000;
+    for (let i = 0; i < seats.length; i++) {
+        if (pvpIsActiveHuman(seats[i], now)) return i === pvpMySeat;
+    }
+    // Fallback: if nobody has recent heartbeat yet (e.g., just loaded), lowest-seat human wins
     for (let i = 0; i < seats.length; i++) {
         if (!pvpIsBot(seats[i])) return i === pvpMySeat;
     }
     return false;
+}
+
+// Count active humans (for idle-reset detection)
+function pvpActiveHumanCount(seats) {
+    const now = Date.now() / 1000;
+    return seats.filter(s => pvpIsActiveHuman(s, now)).length;
 }
 
 function pvpOnRoomUpdate(room) {
@@ -4438,7 +4472,23 @@ function pvpOnRoomUpdate(room) {
     }
 
     const isHost = pvpAmHost(seats);
+    const activeHumans = pvpActiveHumanCount(seats);
     const humanCount = seats.filter(s => !pvpIsBot(s)).length;
+
+    // --- IDLE RESET: no active humans for PVP_IDLE_RESET_SEC + mid-hand → reset ---
+    // Triggered by any remaining client (or when a new player joins via pvp_join)
+    if (isHost && activeHumans > 0 && room.street !== 'waiting' && !pvpIdleResetPending) {
+        const lastTs = room.last_action?.ts || 0;
+        const idleSec = Date.now() / 1000 - lastTs;
+        // If stale for a long time AND we just became host (others disconnected), reset
+        if (idleSec > PVP_IDLE_RESET_SEC) {
+            pvpIdleResetPending = true;
+            supabase.rpc('pvp_reset_game')
+                .catch(e => console.warn('Reset failed:', e))
+                .finally(() => { setTimeout(() => { pvpIdleResetPending = false; }, 2000); });
+            return;
+        }
+    }
 
     // --- AUTO-DEAL: only host triggers deals ---
     if (isHost && !pvpDealPending) {
@@ -4724,6 +4774,7 @@ async function pvpJoin(seat) {
 
 async function pvpLeave() {
     if (pvpPollId) { supabase.stopPoll(pvpPollId); pvpPollId = null; }
+    if (pvpHeartbeatId) { clearInterval(pvpHeartbeatId); pvpHeartbeatId = null; }
     try { await supabase.rpc('pvp_leave'); } catch(e) {
         // Fallback: direct update if RPC fails
         if (supabase.user) {
@@ -4740,7 +4791,7 @@ async function pvpLeave() {
         }
     }
     pvpMySeat = -1; pvpMyCards = []; pvpBotPending = false; pvpDealPending = false;
-    pvpLastHandNum = 0; pvpLastActingSeat = -2;
+    pvpLastHandNum = 0; pvpLastActingSeat = -2; pvpIdleResetPending = false;
     document.getElementById('pvp-hero-hand').innerHTML = '';
     const pvp = document.getElementById('pvp-container');
     if (pvp) pvp.style.display = 'none';
