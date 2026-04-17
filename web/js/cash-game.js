@@ -271,8 +271,16 @@ class CashGameEngine {
             return this._awardPot(inHand[0]);
         }
 
-        // All but one are all-in → deal remaining board and showdown
-        if (notAllIn.length <= 1) {
+        // All-in runout only when no more meaningful action is possible:
+        //   - Zero players can still act (everyone all-in)
+        //   - Exactly one player can still act, AND they've already matched the current bet
+        //     (so they have no pending decision — they just wait for cards)
+        // Previously we ran out as soon as notAllIn.length <= 1, which wrongly auto-folded
+        // the villain's decision when the hero went all-in first.
+        if (notAllIn.length === 0) {
+            return this._runItOut();
+        }
+        if (notAllIn.length === 1 && this.bets[notAllIn[0]] >= this.currentBet) {
             return this._runItOut();
         }
 

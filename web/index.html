@@ -4661,7 +4661,29 @@ let pvpActionPending = false;
 let pvpDealPending = false;
 
 const PVP_BOT_STYLES = ['TAG', 'LAG', 'NIT', 'REG', 'FISH', 'TAG'];
+// Fun display names for bot seats (6 — one per seat). Purely a UI layer;
+// the server still uses "Bot 1"/"Bot 2"/etc. as the underlying seat name.
+const PVP_BOT_DISPLAY_POOL = [
+    'Alex 🎩', 'Luna 🌙', 'Rocky 🪨', 'Blaze 🔥', 'Sage 🦉',
+    'Viper 🐍', 'Frost ❄️', 'Phoenix 🔆', 'Shadow 🌑', 'Storm ⚡',
+    'Titan 💪', 'Ghost 👻', 'Hawk 🦅', 'Rex 🦖', 'Wolf 🐺',
+];
+// Assigned at init — one unique display name per seat index, stable for the session
+let PVP_BOT_DISPLAY = null;
+function pvpPickBotDisplayNames() {
+    const pool = [...PVP_BOT_DISPLAY_POOL];
+    const picks = [];
+    for (let i = 0; i < 6; i++) {
+        const idx = Math.floor(Math.random() * pool.length);
+        picks.push(pool.splice(idx, 1)[0]);
+    }
+    return picks;
+}
 const pvpBotCardsCache = {};  // { handNum: { seatIdx: [cards] } }
+// Track the preflop raiser per hand (for BotAI c-bet logic).
+// Reset when hand_number changes. Updated when we see a raise/bet/allin on preflop.
+let pvpHandAggressor = -1;
+let pvpAggressorHandNum = -1;
 
 function initPVPPage() {
     // No auth required to spectate; sitting requires auth
@@ -4672,6 +4694,9 @@ function initPVPPage() {
     pvpActionPending = false;
     pvpDealPending = false;
     pvpLastHandNum = 0;
+    pvpHandAggressor = -1;
+    pvpAggressorHandNum = -1;
+    if (!PVP_BOT_DISPLAY) PVP_BOT_DISPLAY = pvpPickBotDisplayNames();
 
     if (pvpPollId) supabase.stopPoll(pvpPollId);
     pvpPollId = supabase.pollTable('pvp_room', 1000, pvpOnRoomUpdate);
@@ -4740,6 +4765,18 @@ async function pvpOnRoomUpdate(room) {
         // Clear old bot-card cache
         for (const k of Object.keys(pvpBotCardsCache)) {
             if (parseInt(k) < room.hand_number - 1) delete pvpBotCardsCache[k];
+        }
+    }
+
+    // Track preflop aggressor (for BotAI's c-bet logic). Reset on new hand.
+    if (room.hand_number !== pvpAggressorHandNum) {
+        pvpAggressorHandNum = room.hand_number;
+        pvpHandAggressor = -1;
+    }
+    if (room.street === 'preflop' && room.last_action?.action) {
+        const a = room.last_action.action;
+        if ((a === 'raise' || a === 'bet' || a === 'allin') && typeof room.last_action.seat === 'number') {
+            pvpHandAggressor = room.last_action.seat;
         }
     }
     if (pvpMySeat < 0) {
@@ -4896,7 +4933,7 @@ function pvpRenderTable(room) {
             ${vp>=1&&vp<=3?cards:''}
             <div class="cg-seat-info">
                 <div class="cg-seat-name">
-                    ${isMe?'⭐ ':''}${isBot ? (clickable ? '<span class="pvp-empty-label">空位</span>' : 'Bot') : (s.name || 'Player')}
+                    ${isMe?'⭐ ':''}${isBot ? (clickable ? '<span class="pvp-empty-label">空位</span>' : (PVP_BOT_DISPLAY?.[seatIdx] || 'Bot')) : (s.name || 'Player')}
                 </div>
                 <div class="cg-seat-stack">${(s.stack||0).toFixed(1)}BB</div>
                 ${posLabels[seatIdx]?`<span class="cg-dealer-btn">${posLabels[seatIdx]}</span>`:''}
@@ -5089,6 +5126,12 @@ function pvpBuildGameForBot(room, seatIdx, botCards) {
         isSittingOut: false,
         isActive: !(room.folded?.[i]) && !(room.all_in?.[i])
     }));
+    // Inject preflop-aggressor into handHistory so BotAI's isPFR check works
+    // (enables proper c-betting, value-betting sizing based on pre-flop role)
+    const handHistory = [];
+    if (pvpHandAggressor >= 0 && pvpAggressorHandNum === room.hand_number) {
+        handHistory.push({ seat: pvpHandAggressor, action: 'raise', street: 'preflop' });
+    }
     return {
         seats, bets: room.bets || [0,0,0,0,0,0],
         folded: room.folded || [false,false,false,false,false,false],
@@ -5096,7 +5139,7 @@ function pvpBuildGameForBot(room, seatIdx, botCards) {
         pot: room.pot || 0, currentBet: room.current_bet || 0,
         street: room.street || 'preflop', board, bb: 1,
         actingSeat: seatIdx, dealerSeat: dealer, heroSeat: -1,
-        handHistory: [],
+        handHistory,
         getSeatPosition(seat) {
             const off = (seat - dealer + 6) % 6;
             return ['BTN','SB','BB','UTG','HJ','CO'][off];
