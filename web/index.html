@@ -4660,18 +4660,25 @@ let pvpLastActingKey = '-';  // "seat@ts" dedup for bot actions
 let pvpActionPending = false;
 let pvpDealPending = false;
 
-const PVP_BOT_STYLES = ['TAG', 'LAG', 'NIT', 'REG', 'FISH', 'TAG'];
-// Fun display names for bot seats (6 — one per seat). Purely a UI layer;
-// the server still uses "Bot 1"/"Bot 2"/etc. as the underlying seat name.
-const PVP_BOT_DISPLAY_POOL = [
-    'Alex 🎩', 'Luna 🌙', 'Rocky 🪨', 'Blaze 🔥', 'Sage 🦉',
-    'Viper 🐍', 'Frost ❄️', 'Phoenix 🔆', 'Shadow 🌑', 'Storm ⚡',
-    'Titan 💪', 'Ghost 👻', 'Hawk 🦅', 'Rex 🦖', 'Wolf 🐺',
+// Style-based bot personas (random per session). Each bot seat gets
+// one of these profiles — display name shows the style + emoji, and
+// the style drives BotAI decisions (NIT=紧弱, TAG=紧凶, LAG=松凶, etc.).
+const PVP_BOT_PROFILES = [
+    { style: 'NIT',  name: '紧弱岩石', emoji: '🪨' },
+    { style: 'NIT',  name: '紧弱鳄鱼', emoji: '🐊' },
+    { style: 'TAG',  name: '紧凶猎手', emoji: '🎯' },
+    { style: 'TAG',  name: '紧凶老鹰', emoji: '🦅' },
+    { style: 'REG',  name: '职业鲨鱼', emoji: '🦈' },
+    { style: 'REG',  name: '职业狼',   emoji: '🐺' },
+    { style: 'LAG',  name: '松凶疯子', emoji: '🔥' },
+    { style: 'LAG',  name: '松凶火箭', emoji: '🚀' },
+    { style: 'FISH', name: '跟注站',   emoji: '📞' },
+    { style: 'FISH', name: '小鱼',     emoji: '🐟' },
 ];
-// Assigned at init — one unique display name per seat index, stable for the session
-let PVP_BOT_DISPLAY = null;
-function pvpPickBotDisplayNames() {
-    const pool = [...PVP_BOT_DISPLAY_POOL];
+// Assigned at PVP init — 6 unique profiles, one per seat, stable within the session.
+let PVP_BOT_PROFILE_BY_SEAT = null;
+function pvpPickBotProfiles() {
+    const pool = [...PVP_BOT_PROFILES];
     const picks = [];
     for (let i = 0; i < 6; i++) {
         const idx = Math.floor(Math.random() * pool.length);
@@ -4679,6 +4686,8 @@ function pvpPickBotDisplayNames() {
     }
     return picks;
 }
+// Legacy: some code still reads PVP_BOT_STYLES[i]. Computed from the per-seat profile.
+let PVP_BOT_STYLES = ['REG','REG','REG','REG','REG','REG'];
 const pvpBotCardsCache = {};  // { handNum: { seatIdx: [cards] } }
 // Track the preflop raiser per hand (for BotAI c-bet logic).
 // Reset when hand_number changes. Updated when we see a raise/bet/allin on preflop.
@@ -4696,7 +4705,10 @@ function initPVPPage() {
     pvpLastHandNum = 0;
     pvpHandAggressor = -1;
     pvpAggressorHandNum = -1;
-    if (!PVP_BOT_DISPLAY) PVP_BOT_DISPLAY = pvpPickBotDisplayNames();
+    if (!PVP_BOT_PROFILE_BY_SEAT) {
+        PVP_BOT_PROFILE_BY_SEAT = pvpPickBotProfiles();
+        PVP_BOT_STYLES = PVP_BOT_PROFILE_BY_SEAT.map(p => p.style);
+    }
 
     if (pvpPollId) supabase.stopPoll(pvpPollId);
     pvpPollId = supabase.pollTable('pvp_room', 1000, pvpOnRoomUpdate);
@@ -4933,7 +4945,7 @@ function pvpRenderTable(room) {
             ${vp>=1&&vp<=3?cards:''}
             <div class="cg-seat-info">
                 <div class="cg-seat-name">
-                    ${isMe?'⭐ ':''}${isBot ? (clickable ? '<span class="pvp-empty-label">空位</span>' : (PVP_BOT_DISPLAY?.[seatIdx] || 'Bot')) : (s.name || 'Player')}
+                    ${isMe?'⭐ ':''}${isBot ? (clickable ? '<span class="pvp-empty-label">空位</span>' : ((PVP_BOT_PROFILE_BY_SEAT?.[seatIdx]?.emoji || '🤖') + ' ' + (PVP_BOT_PROFILE_BY_SEAT?.[seatIdx]?.name || 'Bot'))) : (s.name || 'Player')}
                 </div>
                 <div class="cg-seat-stack">${(s.stack||0).toFixed(1)}BB</div>
                 ${posLabels[seatIdx]?`<span class="cg-dealer-btn">${posLabels[seatIdx]}</span>`:''}
