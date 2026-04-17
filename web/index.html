@@ -4710,8 +4710,17 @@ function initPVPPage() {
         PVP_BOT_STYLES = PVP_BOT_PROFILE_BY_SEAT.map(p => p.style);
     }
 
-    if (pvpPollId) supabase.stopPoll(pvpPollId);
-    pvpPollId = supabase.pollTable('pvp_room', 1000, pvpOnRoomUpdate);
+    if (pvpPollId) clearInterval(pvpPollId);
+    // Always-fire poll: re-evaluates state every 1.5s regardless of updated_at.
+    // This is critical so auto-deal fires after a hand ends (previous pollTable
+    // only fired the callback when updated_at changed, which never happens between
+    // hands since nothing writes to updated_at while idle).
+    pvpPollId = setInterval(async () => {
+        try {
+            const rows = await supabase.select('pvp_room', 'id=eq.1');
+            if (rows?.[0]) pvpOnRoomUpdate(rows[0]);
+        } catch(e) {}
+    }, 1500);
 
     if (pvpHeartbeatId) clearInterval(pvpHeartbeatId);
     pvpHeartbeatId = setInterval(() => {
@@ -4724,7 +4733,7 @@ function initPVPPage() {
 }
 
 function pvpStopPage() {
-    if (pvpPollId) { supabase.stopPoll(pvpPollId); pvpPollId = null; }
+    if (pvpPollId) { clearInterval(pvpPollId); pvpPollId = null; }
     if (pvpHeartbeatId) { clearInterval(pvpHeartbeatId); pvpHeartbeatId = null; }
 }
 
