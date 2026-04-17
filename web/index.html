@@ -4689,6 +4689,10 @@ function pvpPickBotProfiles() {
 // Legacy API: some code reads PVP_BOT_STYLES[i]. Computed from the per-seat profile.
 let PVP_BOT_STYLES = ['REG','REG','REG','REG','REG','REG'];
 const pvpBotCardsCache = {};  // { handNum: { seatIdx: [cards] } }
+// Showdown hand reveal: { handNum: { seatIdx: [cards] } } — all non-folded hands
+// Populated when a showdown occurs so we can display opponent cards.
+const pvpShowdownCache = {};
+let pvpShowdownFetchingHand = -1; // guard against duplicate fetches
 // Track the preflop raiser per hand (for BotAI c-bet logic).
 // Reset when hand_number changes. Updated when we see a raise/bet/allin on preflop.
 let pvpHandAggressor = -1;
@@ -4799,6 +4803,15 @@ async function pvpOnRoomUpdate(room) {
         if ((a === 'raise' || a === 'bet' || a === 'allin') && typeof room.last_action.seat === 'number') {
             pvpHandAggressor = room.last_action.seat;
         }
+    }
+
+    // Fetch all non-folded players' hole cards at showdown (to reveal)
+    if (room.street === 'waiting'
+        && room.last_action?.type === 'showdown'
+        && !pvpShowdownCache[room.hand_number]
+        && pvpShowdownFetchingHand !== room.hand_number) {
+        pvpShowdownFetchingHand = room.hand_number;
+        pvpFetchShowdownCards(room.hand_number, room.folded || []);
     }
     if (pvpMySeat < 0) {
         // Not seated → clear hole cards display
@@ -4932,9 +4945,27 @@ function pvpRenderTable(room) {
 
         const bet = room.bets?.[seatIdx] || 0;
 
-        // Card display: show face-down cards for non-hero active seats
+        // Card display
+        //   - During live hand: face-down for non-me active seats
+        //   - At showdown (street=waiting + last_action.type=showdown):
+        //     reveal non-folded hands from pvpShowdownCache
         let cards = '';
-        if (room.street !== 'waiting' && !isFolded && !isMe) {
+        const showdownActive = room.street === 'waiting' && lastAction.type === 'showdown';
+        const revealCards = showdownActive
+            ? pvpShowdownCache[room.hand_number]?.[seatIdx]
+            : null;
+
+        if (revealCards && !isMe) {
+            // Reveal bot/other hand at showdown
+            const sm = {c:'♣',d:'♦',h:'♥',s:'♠'}, scls = {c:'clubs',d:'diamonds',h:'hearts',s:'spades'};
+            cards = `<div class="cg-seat-cards cg-showdown-reveal">${revealCards.map(c => {
+                const r = c[0], su = c[1];
+                return `<div class="playing-card ${scls[su]||''}" data-rank="${r==='T'?'10':r}" style="width:30px;height:40px;">
+                    <span class="card-rank" style="font-size:12px;">${r==='T'?'10':r}</span>
+                    <span class="card-suit" style="font-size:10px;">${sm[su]||su}</span></div>`;
+            }).join('')}</div>`;
+        } else if (room.street !== 'waiting' && !isFolded && !isMe) {
+            // Live hand: face-down
             cards = `<div class="cg-seat-cards"><div class="playing-card facedown" style="width:24px;height:33px;"></div><div class="playing-card facedown" style="width:24px;height:33px;"></div></div>`;
         }
 
@@ -5134,6 +5165,28 @@ async function pvpFetchBotCards(handNum) {
         pvpBotCardsCache[handNum] = map;
         return map;
     } catch(e) { return {}; }
+}
+
+// Fetch ALL non-folded hole cards (humans + bots) for showdown reveal.
+// RLS lets us see bot cards (user_id IS NULL) and our own. Other humans' cards
+// are never revealed at showdown due to RLS — they'd need to be fetched server-side,
+// which we skip for MVP (human-vs-human showdown reveal TBD).
+async function pvpFetchShowdownCards(handNum, foldedArr) {
+    if (pvpShowdownCache[handNum]) return;
+    const map = {};
+    try {
+        // Bot cards (user_id IS NULL — visible to all via RLS)
+        const botRows = await supabase.select('pvp_hands',
+            `room_id=eq.1&hand_number=eq.${handNum}&user_id=is.null&select=seat_idx,cards`);
+        for (const r of botRows || []) { if (r.cards?.length) map[r.seat_idx] = r.cards; }
+        // My own cards (if seated + not folded)
+        if (pvpMySeat >= 0 && !foldedArr[pvpMySeat] && pvpMyCards.length > 0) {
+            map[pvpMySeat] = pvpMyCards;
+        }
+        pvpShowdownCache[handNum] = map;
+        // Trigger re-render so seats pick up the reveal
+        pvpLoadRoom();
+    } catch(e) { console.warn('Showdown fetch failed:', e); }
 }
 
 function pvpBuildGameForBot(room, seatIdx, botCards) {
