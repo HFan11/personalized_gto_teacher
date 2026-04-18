@@ -783,14 +783,53 @@
                 🎰 SPIN
             </button>
         </div>
-        <!-- Payout table -->
-        <div style="margin-top:12px;padding:8px;background:var(--bg-card);border-radius:8px;font-size:10px;color:var(--text-muted);">
-            <div style="font-weight:700;margin-bottom:4px;color:var(--text-secondary);">赔率表 <span style="font-weight:400;font-size:9px;">(含本金)</span></div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px;">
-                <span>💎💎💎 = 80x</span><span>7️⃣7️⃣7️⃣ = 30x</span>
-                <span>🔔🔔🔔 = 15x</span><span>🍊🍊🍊 = 8x</span>
-                <span>🍋🍋🍋 = 5x</span><span>🍒🍒🍒 = 3x</span>
-                <span>任意2同 = 1x (退本)</span><span></span>
+        <!-- Payout table (Vegas style) -->
+        <div class="slots-paytable">
+            <div class="slots-paytable-header">
+                <span>PAYOUTS</span>
+                <span class="slots-paytable-note">含本金</span>
+            </div>
+            <div class="slots-paytable-rows">
+                <div class="slots-paytable-row slots-payout-jackpot">
+                    <canvas class="slots-mini-sym" data-sym="5"></canvas>
+                    <canvas class="slots-mini-sym" data-sym="5"></canvas>
+                    <canvas class="slots-mini-sym" data-sym="5"></canvas>
+                    <span class="slots-paytable-mult">80×</span>
+                </div>
+                <div class="slots-paytable-row slots-payout-big">
+                    <canvas class="slots-mini-sym" data-sym="4"></canvas>
+                    <canvas class="slots-mini-sym" data-sym="4"></canvas>
+                    <canvas class="slots-mini-sym" data-sym="4"></canvas>
+                    <span class="slots-paytable-mult">30×</span>
+                </div>
+                <div class="slots-paytable-row">
+                    <canvas class="slots-mini-sym" data-sym="3"></canvas>
+                    <canvas class="slots-mini-sym" data-sym="3"></canvas>
+                    <canvas class="slots-mini-sym" data-sym="3"></canvas>
+                    <span class="slots-paytable-mult">15×</span>
+                </div>
+                <div class="slots-paytable-row">
+                    <canvas class="slots-mini-sym" data-sym="2"></canvas>
+                    <canvas class="slots-mini-sym" data-sym="2"></canvas>
+                    <canvas class="slots-mini-sym" data-sym="2"></canvas>
+                    <span class="slots-paytable-mult">8×</span>
+                </div>
+                <div class="slots-paytable-row">
+                    <canvas class="slots-mini-sym" data-sym="1"></canvas>
+                    <canvas class="slots-mini-sym" data-sym="1"></canvas>
+                    <canvas class="slots-mini-sym" data-sym="1"></canvas>
+                    <span class="slots-paytable-mult">5×</span>
+                </div>
+                <div class="slots-paytable-row">
+                    <canvas class="slots-mini-sym" data-sym="0"></canvas>
+                    <canvas class="slots-mini-sym" data-sym="0"></canvas>
+                    <canvas class="slots-mini-sym" data-sym="0"></canvas>
+                    <span class="slots-paytable-mult">3×</span>
+                </div>
+                <div class="slots-paytable-row slots-payout-small">
+                    <span class="slots-paytable-pair">任意 2 个相同</span>
+                    <span class="slots-paytable-mult slots-paytable-mult-small">1× <span style="font-size:9px;opacity:0.7;">(退本)</span></span>
+                </div>
             </div>
         </div>
     </div>
@@ -4422,13 +4461,32 @@ function switchCasinoGame(game) {
     document.getElementById('game-roulette').style.display = game === 'roulette' ? 'block' : 'none';
     document.getElementById('game-slots').style.display = game === 'slots' ? 'block' : 'none';
     if (game === 'roulette') initRouletteBoard();
-    if (game === 'slots') { setTimeout(initSlotMachine, 50); } // delay for DOM visibility
+    if (game === 'slots') { setTimeout(() => { initSlotMachine(); renderSlotsPaytable(); }, 50); }
     document.getElementById('tab-roulette').classList.toggle('active', game === 'roulette');
     document.getElementById('tab-slots').classList.toggle('active', game === 'slots');
     document.getElementById('tab-roulette').style.borderBottomColor = game === 'roulette' ? 'var(--accent-blue)' : 'transparent';
     document.getElementById('tab-slots').style.borderBottomColor = game === 'slots' ? 'var(--accent-blue)' : 'transparent';
     document.getElementById('tab-roulette').style.color = game === 'roulette' ? 'var(--text-primary)' : 'var(--text-muted)';
     document.getElementById('tab-slots').style.color = game === 'slots' ? 'var(--text-primary)' : 'var(--text-muted)';
+}
+
+// Render the mini symbol canvases in the slot payout table using SlotMachine.drawCasinoSymbol
+function renderSlotsPaytable() {
+    if (typeof SlotMachine === 'undefined' || !SlotMachine.drawCasinoSymbol) return;
+    const dpr = window.devicePixelRatio || 1;
+    document.querySelectorAll('.slots-mini-sym').forEach(cv => {
+        const id = parseInt(cv.dataset.sym);
+        if (isNaN(id)) return;
+        const size = 28;
+        cv.width = size * dpr;
+        cv.height = size * dpr;
+        cv.style.width = size + 'px';
+        cv.style.height = size + 'px';
+        const ctx = cv.getContext('2d');
+        ctx.scale(dpr, dpr);
+        ctx.clearRect(0, 0, size, size);
+        SlotMachine.drawCasinoSymbol(ctx, id, size / 2, size / 2, size * 0.4);
+    });
 }
 
 function initCasinoPage() {

@@ -353,24 +353,200 @@ class SlotMachine {
     }
 
     _drawReelSymbols(ctx, reel, x, viewY, viewH, extraOffset) {
-        const { reelWidth, symbolHeight, symbols } = this;
+        const { reelWidth, symbolHeight } = this;
         const offsetY = reel.offset % symbolHeight;
         const startIdx = Math.floor(reel.offset / symbolHeight);
 
         for (let i = -1; i <= Math.ceil(viewH / symbolHeight) + 1; i++) {
             const symIdx = (startIdx + i) % reel.symbols.length;
             const si = symIdx < 0 ? reel.symbols.length + symIdx : symIdx;
-            const symbol = symbols[reel.symbols[si]];
+            const symbolId = reel.symbols[si];
             const y = viewY + i * symbolHeight - offsetY + symbolHeight / 2 + extraOffset;
 
             if (y > viewY - symbolHeight && y < viewY + viewH + symbolHeight) {
-                ctx.font = '42px serif';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillStyle = '#fff';
-                ctx.fillText(symbol, x + reelWidth / 2, y);
+                SlotMachine.drawCasinoSymbol(ctx, symbolId, x + reelWidth / 2, y, Math.min(reelWidth, symbolHeight) * 0.45);
             }
         }
+    }
+
+    // Vegas-style symbol renderer: gradients, outlines, and glow.
+    // symbolId: 0=cherry, 1=lemon, 2=orange, 3=bell, 4=seven, 5=diamond
+    static drawCasinoSymbol(ctx, id, cx, cy, r) {
+        ctx.save();
+        switch (id) {
+            case 0: SlotMachine._drawCherry(ctx, cx, cy, r); break;
+            case 1: SlotMachine._drawLemon(ctx, cx, cy, r); break;
+            case 2: SlotMachine._drawOrange(ctx, cx, cy, r); break;
+            case 3: SlotMachine._drawBell(ctx, cx, cy, r); break;
+            case 4: SlotMachine._drawSeven(ctx, cx, cy, r); break;
+            case 5: SlotMachine._drawDiamond(ctx, cx, cy, r); break;
+        }
+        ctx.restore();
+    }
+
+    static _drawCherry(ctx, cx, cy, r) {
+        // Stem + two red cherries, with a highlight dot
+        ctx.lineWidth = Math.max(2, r * 0.12);
+        ctx.strokeStyle = '#2d6b28';
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - r * 0.7);
+        ctx.quadraticCurveTo(cx - r * 0.1, cy - r * 1.1, cx - r * 0.45, cy - r * 0.1);
+        ctx.moveTo(cx, cy - r * 0.7);
+        ctx.quadraticCurveTo(cx + r * 0.1, cy - r * 1.1, cx + r * 0.45, cy - r * 0.1);
+        ctx.stroke();
+        // Leaf
+        ctx.fillStyle = '#4caf50';
+        ctx.beginPath();
+        ctx.ellipse(cx + r * 0.12, cy - r * 0.8, r * 0.22, r * 0.1, -0.4, 0, Math.PI * 2);
+        ctx.fill();
+        // Left cherry
+        const g1 = ctx.createRadialGradient(cx - r * 0.55, cy, r * 0.05, cx - r * 0.45, cy + r * 0.1, r * 0.55);
+        g1.addColorStop(0, '#ff6b7a'); g1.addColorStop(0.6, '#c41e2a'); g1.addColorStop(1, '#6a0d14');
+        ctx.fillStyle = g1;
+        ctx.beginPath(); ctx.arc(cx - r * 0.45, cy + r * 0.1, r * 0.45, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.7)';
+        ctx.beginPath(); ctx.arc(cx - r * 0.6, cy - r * 0.05, r * 0.12, 0, Math.PI * 2); ctx.fill();
+        // Right cherry
+        const g2 = ctx.createRadialGradient(cx + r * 0.35, cy, r * 0.05, cx + r * 0.45, cy + r * 0.1, r * 0.55);
+        g2.addColorStop(0, '#ff6b7a'); g2.addColorStop(0.6, '#c41e2a'); g2.addColorStop(1, '#6a0d14');
+        ctx.fillStyle = g2;
+        ctx.beginPath(); ctx.arc(cx + r * 0.45, cy + r * 0.1, r * 0.45, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.7)';
+        ctx.beginPath(); ctx.arc(cx + r * 0.3, cy - r * 0.05, r * 0.12, 0, Math.PI * 2); ctx.fill();
+    }
+
+    static _drawLemon(ctx, cx, cy, r) {
+        const g = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.3, r * 0.1, cx, cy, r * 0.95);
+        g.addColorStop(0, '#fffbd5'); g.addColorStop(0.4, '#f7d940'); g.addColorStop(1, '#b58700');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.ellipse(cx, cy, r * 0.85, r * 0.65, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#8a6200'; ctx.lineWidth = r * 0.05;
+        ctx.stroke();
+        // Tips (little bumps)
+        ctx.fillStyle = '#d9a900';
+        ctx.beginPath(); ctx.arc(cx - r * 0.85, cy, r * 0.1, 0, Math.PI * 2);
+        ctx.arc(cx + r * 0.85, cy, r * 0.1, 0, Math.PI * 2); ctx.fill();
+        // Shine
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.beginPath(); ctx.ellipse(cx - r * 0.25, cy - r * 0.25, r * 0.25, r * 0.1, -0.5, 0, Math.PI * 2); ctx.fill();
+    }
+
+    static _drawOrange(ctx, cx, cy, r) {
+        const g = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.3, r * 0.1, cx, cy, r * 0.95);
+        g.addColorStop(0, '#ffd08a'); g.addColorStop(0.4, '#ff8c1a'); g.addColorStop(1, '#a04500');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(cx, cy, r * 0.78, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#7c3000'; ctx.lineWidth = r * 0.05;
+        ctx.stroke();
+        // Top leaf
+        ctx.fillStyle = '#2d6b28';
+        ctx.beginPath();
+        ctx.ellipse(cx - r * 0.1, cy - r * 0.8, r * 0.22, r * 0.08, -0.6, 0, Math.PI * 2);
+        ctx.ellipse(cx + r * 0.1, cy - r * 0.8, r * 0.22, r * 0.08, 0.6, 0, Math.PI * 2);
+        ctx.fill();
+        // Shine
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        ctx.beginPath(); ctx.ellipse(cx - r * 0.25, cy - r * 0.3, r * 0.22, r * 0.1, -0.5, 0, Math.PI * 2); ctx.fill();
+    }
+
+    static _drawBell(ctx, cx, cy, r) {
+        // Main bell body with gold gradient
+        const g = ctx.createLinearGradient(cx - r, cy - r, cx + r, cy + r);
+        g.addColorStop(0, '#fff0a8'); g.addColorStop(0.4, '#fbbf24'); g.addColorStop(0.8, '#b8860b'); g.addColorStop(1, '#5a3d00');
+        ctx.fillStyle = g;
+        ctx.strokeStyle = '#4a2d00'; ctx.lineWidth = r * 0.06;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - r * 0.8);
+        ctx.bezierCurveTo(cx + r * 0.6, cy - r * 0.7, cx + r * 0.75, cy + r * 0.15, cx + r * 0.8, cy + r * 0.45);
+        ctx.lineTo(cx - r * 0.8, cy + r * 0.45);
+        ctx.bezierCurveTo(cx - r * 0.75, cy + r * 0.15, cx - r * 0.6, cy - r * 0.7, cx, cy - r * 0.8);
+        ctx.closePath();
+        ctx.fill(); ctx.stroke();
+        // Bottom rim
+        ctx.fillStyle = '#8b6914';
+        ctx.fillRect(cx - r * 0.88, cy + r * 0.42, r * 1.76, r * 0.12);
+        // Clapper
+        ctx.fillStyle = '#4a2d00';
+        ctx.beginPath(); ctx.arc(cx, cy + r * 0.65, r * 0.13, 0, Math.PI * 2); ctx.fill();
+        // Highlight
+        ctx.fillStyle = 'rgba(255,255,255,0.45)';
+        ctx.beginPath(); ctx.ellipse(cx - r * 0.3, cy - r * 0.3, r * 0.15, r * 0.35, -0.3, 0, Math.PI * 2); ctx.fill();
+        // Top knob
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(cx, cy - r * 0.83, r * 0.08, 0, Math.PI * 2); ctx.fill();
+    }
+
+    static _drawSeven(ctx, cx, cy, r) {
+        // Neon-red 7 with gold outline + glow
+        ctx.save();
+        ctx.shadowColor = '#ff2040'; ctx.shadowBlur = r * 0.35;
+        ctx.font = `900 ${Math.round(r * 1.8)}px Impact, "Arial Black", sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        // Gold outline (thick)
+        ctx.lineWidth = r * 0.2;
+        ctx.strokeStyle = '#fbbf24';
+        ctx.strokeText('7', cx, cy + r * 0.05);
+        // Red fill
+        const g = ctx.createLinearGradient(cx, cy - r, cx, cy + r);
+        g.addColorStop(0, '#ff5c6e'); g.addColorStop(0.5, '#e11d2e'); g.addColorStop(1, '#7a0d18');
+        ctx.fillStyle = g;
+        ctx.fillText('7', cx, cy + r * 0.05);
+        // Inner highlight
+        ctx.shadowBlur = 0;
+        ctx.lineWidth = r * 0.05;
+        ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+        ctx.strokeText('7', cx - r * 0.02, cy + r * 0.03);
+        ctx.restore();
+    }
+
+    static _drawDiamond(ctx, cx, cy, r) {
+        // Classic gem shape with faceted gradient
+        const topY = cy - r * 0.75;
+        const bottomY = cy + r * 0.9;
+        const leftX = cx - r * 0.8;
+        const rightX = cx + r * 0.8;
+        const midY = cy - r * 0.2;
+        // Main faceted body
+        const g = ctx.createLinearGradient(leftX, topY, rightX, bottomY);
+        g.addColorStop(0, '#d8f4ff'); g.addColorStop(0.3, '#6fc8ff'); g.addColorStop(0.7, '#2a7fc0'); g.addColorStop(1, '#0b3058');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.moveTo(cx, topY);
+        ctx.lineTo(rightX, midY);
+        ctx.lineTo(cx, bottomY);
+        ctx.lineTo(leftX, midY);
+        ctx.closePath();
+        ctx.fill();
+        // Top facet highlight
+        ctx.fillStyle = 'rgba(255,255,255,0.45)';
+        ctx.beginPath();
+        ctx.moveTo(cx, topY);
+        ctx.lineTo(rightX, midY);
+        ctx.lineTo(cx, midY + r * 0.1);
+        ctx.closePath();
+        ctx.fill();
+        // Faint inner lines
+        ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+        ctx.lineWidth = r * 0.04;
+        ctx.beginPath();
+        ctx.moveTo(leftX, midY); ctx.lineTo(rightX, midY);
+        ctx.moveTo(cx, topY); ctx.lineTo(cx, bottomY);
+        ctx.stroke();
+        // Outer edge
+        ctx.strokeStyle = '#07243d'; ctx.lineWidth = r * 0.05;
+        ctx.beginPath();
+        ctx.moveTo(cx, topY);
+        ctx.lineTo(rightX, midY);
+        ctx.lineTo(cx, bottomY);
+        ctx.lineTo(leftX, midY);
+        ctx.closePath();
+        ctx.stroke();
+        // Sparkle
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(cx - r * 0.35, topY + r * 0.3, r * 0.08, 0, Math.PI * 2);
+        ctx.fill();
     }
 
     // -------------------------------------------------------
