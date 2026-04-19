@@ -761,19 +761,22 @@ class PokerTableCanvas {
             seat = this._seatPos(s.dealerSeat);
         }
 
-        // Offset the button toward center of table
-        const dx = (this.cx - seat.x) * 0.22;
-        const dy = (this.cy - seat.y) * 0.22;
+        // Offset the button toward center of table — enough to clear
+        // the (now wider) plate's bounding box so the D never overlaps
+        // the seat name.
+        const dx = (this.cx - seat.x) * 0.42;
+        const dy = (this.cy - seat.y) * 0.42;
         const bx = seat.x + dx;
         const by = seat.y + dy;
         const ctx = this.ctx;
+        const btnR = 9;  // smaller disc
         // Disc
-        const g = ctx.createRadialGradient(bx - 2, by - 2, 1, bx, by, 11);
+        const g = ctx.createRadialGradient(bx - 2, by - 2, 1, bx, by, btnR);
         g.addColorStop(0, '#ffffff');
         g.addColorStop(1, '#d0d0d0');
         ctx.fillStyle = g;
         ctx.beginPath();
-        ctx.arc(bx, by, 11, 0, Math.PI * 2);
+        ctx.arc(bx, by, btnR, 0, Math.PI * 2);
         ctx.fill();
         ctx.strokeStyle = '#666';
         ctx.lineWidth = 1;
@@ -781,7 +784,7 @@ class PokerTableCanvas {
         // Label
         ctx.fillStyle = '#1a1a1a';
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.font = 'bold 11px sans-serif';
+        ctx.font = 'bold 9px sans-serif';
         ctx.fillText('D', bx, by + 1);
     }
 
@@ -858,11 +861,12 @@ class PokerTableCanvas {
             const bet = s.bets[i] || 0;
             if (bet <= 0) continue;
             const seat = this._seatPos(i);
-            // Bet slot at 60% of the way from seat to pot centre — the
-            // extra push leaves room for the pot text to sit between the
-            // seat plate and the chip without overlap.
-            const bx = seat.x + (this.cx - seat.x) * 0.60;
-            const by = seat.y + (this.cy - seat.y) * 0.60;
+            // Bet slot at 75% of the way from seat to pot centre. The big
+            // push ensures the chip stack + amount label don't overlap the
+            // pot text (which lives above the board near the centre) or
+            // the seat plate.
+            const bx = seat.x + (this.cx - seat.x) * 0.75;
+            const by = seat.y + (this.cy - seat.y) * 0.75;
             this._drawChipStack(bx, by, bet);
         }
     }
@@ -870,7 +874,6 @@ class PokerTableCanvas {
     _drawChipStack(x, y, amount) {
         if (!this.chipCache) return;
         const ctx = this.ctx;
-        // Pick up to 3 chips of decreasing denomination
         const denoms = [100, 25, 5, 1];
         let remaining = amount;
         const chips = [];
@@ -881,7 +884,6 @@ class PokerTableCanvas {
                 remaining -= n * d;
             }
         }
-        // Draw stacked with slight y offset
         let stackY = y;
         let total = 0;
         for (const item of chips) {
@@ -895,12 +897,29 @@ class PokerTableCanvas {
             }
             if (total >= 5) break;
         }
-        // Amount text
-        ctx.fillStyle = '#fbbf24';
-        ctx.font = 'bold 10px sans-serif';
+        // Amount label — BELOW the chip stack (chip disc ends at y+14),
+        // with a dark pill background so the number reads cleanly even
+        // on top of the felt. Bigger bets get highlighted colours.
+        const labelText = amount.toFixed(1);
+        // Colour by bet size: blind-ish = yellow, open = orange,
+        // big-raise/3-bet+ = red. Makes RAISES visually obvious.
+        const labelColor = amount >= 6 ? '#ff6b6b'
+                         : amount >= 2 ? '#fb923c'
+                         : '#fde68a';
+        ctx.save();
+        ctx.font = 'bold 11px sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
-        ctx.fillText(amount.toFixed(1), x, y + 8);
+        const labelW = ctx.measureText(labelText).width + 10;
+        const labelH = 14;
+        const labelX = x - labelW / 2;
+        const labelY = y + 18;  // 18px below chip centre = ~4px below disc bottom
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+        this._roundRect(ctx, labelX, labelY, labelW, labelH, 5);
+        ctx.fill();
+        ctx.fillStyle = labelColor;
+        ctx.fillText(labelText, x, labelY + 1);
+        ctx.restore();
     }
 
     _drawSeats() {
