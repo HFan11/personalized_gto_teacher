@@ -276,7 +276,10 @@ class PokerTableCanvas {
         //     poles (top/bottom), needs vertical room to separate them and
         //     leave clean space between for cards, chip stacks, pot text.
         const isTeach = this.mode === 'teach';
-        const aspect = isTeach ? 0.95 : 0.80;
+        // Game mode slightly taller (1:0.88) so 6 seats + cards + pot text
+        // + chip stacks all fit without colliding. Teach mode stays taller
+        // still (1:0.95) since the 2-seat poles need room between them.
+        const aspect = isTeach ? 0.95 : 0.88;
         const h = Math.round(w * aspect);
         this.canvas.style.width = w + 'px';
         this.canvas.style.height = h + 'px';
@@ -288,13 +291,13 @@ class PokerTableCanvas {
         this.cx = w / 2;
         this.cy = h * 0.48;
         // Felt ellipse — fills most of the canvas.
-        this.rx = w * 0.48;
+        this.rx = w * 0.46;
         this.ry = h * 0.45;
-        // Seat distribution — tight inside the felt. In teach mode seats
-        // sit closer to the rail (big seatRy) so the middle of the felt
-        // is empty for pot + cards + chip animations.
-        this.seatRx = isTeach ? w * 0.30 : w * 0.28;
-        this.seatRy = isTeach ? h * 0.33 : h * 0.22;
+        // Seat distribution — tight inside the felt. Plate is 104 wide
+        // so seatRx needs enough margin for plate + card offsets to fit
+        // inside the felt on side seats.
+        this.seatRx = isTeach ? w * 0.28 : w * 0.26;
+        this.seatRy = isTeach ? h * 0.33 : h * 0.24;
         this._buildCaches();
         this._needsRedraw = true;
     }
@@ -855,11 +858,11 @@ class PokerTableCanvas {
             const bet = s.bets[i] || 0;
             if (bet <= 0) continue;
             const seat = this._seatPos(i);
-            // Position bet slot further from the plate (48% toward center)
-            // so the chip disc + amount label don't overlap the plate's
-            // position pill on the inward side.
-            const bx = seat.x + (this.cx - seat.x) * 0.48;
-            const by = seat.y + (this.cy - seat.y) * 0.48;
+            // Bet slot at 60% of the way from seat to pot centre — the
+            // extra push leaves room for the pot text to sit between the
+            // seat plate and the chip without overlap.
+            const bx = seat.x + (this.cx - seat.x) * 0.60;
+            const by = seat.y + (this.cy - seat.y) * 0.60;
             this._drawChipStack(bx, by, bet);
         }
     }
@@ -938,7 +941,7 @@ class PokerTableCanvas {
     _drawSeat(seat, pos, isActing, isFolded, now) {
         const ctx = this.ctx;
         const { x, y } = pos;
-        const plateW = 88, plateH = 44;
+        const plateW = 104, plateH = 46;
         const plateX = x - plateW / 2;
         const plateY = y - plateH / 2;
 
@@ -987,20 +990,23 @@ class PokerTableCanvas {
         ctx.font = 'bold 14px sans-serif';
         ctx.fillText(initial, avX, avY + 1);
 
-        // Name + stack on right (full width — position pill is OUTSIDE plate)
+        // Name + stack on right. Name shares the top row with the
+        // position-pill corner badge (drawn below) — reserve ~18px on
+        // the right so the pill doesn't overlap the name text.
         const textX = avX + avR + 8;
-        const textW = plateW - (avR * 2 + 4 + 8);
+        const pillReserve = seat.position ? 22 : 4;
+        const textW = plateW - (avR * 2 + 4 + 8) - pillReserve;
         ctx.textAlign = 'left';
         ctx.fillStyle = seat.isEmpty ? 'rgba(99,162,255,0.9)' : '#f3f4f6';
         ctx.font = 'bold 11px sans-serif';
         ctx.textBaseline = 'top';
         const fullName = seat.isEmpty ? '空位' : (seat.name || 'Bot');
         const nameText = this._fitText(ctx, fullName, textW);
-        ctx.fillText(nameText, textX, plateY + 5);
-        // Stack
+        ctx.fillText(nameText, textX, plateY + 6);
+        // Stack (has full horizontal room since pill is only top-right)
         ctx.fillStyle = '#fbbf24';
         ctx.font = 'bold 13px sans-serif';
-        ctx.fillText(`${(seat.stack || 0).toFixed(1)}BB`, textX, plateY + 21);
+        ctx.fillText(`${(seat.stack || 0).toFixed(1)}BB`, textX, plateY + 24);
 
         // All-in tag
         if (seat.allIn && !isFolded) {
@@ -1012,19 +1018,20 @@ class PokerTableCanvas {
         // Position pill — placed on the OUTWARD edge (away from felt) so it
         // Position pill — INWARD side of plate (toward felt center), so it
         // never conflicts with the hole cards which sit on the outward side
-        // (bots) or below the plate (hero).
+        // Position pill — small badge tucked inside the top-right corner
+        // of the plate. This frees up all vertical space around the plate
+        // (cards above, pot/chips inward) and prevents the old
+        // pill/chip/pot visual cluster.
         if (seat.position) {
             ctx.font = 'bold 9px sans-serif';
-            const pw = ctx.measureText(seat.position).width + 8;
-            const ph = 13;
-            const aboveCenter = pos.y < this.cy - 4;
-            // Top seat → pill BELOW plate (toward felt); bottom seat → pill
-            // ABOVE plate (toward felt). Same side for both = inward.
-            const pillY = aboveCenter ? (plateY + plateH + 2) : (plateY - ph - 2);
-            const pillX = plateX + plateW / 2 - pw / 2;
+            const pw = ctx.measureText(seat.position).width + 6;
+            const ph = 12;
+            // Tuck into top-right corner of plate, slightly inside the edge.
+            const pillX = plateX + plateW - pw - 3;
+            const pillY = plateY + 2;
             const posColors = {BTN:'#f59e0b',SB:'#a855f7',BB:'#ef4444',UTG:'#3b82f6',HJ:'#22c55e',CO:'#06b6d4'};
             ctx.fillStyle = posColors[seat.position] || 'rgba(251, 191, 36, 0.85)';
-            this._roundRect(ctx, pillX, pillY, pw, ph, 6);
+            this._roundRect(ctx, pillX, pillY, pw, ph, 4);
             ctx.fill();
             ctx.fillStyle = '#ffffff';
             ctx.textAlign = 'center';
@@ -1040,7 +1047,7 @@ class PokerTableCanvas {
         const s = this.state;
         if (s.street === 'waiting') return;
         // Plate extents (match _drawSeat)
-        const plateW = 88, plateH = 44;
+        const plateW = 104, plateH = 46;
         for (let i = 0; i < this.seatCount; i++) {
             const seat = s.seats[i];
             if (!seat || s.folded[i] || seat.isGhost) continue;
