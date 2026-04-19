@@ -444,16 +444,18 @@
                 <!-- Pot & Position Info -->
                 <div id="preflop-pot-info" style="display:flex; justify-content:center; gap:12px; padding:4px 8px; font-size:11px; color:var(--text-muted);"></div>
 
-                <!-- Hero Cards -->
-                <div class="ui-card" style="text-align:center; padding:16px;">
-                    <div style="font-size:12px; margin-bottom:12px;">
-                        <span class="position-badge" id="preflop-hero-badge" style="font-size:11px;"></span>
-                        <span style="font-size:12px; color:var(--text-secondary); margin-left:6px;">Hero</span>
-                        <span id="preflop-ip-label" style="font-size:11px; color:var(--text-muted); margin-left:4px;"></span>
-                    </div>
-                    <div class="cards-row" id="preflop-hero-cards" style="justify-content:center; margin-bottom:12px;"></div>
-                    <div style="font-size:13px; font-weight:600;" id="preflop-hand-label"></div>
+                <!-- Canvas table (6-max teach mode with all positions visible) -->
+                <div id="preflop-table-container" style="padding:8px 8px 12px;max-width:520px;margin:0 auto;">
+                    <canvas id="preflop-canvas" style="display:block;width:100%;"></canvas>
                 </div>
+                <!-- Hand label + IP/OOP hint below the canvas -->
+                <div style="text-align:center;font-size:13px;font-weight:600;margin-bottom:8px;">
+                    <span id="preflop-hand-label"></span>
+                    <span id="preflop-ip-label" style="font-size:11px;color:var(--text-muted);margin-left:6px;"></span>
+                </div>
+                <!-- Hidden compat spans -->
+                <span id="preflop-hero-badge" style="display:none;"></span>
+                <span id="preflop-hero-cards" style="display:none;"></span>
 
                 <!-- Preflop Action Buttons -->
                 <div class="action-buttons" id="preflop-action-buttons" style="display:flex;"></div>
@@ -2087,6 +2089,104 @@ function selectPreflopVillainPosBtn(pos, el) {
     if (el) el.classList.add('active');
 }
 
+// Render the 6-max preflop canvas with hero at bottom, villain/folded players
+// distributed around. Bets and folded states come from the scenario type.
+function renderPreflopCanvas(scenario) {
+    if (!preflopCanvasTable) return;
+    const heroPos = scenario.heroPos;
+    const villainPos = scenario.villainPos;
+    const OPEN = 2.5, THREE = 8, FOUR = 22;
+
+    // Rotate PREFLOP_POS_CLOCKWISE so heroPos is at visual seat 0 (bottom).
+    const heroIdx = PREFLOP_POS_CLOCKWISE.indexOf(heroPos);
+    const positionAtSeat = [];
+    for (let vp = 0; vp < 6; vp++) {
+        positionAtSeat.push(PREFLOP_POS_CLOCKWISE[(heroIdx + vp) % 6]);
+    }
+
+    const bets = [0, 0, 0, 0, 0, 0];
+    const folded = [false, false, false, false, false, false];
+    const pushBet = (pos, amount) => {
+        const vp = positionAtSeat.indexOf(pos);
+        if (vp >= 0) bets[vp] = amount;
+    };
+    const markFolded = (pos) => {
+        const vp = positionAtSeat.indexOf(pos);
+        if (vp >= 0) folded[vp] = true;
+    };
+
+    // Post blinds (always posted on preflop).
+    pushBet('SB', 0.5);
+    pushBet('BB', 1.0);
+
+    const preflopOrder = ['UTG', 'HJ', 'CO', 'BTN', 'SB', 'BB'];
+    const actOrder = (pos) => preflopOrder.indexOf(pos);
+
+    // Determine the "action cutoff" — every position with actOrder < cutoff
+    // (except hero/villain) has already acted and folded in this scenario.
+    const heroAct = actOrder(heroPos);
+    const villainAct = actOrder(villainPos);
+    let cutoff;
+    if (scenario.type === 'rfi') cutoff = heroAct;
+    else if (scenario.type === 'vs_raise') cutoff = heroAct;
+    else if (scenario.type === 'vs_3bet') cutoff = villainAct;
+    else if (scenario.type === 'vs_4bet') cutoff = heroAct;
+    else cutoff = heroAct;
+
+    for (const p of preflopOrder) {
+        if (p === heroPos || p === villainPos) continue;
+        if (actOrder(p) < cutoff) markFolded(p);
+    }
+
+    // Set aggression bets (overwrite blind posts when applicable).
+    if (scenario.type === 'vs_raise') {
+        pushBet(villainPos, OPEN);
+    } else if (scenario.type === 'vs_3bet') {
+        pushBet(heroPos, OPEN);
+        pushBet(villainPos, THREE);
+    } else if (scenario.type === 'vs_4bet') {
+        pushBet(heroPos, THREE);
+        pushBet(villainPos, FOUR);
+    }
+
+    const pot = bets.reduce((a, b) => a + b, 0);
+
+    // Build seats array; hero has face-up cards, others face-down
+    const suitToChar = { '♠':'s','♥':'h','♦':'d','♣':'c' };
+    const toCardStr = (c) => c ? (c.rank + (suitToChar[c.suit] || c.suit)) : null;
+    const heroCardsStr = (scenario.heroCards || []).map(toCardStr);
+
+    const seats = [];
+    for (let vp = 0; vp < 6; vp++) {
+        const pos = positionAtSeat[vp];
+        const isHero = (pos === heroPos);
+        const isVillain = (pos === villainPos);
+        const isInHand = !folded[vp];
+        seats.push({
+            name: isHero ? 'Hero' : (isVillain ? 'Villain' : pos),
+            stack: 100 - (bets[vp] || 0),
+            holeCards: isHero ? heroCardsStr : (isInHand ? [null, null] : null),
+            isMe: isHero,
+            position: pos,
+            folded: folded[vp],
+        });
+    }
+
+    preflopCanvasTable.setState({
+        seats,
+        board: [],
+        pot: pot,
+        bets,
+        folded,
+        allIn: [false, false, false, false, false, false],
+        actingSeat: 0,  // hero always acts next in preflop practice
+        dealerSeat: positionAtSeat.indexOf('BTN'),
+        heroSeat: 0,
+        street: 'preflop',
+    });
+    preflopCanvasTable.clearEffects();
+}
+
 function renderPreflopTimeline(scenario) {
     const container = document.getElementById('preflop-action-timeline');
     const potInfo = document.getElementById('preflop-pot-info');
@@ -2142,6 +2242,10 @@ function renderPreflopTimeline(scenario) {
     potInfo.innerHTML = infoHtml;
 }
 
+// Preflop practice canvas (lazy)
+let preflopCanvasTable = null;
+const PREFLOP_POS_CLOCKWISE = ['UTG', 'HJ', 'CO', 'BTN', 'SB', 'BB'];
+
 function startPreflopHand() {
     const btn = document.getElementById('preflop-deal-btn');
     if (btn) btn.innerHTML = '<span class="spinner"></span>';
@@ -2167,13 +2271,20 @@ function startPreflopHand() {
         renderPreflopTimeline(scenario);
         document.getElementById('preflop-hero-badge').textContent = scenario.heroPos;
         document.getElementById('preflop-ip-label').textContent = scenario.heroIsIP ? '(IP 有位置)' : '(OOP 无位置)';
-        // Show facedown first, then flip
-        const preflopCardsEl = document.getElementById('preflop-hero-cards');
-        preflopCardsEl.innerHTML = '<div class="playing-card facedown"></div><div class="playing-card facedown"></div>';
-        setTimeout(() => {
-            preflopCardsEl.innerHTML = scenario.heroCards.map(c => renderPlayingCard(c, 'card-flip-in')).join('');
-        }, 400);
         document.getElementById('preflop-hand-label').textContent = scenario.heroHandKey;
+        const preflopCardsEl = document.getElementById('preflop-hero-cards');
+        if (preflopCardsEl) preflopCardsEl.innerHTML = scenario.heroCards.map(c => renderPlayingCard(c)).join('');
+
+        // ---- Canvas (6-max teach mode) ----
+        if (!preflopCanvasTable && typeof PokerTableCanvas !== 'undefined') {
+            const canvas = document.getElementById('preflop-canvas');
+            if (canvas) {
+                preflopCanvasTable = new PokerTableCanvas(canvas, { seats: 6, mode: 'teach' });
+            }
+        }
+        if (preflopCanvasTable) {
+            renderPreflopCanvas(scenario);
+        }
 
         // Render action buttons
         const actionLabels = {
