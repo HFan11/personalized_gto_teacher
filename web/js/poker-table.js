@@ -265,8 +265,8 @@ class PokerTableCanvas {
     _doResize() {
         const parent = this.canvas.parentElement;
         const w = Math.max(280, Math.min(560, parent?.clientWidth || 480));
-        // Portrait-ish aspect (1:1.25) so each seat has vertical breathing
-        // room and the layout works well on phones.
+        // Portrait aspect 1:1.25 — tall enough to fit the hero card strip
+        // BELOW the hero plate without overflowing typical mobile viewports.
         const h = Math.round(w * 1.25);
         this.canvas.style.width = w + 'px';
         this.canvas.style.height = h + 'px';
@@ -276,15 +276,16 @@ class PokerTableCanvas {
         this.W = w;
         this.H = h;
         this.cx = w / 2;
-        this.cy = h / 2;
-        // Felt ellipse — the visible green surface.
-        this.rx = w * 0.44;
-        this.ry = h * 0.40;
-        // Seat distribution radius — deliberately SMALLER than the felt so
-        // plates and hole cards stay inside the green felt (not hanging off
-        // the rail). This fixes the "plates clipped by rim" look.
-        this.seatRx = w * 0.32;
-        this.seatRy = h * 0.30;
+        // Table center shifted UP — reserves the bottom ~25% of the canvas
+        // for the big hero card strip below the hero plate.
+        this.cy = h * 0.40;
+        // Felt ellipse.
+        this.rx = w * 0.46;
+        this.ry = h * 0.36;
+        // Seat distribution radius — smaller than the felt so plates stay
+        // comfortably inside the green (not hanging off the rail).
+        this.seatRx = w * 0.34;
+        this.seatRy = h * 0.27;
         // Rebuild caches
         this._buildCaches();
         this._needsRedraw = true;
@@ -999,42 +1000,44 @@ class PokerTableCanvas {
         ctx.restore();
     }
 
-    // Draw every non-folded seat's hole cards. Always called BEFORE the seat
-    // plates so the plate renders on top of the cards (cards peek out from
-    // behind the plate from the felt side). Hero's cards are visibly larger.
     _drawHoleCards() {
         const s = this.state;
         if (s.street === 'waiting') return;
-        const smallCw = 24, smallCh = 34;
-        const heroCw = 46, heroCh = 64;
         for (let i = 0; i < this.seatCount; i++) {
             const seat = s.seats[i];
             if (!seat || s.folded[i]) continue;
             const pos = this._seatPos(i);
-            // Direction vector from seat toward the table center (where the
-            // cards poke out — i.e. the felt-facing side of the plate).
-            const dx = this.cx - pos.x;
-            const dy = this.cy - pos.y;
-            const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-            const nx = dx / dist, ny = dy / dist;
-            const cw = seat.isMe ? heroCw : smallCw;
-            const ch = seat.isMe ? heroCh : smallCh;
-            // Offset along the seat→center vector. Smaller offset means the
-            // cards tuck further behind the plate. Hero's cards peek out
-            // more (bigger), so we give them a bit more room.
-            const offset = seat.isMe ? 18 : 12;
-            const centerX = pos.x + nx * offset;
-            const centerY = pos.y + ny * offset - ch / 2;
-
-            const faceDown = !seat.isMe && !(seat.holeCards && seat.holeCards.length === 2 && s.street === 'showdown');
             const cards = seat.holeCards && seat.holeCards.length === 2 ? seat.holeCards : [null, null];
 
-            if (seat.isMe || !faceDown) {
-                this._drawCardAt(cards[0], centerX - cw - 2, centerY, cw, ch, cards[0] == null);
-                this._drawCardAt(cards[1], centerX + 2, centerY, cw, ch, cards[1] == null);
+            if (seat.isMe) {
+                // Hero's cards are BIG and sit BELOW the hero plate, outside
+                // the felt — toward the viewer. They never cover the plate UI.
+                const cw = 56, ch = 78, gap = 8;
+                const plateBottom = pos.y + 22;
+                const cardTop = plateBottom + 12;  // 12px gap below plate
+                const cx1 = pos.x - cw - gap / 2;
+                const cx2 = pos.x + gap / 2;
+                this._drawCardAt(cards[0], cx1, cardTop, cw, ch, cards[0] == null);
+                this._drawCardAt(cards[1], cx2, cardTop, cw, ch, cards[1] == null);
             } else {
-                this._drawCardAt(null, centerX - cw - 2, centerY, cw, ch, true);
-                this._drawCardAt(null, centerX + 2, centerY, cw, ch, true);
+                // Other seats: small cards tucked behind their plate on the
+                // felt-facing side. Drawn BEFORE the plate so the plate covers
+                // the card bottoms (see _draw order).
+                const cw = 24, ch = 34;
+                const dx = this.cx - pos.x;
+                const dy = this.cy - pos.y;
+                const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+                const offset = 12;
+                const centerX = pos.x + (dx / dist) * offset;
+                const centerY = pos.y + (dy / dist) * offset - ch / 2;
+                const faceDown = !(seat.holeCards && seat.holeCards.length === 2 && s.street === 'showdown');
+                if (!faceDown) {
+                    this._drawCardAt(cards[0], centerX - cw - 2, centerY, cw, ch, cards[0] == null);
+                    this._drawCardAt(cards[1], centerX + 2, centerY, cw, ch, cards[1] == null);
+                } else {
+                    this._drawCardAt(null, centerX - cw - 2, centerY, cw, ch, true);
+                    this._drawCardAt(null, centerX + 2, centerY, cw, ch, true);
+                }
             }
         }
     }
