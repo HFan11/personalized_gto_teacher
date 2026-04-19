@@ -84,18 +84,27 @@
     }
 }
 
-/* Teach mode (2-seat, bigger vertical spread) */
+/* Teach mode (2-seat — compact so the whole hand + action bar fits
+   on a single screen, especially on mobile). Board cards are sized
+   down so hero's hole-cards-above-seat don't overlap with them.     */
 .poker-table[data-mode="teach"] {
     --pt-seat-rx: 0%;
-    --pt-seat-ry: 38%;
+    --pt-seat-ry: 40%;
+    --pt-board-card-w: 34px;
+    --pt-board-card-h: 48px;
 }
 .poker-table[data-mode="teach"][data-seats="2"] {
-    aspect-ratio: 1 / 0.75;
+    aspect-ratio: 1 / 0.82;
+    max-width: 520px;
 }
 @media (max-width: 600px) {
+    .poker-table[data-mode="teach"] {
+        --pt-board-card-w: 30px;
+        --pt-board-card-h: 42px;
+    }
     .poker-table[data-mode="teach"][data-seats="2"] {
-        aspect-ratio: 1 / 0.95;
-        --pt-seat-ry: 36%;
+        aspect-ratio: 1 / 1.05;
+        --pt-seat-ry: 38%;
     }
 }
 
@@ -352,11 +361,15 @@
     display: none;
 }
 
-/* Hero hole cards (below hero plate) */
+/* Hero hole cards — pulled above the seat so they don't inflate the
+   seat's bounding box (keeps chip-positioning + the overall layout tight) */
 .poker-table .seat.is-hero .hole-cards {
+    position: absolute;
+    left: 50%;
+    bottom: calc(100% + 2px);
+    transform: translateX(-50%);
     display: flex;
     gap: 4px;
-    margin-top: 6px;
     z-index: 5;
 }
 .poker-table .seat.is-hero .hole-cards .card {
@@ -425,15 +438,49 @@
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 
-/* Bet chip positions — between each seat and table centre */
-.poker-table[data-seats="6"] .seat[data-vp="0"] .bet-chip { top: -18px; }
-.poker-table[data-seats="6"] .seat[data-vp="1"] .bet-chip { top: 10px; left: 105%; transform: translate(-50%, -50%); }
-.poker-table[data-seats="6"] .seat[data-vp="2"] .bet-chip { top: 10px; left: 105%; transform: translate(-50%, -50%); }
-.poker-table[data-seats="6"] .seat[data-vp="3"] .bet-chip { top: calc(100% + 8px); }
-.poker-table[data-seats="6"] .seat[data-vp="4"] .bet-chip { top: 10px; left: -5%; transform: translate(-50%, -50%); }
-.poker-table[data-seats="6"] .seat[data-vp="5"] .bet-chip { top: 10px; left: -5%; transform: translate(-50%, -50%); }
-.poker-table[data-seats="2"] .seat[data-vp="0"] .bet-chip { top: -18px; }
-.poker-table[data-seats="2"] .seat[data-vp="1"] .bet-chip { top: calc(100% + 8px); }
+/* Bet chip positions — well inside the felt, between seat and pot.
+   Uses --pt-chip-offset to give breathing room between chip and seat.
+   Mobile bumps offset to prevent overlap with the shrunk seat area.
+   Teach (2-seat) mode is tighter vertically so uses a smaller offset to
+   avoid colliding with the central pot pill.                           */
+.poker-table { --pt-chip-offset: 34px; }
+.poker-table[data-mode="teach"] { --pt-chip-offset: 14px; }
+@media (max-width: 600px) {
+    .poker-table { --pt-chip-offset: 24px; }
+    .poker-table[data-mode="teach"] { --pt-chip-offset: 10px; }
+}
+
+.poker-table[data-seats="6"] .seat[data-vp="0"] .bet-chip {
+    /* Hero hole-cards are pulled above the seat → chip must sit ABOVE
+       the cards (between cards and pot), not between avatar and cards. */
+    top: calc(-1 * (var(--pt-card-h, 76px) + 18px));
+}
+.poker-table[data-seats="6"] .seat[data-vp="1"] .bet-chip {
+    top: 50%; left: calc(100% + var(--pt-chip-offset)); transform: translate(-50%, -50%);
+}
+.poker-table[data-seats="6"] .seat[data-vp="2"] .bet-chip {
+    top: 50%; left: calc(100% + var(--pt-chip-offset)); transform: translate(-50%, -50%);
+}
+.poker-table[data-seats="6"] .seat[data-vp="3"] .bet-chip {
+    top: calc(100% + var(--pt-chip-offset));
+}
+.poker-table[data-seats="6"] .seat[data-vp="4"] .bet-chip {
+    top: 50%; left: calc(-1 * var(--pt-chip-offset)); transform: translate(-50%, -50%);
+}
+.poker-table[data-seats="6"] .seat[data-vp="5"] .bet-chip {
+    top: 50%; left: calc(-1 * var(--pt-chip-offset)); transform: translate(-50%, -50%);
+}
+/* HU 2-seat: sit the chip BESIDE each player's avatar (to the right),
+   not between player and pot — that zone is occupied by the central
+   pot pill in the compact teach layout. Offsets are anchored to the
+   avatar-size variable so mobile and desktop line up cleanly. */
+/* With hero hole-cards pulled ABOVE the seat (absolute), hero + villain
+   seats are the same compact height. Both chips sit beside the avatar. */
+.poker-table[data-seats="2"] .seat .bet-chip {
+    top: calc(var(--pt-avatar-size, 40px) * 0.5);
+    left: calc(50% + var(--pt-avatar-size, 40px) * 0.9);
+    transform: translate(-50%, -50%);
+}
 
 /* Dealer button */
 .poker-table .dealer-btn {
@@ -614,4 +661,186 @@
 }
 @keyframes pt-fold-cards {
     to { opacity: 0; transform: scale(0.6) translateY(20px); }
+}
+
+/* ============================================================
+   WePoker-style action bar
+   Used by cashgame / PVP / preflop teach / postflop teach.
+   Structure:
+     .wp-action-bar
+       .wp-quick-row        (optional — shown when bet/raise available)
+         .wp-quick-btn      1/3 / 1/2 / 2/3 / POT / MAX
+       .wp-slider-row       (optional — shown when user toggles slider)
+         .wp-slider-minus, input[type=range], .wp-slider-plus, .wp-slider-val
+       .wp-main-row
+         .wp-btn.wp-fold / .wp-check / .wp-call / .wp-raise / .wp-allin
+   ============================================================ */
+.wp-action-bar {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-width: 540px;
+    margin: 10px auto 8px;
+    padding: 10px 14px 12px;
+    background: linear-gradient(180deg, rgba(12,20,16,0.72), rgba(8,14,12,0.92));
+    border: 1px solid rgba(251,191,36,0.18);
+    border-radius: 18px;
+    box-shadow: 0 6px 22px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.04);
+}
+@media (max-width: 600px) {
+    .wp-action-bar { margin: 8px 8px; padding: 8px 10px 10px; gap: 8px; border-radius: 14px; }
+}
+
+/* Quick-bet pills (1/3 / 1/2 / 2/3 / POT / MAX) */
+.wp-quick-row {
+    display: flex;
+    gap: 6px;
+    justify-content: space-between;
+}
+.wp-quick-btn {
+    flex: 1;
+    min-width: 0;
+    padding: 7px 4px;
+    background: linear-gradient(180deg, rgba(40,55,48,0.9), rgba(22,35,28,0.95));
+    border: 1px solid rgba(251,191,36,0.25);
+    border-radius: 10px;
+    color: #fde68a;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.08s, filter 0.15s, border-color 0.15s;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+}
+.wp-quick-btn:hover { filter: brightness(1.15); border-color: rgba(251,191,36,0.55); }
+.wp-quick-btn:active { transform: scale(0.96); }
+.wp-quick-btn.is-active {
+    background: linear-gradient(180deg, #d97706, #b45309);
+    border-color: #fbbf24;
+    color: #fff;
+    box-shadow: 0 0 10px rgba(251,191,36,0.4);
+}
+@media (max-width: 600px) {
+    .wp-quick-btn { font-size: 11px; padding: 6px 2px; border-radius: 8px; }
+}
+
+/* Slider row */
+.wp-slider-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 2px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 10px;
+}
+.wp-slider-row input[type="range"] {
+    flex: 1;
+    accent-color: #fbbf24;
+    height: 4px;
+}
+.wp-slider-minus, .wp-slider-plus {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    border: 1px solid rgba(251,191,36,0.4);
+    background: linear-gradient(180deg, #374151, #1f2937);
+    color: #fde68a;
+    font-size: 16px;
+    font-weight: 900;
+    line-height: 1;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: transform 0.1s, filter 0.15s;
+}
+.wp-slider-minus:hover, .wp-slider-plus:hover { filter: brightness(1.2); }
+.wp-slider-minus:active, .wp-slider-plus:active { transform: scale(0.92); }
+.wp-slider-val {
+    min-width: 62px;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 800;
+    color: #fbbf24;
+    font-variant-numeric: tabular-nums;
+    padding: 4px 8px;
+    background: rgba(0,0,0,0.4);
+    border-radius: 8px;
+    letter-spacing: 0.3px;
+}
+
+/* Main 3-button row */
+.wp-main-row {
+    display: flex;
+    gap: 10px;
+    align-items: stretch;
+}
+@media (max-width: 600px) { .wp-main-row { gap: 6px; } }
+
+.wp-btn {
+    flex: 1;
+    min-height: 56px;
+    padding: 6px 8px;
+    border: none;
+    border-radius: 14px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    font-weight: 800;
+    font-size: 15px;
+    letter-spacing: 1px;
+    color: #fff;
+    transition: transform 0.1s, filter 0.15s, box-shadow 0.15s;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+    position: relative;
+    overflow: hidden;
+}
+.wp-btn:hover { filter: brightness(1.12); transform: translateY(-1px); }
+.wp-btn:active { transform: scale(0.97); }
+.wp-btn:disabled { filter: grayscale(0.7) brightness(0.55); cursor: not-allowed; transform: none; }
+.wp-btn .wp-btn-amt {
+    font-size: 11px;
+    font-weight: 700;
+    opacity: 0.92;
+    letter-spacing: 0.4px;
+    font-variant-numeric: tabular-nums;
+}
+@media (max-width: 600px) {
+    .wp-btn { min-height: 48px; font-size: 13px; border-radius: 12px; letter-spacing: 0.5px; }
+    .wp-btn .wp-btn-amt { font-size: 10px; }
+}
+
+/* Colour variants — WePoker palette */
+.wp-btn.wp-fold {
+    background: linear-gradient(180deg, #4b5563, #1f2937);
+    box-shadow: 0 3px 10px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.08);
+}
+.wp-btn.wp-check {
+    background: linear-gradient(180deg, #2563eb, #1e3a8a);
+    box-shadow: 0 3px 10px rgba(37,99,235,0.35), inset 0 1px 0 rgba(255,255,255,0.12);
+}
+.wp-btn.wp-call {
+    background: linear-gradient(180deg, #22c55e, #15803d);
+    box-shadow: 0 3px 12px rgba(34,197,94,0.4), inset 0 1px 0 rgba(255,255,255,0.18);
+}
+.wp-btn.wp-raise {
+    background: linear-gradient(180deg, #ef4444, #991b1b);
+    box-shadow: 0 3px 14px rgba(239,68,68,0.5), inset 0 1px 0 rgba(255,255,255,0.15);
+}
+.wp-btn.wp-allin {
+    background: linear-gradient(180deg, #f59e0b, #b45309);
+    box-shadow: 0 3px 14px rgba(245,158,11,0.5), inset 0 1px 0 rgba(255,255,255,0.18);
+    color: #fff;
+    animation: wp-allin-pulse 1.8s ease-in-out infinite;
+}
+@keyframes wp-allin-pulse {
+    0%,100% { box-shadow: 0 3px 14px rgba(245,158,11,0.5), inset 0 1px 0 rgba(255,255,255,0.18); }
+    50%     { box-shadow: 0 3px 22px rgba(245,158,11,0.85), inset 0 1px 0 rgba(255,255,255,0.25); }
+}
+
+/* Raise toggle button when slider is open (user can press again to confirm) */
+.wp-btn.wp-raise.is-sliding {
+    background: linear-gradient(180deg, #10b981, #065f46);
+    box-shadow: 0 3px 14px rgba(16,185,129,0.55), inset 0 1px 0 rgba(255,255,255,0.2);
 }

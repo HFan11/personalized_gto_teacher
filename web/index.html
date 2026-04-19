@@ -633,22 +633,24 @@
                 </div>
             </div>
 
-            <!-- Bet Sizing Selector -->
+            <!-- Hidden compat containers (legacy code still mutates .style.display on these;
+                 they are kept so no JS path throws, but nothing is shown from here now — the
+                 entire action bar is rendered inside #action-buttons via renderActionButtons.) -->
             <div id="sizing-area" style="display:none;">
-                <div class="sizing-selector" id="sizing-selector">
-                    <button class="sizing-btn" onclick="selectSizing('33')" data-sizing="33">1/3</button>
-                    <button class="sizing-btn" onclick="selectSizing('50')" data-sizing="50">1/2</button>
-                    <button class="sizing-btn active" onclick="selectSizing('66')" data-sizing="66">2/3</button>
-                    <button class="sizing-btn" onclick="selectSizing('100')" data-sizing="100">Pot</button>
-                    <button class="sizing-btn" onclick="selectSizing('150')" data-sizing="150">1.5x</button>
-                    <button class="sizing-btn" onclick="selectSizing('allin')" data-sizing="allin">All-In</button>
+                <div class="sizing-selector" id="sizing-selector" style="display:none;">
+                    <button class="sizing-btn" data-sizing="33" style="display:none;">1/3</button>
+                    <button class="sizing-btn" data-sizing="50" style="display:none;">1/2</button>
+                    <button class="sizing-btn active" data-sizing="66" style="display:none;">2/3</button>
+                    <button class="sizing-btn" data-sizing="100" style="display:none;">Pot</button>
+                    <button class="sizing-btn" data-sizing="150" style="display:none;">1.5x</button>
+                    <button class="sizing-btn" data-sizing="allin" style="display:none;">All-In</button>
                 </div>
             </div>
 
-            <!-- Action Buttons area (dynamically populated) -->
-            <div class="action-buttons" id="action-buttons"></div>
+            <!-- WePoker-style action bar (dynamically populated) -->
+            <div id="action-buttons"></div>
 
-            <!-- Confirm Bet Button -->
+            <!-- Legacy confirm-bet area — unused in the new flow -->
             <div id="confirm-bet-area" style="display:none;">
                 <div class="btn-group">
                     <button class="btn btn-outline" onclick="cancelBet()">取消</button>
@@ -926,25 +928,27 @@
         <div id="cg-street-label" style="display:none;"></div>
         <div id="cg-board-cards" style="display:none;"></div>
 
-        <!-- Action buttons -->
+        <!-- Action bar (WePoker-style) -->
         <div id="cg-actions" style="display:none;">
-            <!-- Custom bet slider (shown when user clicks "自定义") -->
-            <div id="cg-slider-area" style="display:none;max-width:480px;margin:0 auto;padding:0 12px 6px;">
-                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
-                    <input type="range" id="cg-bet-slider" min="1" max="100" value="3" step="0.5"
-                        oninput="cgUpdateSliderLabel()"
-                        style="flex:1;accent-color:var(--accent-orange);">
-                    <span id="cg-slider-val" style="font-size:13px;font-weight:700;color:var(--accent-orange);min-width:56px;text-align:right;">3.0BB</span>
+            <div class="wp-action-bar">
+                <!-- Quick-bet pills (visible when bet/raise is available) -->
+                <div class="wp-quick-row" id="cg-quick-row" style="display:none;">
+                    <button class="wp-quick-btn" data-pct="0.33" onclick="cgSetSliderPct(0.33)">1/3池</button>
+                    <button class="wp-quick-btn" data-pct="0.5" onclick="cgSetSliderPct(0.5)">1/2池</button>
+                    <button class="wp-quick-btn" data-pct="0.66" onclick="cgSetSliderPct(0.66)">2/3池</button>
+                    <button class="wp-quick-btn" data-pct="1" onclick="cgSetSliderPct(1.0)">池底</button>
+                    <button class="wp-quick-btn" data-pct="max" onclick="cgSetSliderMax()">MAX</button>
                 </div>
-                <div style="display:flex;gap:4px;justify-content:center;">
-                    <button class="pos-btn" style="font-size:10px;padding:2px 6px;" onclick="cgSetSliderPct(0.33)">1/3池</button>
-                    <button class="pos-btn" style="font-size:10px;padding:2px 6px;" onclick="cgSetSliderPct(0.5)">1/2池</button>
-                    <button class="pos-btn" style="font-size:10px;padding:2px 6px;" onclick="cgSetSliderPct(0.66)">2/3池</button>
-                    <button class="pos-btn" style="font-size:10px;padding:2px 6px;" onclick="cgSetSliderPct(1.0)">池底</button>
-                    <button class="pos-btn" style="font-size:10px;padding:2px 6px;" onclick="cgSetSliderMax()">MAX</button>
+                <!-- Bet slider (only shown when user starts dragging a custom amount) -->
+                <div class="wp-slider-row" id="cg-slider-area" style="display:none;">
+                    <button class="wp-slider-minus" onclick="cgSliderNudge(-1)">−</button>
+                    <input type="range" id="cg-bet-slider" min="1" max="100" value="3" step="0.5" oninput="cgUpdateSliderLabel()">
+                    <button class="wp-slider-plus" onclick="cgSliderNudge(1)">+</button>
+                    <span class="wp-slider-val" id="cg-slider-val">3.0BB</span>
                 </div>
+                <!-- Main action buttons -->
+                <div class="wp-main-row" id="cg-action-btns"></div>
             </div>
-            <div class="cg-action-bar" id="cg-action-btns"></div>
         </div>
 
         <!-- Hand result (used only for bust/rebuy) -->
@@ -2309,21 +2313,27 @@ function startPreflopHand() {
             renderPreflopCanvas(scenario);
         }
 
-        // Render action buttons
-        const actionLabels = {
-            'raise': { label: '加注 Raise', color: '#e74c3c' },
-            '3bet': { label: '3-Bet', color: '#e74c3c' },
-            '4bet': { label: '4-Bet', color: '#e74c3c' },
-            '5bet-jam': { label: '5-Bet 全压', color: '#e74c3c' },
-            'call': { label: '跟注 Call', color: '#2ecc71' },
-            'fold': { label: '弃牌 Fold', color: '#95a5a6' },
+        // Render action buttons — WePoker-style polish, with a stable
+        // visual order (Fold → Call → Raise) regardless of how the
+        // scenario lists them.
+        const actionStyles = {
+            'fold':      { label: '弃牌',     sub: 'Fold',   cls: 'wp-fold',  sort: 0 },
+            'call':      { label: '跟注',     sub: 'Call',   cls: 'wp-call',  sort: 1 },
+            'raise':     { label: '加注',     sub: 'Raise',  cls: 'wp-raise', sort: 2 },
+            '3bet':      { label: '3-Bet',    sub: 'Raise',  cls: 'wp-raise', sort: 2 },
+            '4bet':      { label: '4-Bet',    sub: 'Raise',  cls: 'wp-raise', sort: 2 },
+            '5bet-jam':  { label: '全压',     sub: '5-Bet',  cls: 'wp-allin', sort: 3 },
         };
-
-        document.getElementById('preflop-action-buttons').innerHTML = scenario.availableActions.map(a => {
-            const info = actionLabels[a] || { label: a, color: '#999' };
-            return `<button class="action-btn" style="flex:1; border-color:${info.color}; color:${info.color};"
-                            onclick="preflopAction('${a}')">${info.label}</button>`;
-        }).join('');
+        const ordered = (scenario.availableActions || []).slice().sort((a, b) => {
+            return (actionStyles[a]?.sort ?? 9) - (actionStyles[b]?.sort ?? 9);
+        });
+        const barHtml = `<div class="wp-action-bar"><div class="wp-main-row">${
+            ordered.map(a => {
+                const s = actionStyles[a] || { label: a, sub: '', cls: 'wp-fold' };
+                return `<button class="wp-btn ${s.cls}" onclick="preflopAction('${a}')">${s.label}<span class="wp-btn-amt">${s.sub}</span></button>`;
+            }).join('')
+        }</div></div>`;
+        document.getElementById('preflop-action-buttons').innerHTML = barHtml;
 
         if (btn) btn.textContent = '发牌开始';
         handsPlayed++;
@@ -2865,20 +2875,61 @@ function renderPracticeHand() {
 
 function renderActionButtons(state) {
     const c = document.getElementById('action-buttons');
+    // One WePoker bar — quick-sizing pills toggle on RAISE; each pill is a
+    // one-tap confirm (no separate 确认 step).
+    const sizingPills = `
+        <div class="wp-quick-row" id="practice-sizing-row" style="display:none;">
+            <button class="wp-quick-btn" onclick="practiceBetPill('33')">1/3</button>
+            <button class="wp-quick-btn" onclick="practiceBetPill('50')">1/2</button>
+            <button class="wp-quick-btn" onclick="practiceBetPill('66')">2/3</button>
+            <button class="wp-quick-btn" onclick="practiceBetPill('100')">池底</button>
+            <button class="wp-quick-btn" onclick="practiceBetPill('150')">1.5x</button>
+            <button class="wp-quick-btn" onclick="practiceBetPill('allin')">全压</button>
+        </div>
+    `;
     if (state.facingBet) {
-        const potAfterCall = practice.potSize + practice.villainBetSize * 2;
         const potOdds = (practice.villainBetSize / (practice.potSize + practice.villainBetSize) * 100).toFixed(0);
         c.innerHTML = `
-            <button class="action-btn fold-btn" onclick="makeAction('fold')">弃牌<span class="action-label">Fold</span></button>
-            <button class="action-btn call-btn" onclick="makeAction('call')">跟注<span class="action-label">Call ${practice.villainBetSize.toFixed(1)}BB</span><span class="action-label" style="font-size:9px;opacity:0.7;">需${potOdds}%胜率</span></button>
-            <button class="action-btn raise-btn" onclick="showSizingThenBet()">加注<span class="action-label">Raise</span></button>
+            <div class="wp-action-bar">
+                ${sizingPills}
+                <div class="wp-main-row">
+                    <button class="wp-btn wp-fold" onclick="makeAction('fold')">弃牌<span class="wp-btn-amt">FOLD</span></button>
+                    <button class="wp-btn wp-call" onclick="makeAction('call')">跟注<span class="wp-btn-amt">${practice.villainBetSize.toFixed(1)} BB · 需${potOdds}%胜率</span></button>
+                    <button class="wp-btn wp-raise" id="practice-raise-btn" onclick="practiceToggleSizing()">加注<span class="wp-btn-amt">RAISE</span></button>
+                </div>
+            </div>
         `;
     } else {
         c.innerHTML = `
-            <button class="action-btn check-btn" onclick="makeAction('check')" style="flex:1;">过牌<span class="action-label">Check</span></button>
-            <button class="action-btn raise-btn" onclick="showSizingThenBet()" style="flex:1;">下注<span class="action-label">Bet</span></button>
+            <div class="wp-action-bar">
+                ${sizingPills}
+                <div class="wp-main-row">
+                    <button class="wp-btn wp-check" onclick="makeAction('check')">过牌<span class="wp-btn-amt">CHECK</span></button>
+                    <button class="wp-btn wp-raise" id="practice-raise-btn" onclick="practiceToggleSizing()">下注<span class="wp-btn-amt">BET</span></button>
+                </div>
+            </div>
         `;
     }
+}
+
+// Show/hide the sizing-pill row. First tap opens it; a second tap on
+// "下注/加注" closes it without betting.
+function practiceToggleSizing() {
+    const row = document.getElementById('practice-sizing-row');
+    if (!row) return;
+    const raiseBtn = document.getElementById('practice-raise-btn');
+    if (getComputedStyle(row).display === 'none') {
+        row.style.display = 'flex';
+        if (raiseBtn) raiseBtn.classList.add('is-sliding');
+    } else {
+        row.style.display = 'none';
+        if (raiseBtn) raiseBtn.classList.remove('is-sliding');
+    }
+}
+
+function practiceBetPill(size) {
+    const sizingPct = size === 'allin' ? 'allin' : parseInt(size);
+    makeAction('raise', sizingPct);
 }
 
 // Update hand info bar when facing a bet after check
@@ -5631,7 +5682,10 @@ function showPVPRoom() {
         cashGame = null;
         cgRenderedBoardCount = 0;
     }
+    // Hide AI cash-game surfaces so only the PVP table is visible.
     document.getElementById('cashgame-buyin').style.display = 'none';
+    document.getElementById('cashgame-table').style.display = 'none';
+    document.getElementById('ai-buyin').style.display = 'none';
     const pvp = document.getElementById('pvp-container');
     if (pvp) pvp.style.display = 'block';
     initPVPPage();
@@ -5913,93 +5967,122 @@ function renderCGActions() {
     const hero = cashGame.seats[cashGame.heroSeat];
     const heroStack = hero.stack;
     const heroBet = cashGame.bets[cashGame.heroSeat] || 0;
-    const pot = cashGame.pot || 0;
     const currentBet = cashGame.currentBet || 0;
 
-    // Determine if we have bet/raise options (for showing custom button)
+    // Decide if we have bet/raise options and the range available.
     let hasBetOrRaise = false;
-    let betAction = null;   // 'bet' if no prior bet, 'raise' otherwise
-    let minAmount = cashGame.bb || 1;
+    let betAction = null;   // 'bet' (no prior bet) or 'raise'
+    let allInAction = null;
+    let foldAction = null;
+    let checkOrCallAction = null;
+    let minRaise = cashGame.bb || 1;
     for (const a of actions) {
         if (a.action === 'bet' || a.action === 'raise') {
             hasBetOrRaise = true;
             betAction = a.action;
-            // Use the smallest bet amount as min (usually min-bet or min-raise)
-            if (a.amount && (!minAmount || a.amount < minAmount || minAmount === cashGame.bb)) {
-                if (a.action === 'bet' && (!minAmount || minAmount === cashGame.bb)) minAmount = Math.max(cashGame.bb, a.amount);
-                if (a.action === 'raise') minAmount = Math.max(currentBet * 2, currentBet + cashGame.bb);
-            }
+            if (a.action === 'bet') minRaise = Math.max(cashGame.bb || 1, a.amount || minRaise);
+            if (a.action === 'raise') minRaise = Math.max(currentBet * 2, currentBet + (cashGame.bb || 1));
         }
+        if (a.action === 'allin') allInAction = a;
+        if (a.action === 'fold') foldAction = a;
+        if (a.action === 'check' || a.action === 'call') checkOrCallAction = a;
     }
-    const maxAmount = heroStack + heroBet; // all-in value
+    const maxAmount = heroStack + heroBet;
 
-    let html = '';
-    for (const a of actions) {
-        let cls = '', label = '', onclick = '';
-        switch (a.action) {
-            case 'fold': cls='fold-btn'; label='弃牌'; onclick=`heroAction('fold')`; break;
-            case 'check': cls='check-btn'; label='过牌'; onclick=`heroAction('check')`; break;
-            case 'call': cls='call-btn'; label=`跟注 ${a.amount.toFixed(1)}BB`; onclick=`heroAction('call',${a.amount})`; break;
-            case 'bet': cls='raise-btn'; label=a.label||`下注 ${a.amount.toFixed(1)}BB`; onclick=`heroAction('bet',${a.amount})`; break;
-            case 'raise': cls='raise-btn'; label=a.label||`加注到 ${a.amount.toFixed(1)}BB`; onclick=`heroAction('raise',${a.amount})`; break;
-            case 'allin': cls='raise-btn'; label=`全压 ${a.amount.toFixed(1)}BB`; onclick=`heroAction('allin',${a.amount})`; break;
+    // Build the 3-button main row. WePoker convention:
+    //   [ FOLD ]  [ CHECK / CALL ]  [ RAISE {amount} ]
+    // When the only aggressive option is ALL-IN (e.g. tiny stack), the
+    // raise slot becomes an ALL-IN button instead.
+    const btns = [];
+    if (foldAction) {
+        btns.push(`<button class="wp-btn wp-fold" onclick="heroAction('fold')">弃牌<span class="wp-btn-amt">FOLD</span></button>`);
+    } else {
+        btns.push(`<button class="wp-btn wp-fold" disabled>弃牌</button>`);
+    }
+    if (checkOrCallAction) {
+        if (checkOrCallAction.action === 'check') {
+            btns.push(`<button class="wp-btn wp-check" onclick="heroAction('check')">过牌<span class="wp-btn-amt">CHECK</span></button>`);
+        } else {
+            const amt = checkOrCallAction.amount.toFixed(1);
+            btns.push(`<button class="wp-btn wp-call" onclick="heroAction('call',${checkOrCallAction.amount})">跟注<span class="wp-btn-amt">${amt} BB</span></button>`);
         }
-        html += `<button class="action-btn ${cls}" onclick="${onclick}" style="flex:1;">${label}</button>`;
+    } else {
+        btns.push(`<button class="wp-btn wp-check" disabled>—</button>`);
     }
-    // Add "Custom" button if user can bet/raise
-    if (hasBetOrRaise && maxAmount > minAmount) {
-        html += `<button class="action-btn raise-btn" onclick="cgToggleSlider('${betAction}',${minAmount.toFixed(1)},${maxAmount.toFixed(1)})" style="flex:1;background:linear-gradient(135deg,#d97706,#f59e0b);border-color:#fbbf24;">自定义</button>`;
+    if (hasBetOrRaise && maxAmount > minRaise + 0.01) {
+        // Default starting amount: ~2/3 pot bet, or a min-raise-ish size
+        const pot = cashGame.pot || 0;
+        const toCall = Math.max(0, currentBet - heroBet);
+        const suggested = betAction === 'bet'
+            ? Math.max(minRaise, Math.min(maxAmount, Math.round(pot * 0.66 * 10) / 10))
+            : Math.max(minRaise, Math.min(maxAmount, Math.round((pot + toCall * 2) * 0.75 * 10) / 10));
+        btns.push(`<button class="wp-btn wp-raise" id="cg-raise-btn"
+            onclick="cgToggleSlider('${betAction}',${minRaise.toFixed(1)},${maxAmount.toFixed(1)},${suggested})">
+            ${betAction === 'bet' ? '下注' : '加注'}<span class="wp-btn-amt" id="cg-raise-amt">≥ ${minRaise.toFixed(1)} BB</span></button>`);
+    } else if (allInAction) {
+        btns.push(`<button class="wp-btn wp-allin" onclick="heroAction('allin',${allInAction.amount})">全压<span class="wp-btn-amt">${allInAction.amount.toFixed(1)} BB</span></button>`);
+    } else {
+        btns.push(`<button class="wp-btn wp-raise" disabled>—</button>`);
     }
-    document.getElementById('cg-action-btns').innerHTML = html;
+    document.getElementById('cg-action-btns').innerHTML = btns.join('');
+
+    // Show the quick-pill row only when the player can actually bet/raise
+    const quickRow = document.getElementById('cg-quick-row');
+    quickRow.style.display = (hasBetOrRaise && maxAmount > minRaise + 0.01) ? 'flex' : 'none';
+    // Reset active pill state
+    quickRow.querySelectorAll('.wp-quick-btn').forEach(b => b.classList.remove('is-active'));
+
     document.getElementById('cg-actions').style.display = 'block';
-    // Hide slider by default when actions re-render
+    // Hide slider until user opens it
     document.getElementById('cg-slider-area').style.display = 'none';
     cgCustomAction = null;
 }
 
-function cgToggleSlider(action, minAmt, maxAmt) {
+// Open the slider on first click of RAISE; second click (when already open) confirms.
+function cgToggleSlider(action, minAmt, maxAmt, suggested) {
     const area = document.getElementById('cg-slider-area');
-    if (area.style.display === 'block' && cgCustomAction === action) {
-        // Already open for this action → submit it
+    const raiseBtn = document.getElementById('cg-raise-btn');
+    if (area.style.display !== 'none' && cgCustomAction === action) {
+        // Second click → submit the current slider amount
         cgSubmitSlider();
         return;
     }
     cgCustomAction = action;
-    cgCustomMin = minAmt;
-    cgCustomMax = maxAmt;
+    cgCustomMin = parseFloat(minAmt);
+    cgCustomMax = parseFloat(maxAmt);
     const sl = document.getElementById('cg-bet-slider');
-    sl.min = minAmt;
-    sl.max = maxAmt;
+    sl.min = cgCustomMin;
+    sl.max = cgCustomMax;
     sl.step = 0.5;
-    // Default: about 2/3 pot, clamped to range
-    const pot = cashGame?.pot || 0;
-    const heroBet = cashGame?.bets?.[cashGame.heroSeat] || 0;
-    const currentBet = cashGame?.currentBet || 0;
-    const toCall = Math.max(0, currentBet - heroBet);
-    const defaultVal = action === 'bet'
-        ? Math.max(minAmt, Math.min(maxAmt, Math.round(pot * 0.66 * 10) / 10))
-        : Math.max(minAmt, Math.min(maxAmt, Math.round((pot + toCall * 2) * 0.75 * 10) / 10)); // raise size ~ 2.5-3x
-    sl.value = defaultVal;
-    area.style.display = 'block';
+    sl.value = suggested != null ? suggested : cgCustomMin;
+    area.style.display = 'flex';
     cgUpdateSliderLabel();
-    // Change the custom button to a "confirm" button
-    const btns = document.querySelectorAll('#cg-action-btns .action-btn');
-    btns.forEach(b => {
-        if (b.textContent.trim() === '自定义') {
-            b.textContent = '确认';
-            b.style.background = 'linear-gradient(135deg,#059669,#10b981)';
-        }
-    });
+    // Flip raise button label to "确认 X.XBB" + switch to confirm colour
+    if (raiseBtn) {
+        raiseBtn.classList.add('is-sliding');
+        raiseBtn.firstChild.nodeValue = '确认';
+        const amtEl = document.getElementById('cg-raise-amt');
+        if (amtEl) amtEl.textContent = parseFloat(sl.value).toFixed(1) + ' BB';
+    }
 }
 
 function cgUpdateSliderLabel() {
     const sl = document.getElementById('cg-bet-slider');
     const lbl = document.getElementById('cg-slider-val');
+    const amtEl = document.getElementById('cg-raise-amt');
     if (sl && lbl) lbl.textContent = parseFloat(sl.value).toFixed(1) + 'BB';
+    if (sl && amtEl && cgCustomAction) amtEl.textContent = parseFloat(sl.value).toFixed(1) + ' BB';
 }
 
+// Clicking a quick-bet pill opens the slider (if not already) and jumps to that size.
 function cgSetSliderPct(pct) {
-    if (!cashGame || !cgCustomAction) return;
+    if (!cashGame) return;
+    // If slider isn't open yet (user clicked pill directly), open it via the raise button.
+    const raiseBtn = document.getElementById('cg-raise-btn');
+    if (!cgCustomAction && raiseBtn) {
+        raiseBtn.click(); // opens the slider
+    }
+    if (!cgCustomAction) return;
     const pot = cashGame.pot || 0;
     const heroBet = cashGame.bets?.[cashGame.heroSeat] || 0;
     const currentBet = cashGame.currentBet || 0;
@@ -6008,17 +6091,38 @@ function cgSetSliderPct(pct) {
     if (cgCustomAction === 'bet') {
         amount = pot * pct;
     } else {
-        // Raise sizing: call amount + pct * (pot + toCall)
         amount = currentBet + toCall + pct * (pot + toCall * 2);
     }
     amount = Math.round(Math.max(cgCustomMin, Math.min(cgCustomMax, amount)) * 10) / 10;
     document.getElementById('cg-bet-slider').value = amount;
     cgUpdateSliderLabel();
+    // Mark this pill as active
+    document.querySelectorAll('#cg-quick-row .wp-quick-btn').forEach(b => {
+        const p = parseFloat(b.dataset.pct);
+        b.classList.toggle('is-active', !isNaN(p) && Math.abs(p - pct) < 0.01);
+    });
 }
 
 function cgSetSliderMax() {
+    const raiseBtn = document.getElementById('cg-raise-btn');
+    if (!cgCustomAction && raiseBtn) raiseBtn.click();
+    if (!cgCustomAction) return;
     document.getElementById('cg-bet-slider').value = cgCustomMax;
     cgUpdateSliderLabel();
+    document.querySelectorAll('#cg-quick-row .wp-quick-btn').forEach(b => {
+        b.classList.toggle('is-active', b.dataset.pct === 'max');
+    });
+}
+
+// +/- nudges — step the slider by cashGame.bb (1.0 by default)
+function cgSliderNudge(dir) {
+    const sl = document.getElementById('cg-bet-slider');
+    if (!sl) return;
+    const step = (cashGame?.bb || 1);
+    const next = Math.max(cgCustomMin, Math.min(cgCustomMax, parseFloat(sl.value) + dir * step));
+    sl.value = Math.round(next * 10) / 10;
+    cgUpdateSliderLabel();
+    document.querySelectorAll('#cg-quick-row .wp-quick-btn').forEach(b => b.classList.remove('is-active'));
 }
 
 function cgSubmitSlider() {
