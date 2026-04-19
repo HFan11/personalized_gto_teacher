@@ -100,7 +100,22 @@ class PokerTableCanvas {
         if (newState.folded) s.folded = newState.folded.slice();
         if (newState.allIn) s.allIn = newState.allIn.slice();
         if (newState.actingSeat !== undefined) s.actingSeat = newState.actingSeat;
-        if (newState.dealerSeat !== undefined) s.dealerSeat = newState.dealerSeat;
+        if (newState.dealerSeat !== undefined) {
+            // Slide the dealer button when it changes (game mode only)
+            const prev = s.dealerSeat;
+            const next = newState.dealerSeat;
+            if (this.mode === 'game' && prev >= 0 && next >= 0 && prev !== next
+                && prev < this.seatCount && next < this.seatCount) {
+                this._dealerSlide = { from: prev, to: next, start: performance.now(), dur: 800 };
+                this._addTween({
+                    start: performance.now(),
+                    duration: 800,
+                    easing: (t) => 1 - (1 - t) * (1 - t),
+                    update: () => { this._needsRedraw = true; },
+                });
+            }
+            s.dealerSeat = next;
+        }
         if (newState.heroSeat !== undefined) s.heroSeat = newState.heroSeat;
         if (newState.street) s.street = newState.street;
         this._needsRedraw = true;
@@ -637,6 +652,28 @@ class PokerTableCanvas {
             }
             // Acting pulse animation keeps rendering
             if (this.state.actingSeat >= 0 && this.state.street !== 'waiting') this._needsRedraw = true;
+            // Ambient felt sparkle — emit a few particles every 4-8s near a
+            // random non-folded seat (game mode only, not during showdown).
+            if (this.mode === 'game' && this.state.street && this.state.street !== 'waiting'
+                && typeof casinoParticles !== 'undefined') {
+                if (!this._nextSparkleAt) this._nextSparkleAt = now + 4000 + Math.random() * 4000;
+                if (now >= this._nextSparkleAt) {
+                    const candidates = [];
+                    for (let i = 0; i < this.seatCount; i++) {
+                        if (!this.state.folded[i]) candidates.push(i);
+                    }
+                    if (candidates.length) {
+                        const i = candidates[Math.floor(Math.random() * candidates.length)];
+                        const p = this._seatPos(i);
+                        casinoParticles.emit(p.x + (this.cx - p.x) * 0.3, p.y + (this.cy - p.y) * 0.3, 4, {
+                            colors: ['#fbbf24', '#fde68a', '#ffffff'],
+                            speed: 1.2, life: 0.8, gravity: -20, size: 2, shape: 'star',
+                        });
+                        this._needsRedraw = true;
+                    }
+                    this._nextSparkleAt = now + 4000 + Math.random() * 4000;
+                }
+            }
             // Draw if needed
             if (this._needsRedraw) {
                 this._draw();
@@ -681,7 +718,25 @@ class PokerTableCanvas {
     _drawDealerButton() {
         const s = this.state;
         if (s.dealerSeat < 0 || s.dealerSeat >= this.seatCount) return;
-        const seat = this._seatPos(s.dealerSeat);
+
+        // Interpolate position if a slide is in progress.
+        let seat;
+        const slide = this._dealerSlide;
+        if (slide) {
+            const t = Math.min(1, (performance.now() - slide.start) / slide.dur);
+            if (t >= 1) {
+                seat = this._seatPos(slide.to);
+                this._dealerSlide = null;  // clear slide
+            } else {
+                const eased = 1 - (1 - t) * (1 - t);
+                const a = this._seatPos(slide.from);
+                const b = this._seatPos(slide.to);
+                seat = { x: a.x + (b.x - a.x) * eased, y: a.y + (b.y - a.y) * eased };
+            }
+        } else {
+            seat = this._seatPos(s.dealerSeat);
+        }
+
         // Offset the button toward center of table
         const dx = (this.cx - seat.x) * 0.22;
         const dy = (this.cy - seat.y) * 0.22;
