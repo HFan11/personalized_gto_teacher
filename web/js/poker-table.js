@@ -276,11 +276,11 @@ class PokerTableCanvas {
         //     poles (top/bottom), needs vertical room to separate them and
         //     leave clean space between for cards, chip stacks, pot text.
         const isTeach = this.mode === 'teach';
-        // Game mode aspect 1:0.95 so 6 vertical-stack WePoker seats have
-        // enough spread (both horizontally and vertically) that their
-        // chip/pot/plates don't all converge in the centre. Teach mode
-        // stays 1:0.95 for the 2-seat poles.
-        const aspect = 0.95;
+        // Adaptive aspect: narrow viewports (phones) get a taller canvas
+        // so hero cards + bot cards + pot + chip stacks still fit without
+        // overflowing. Wider desktops use landscape aspect for the
+        // "real table from above" feel.
+        const aspect = w < 440 ? 1.08 : 0.95;
         const h = Math.round(w * aspect);
         this.canvas.style.width = w + 'px';
         this.canvas.style.height = h + 'px';
@@ -289,13 +289,14 @@ class PokerTableCanvas {
         this.ctx.scale(this.dpr, this.dpr);
         this.W = w;
         this.H = h;
+        // Scale factor — shrinks fixed-pixel UI (avatar / plate / cards)
+        // proportionally on narrow canvases so everything stays inside
+        // the canvas on mobile.
+        this.S = Math.max(0.72, Math.min(1, w / 540));
         this.cx = w / 2;
         this.cy = h * 0.48;
-        // Felt ellipse — fills most of the canvas.
         this.rx = w * 0.46;
         this.ry = h * 0.45;
-        // Seat distribution — wider spread in game mode so 6 vertical
-        // WePoker seats don't visually overlap each other's chips.
         this.seatRx = isTeach ? w * 0.28 : w * 0.32;
         this.seatRy = isTeach ? h * 0.33 : h * 0.29;
         this._buildCaches();
@@ -871,10 +872,13 @@ class PokerTableCanvas {
 
     _drawBets() {
         const s = this.state;
-        // Game mode: chips closer to the player (WePoker feel, bet "in
-        // front of" the avatar). Teach mode: chips further toward the pot
-        // so the 1v1 empty middle gets filled.
-        const frac = this.mode === 'game' ? 0.55 : 0.75;
+        // Game mode: chip sits close to each seat (35% toward centre) so
+        // it reads as "that player's bet" and never lands on the board
+        // cards in the middle.
+        // Teach mode: chip at 45% — clearly between the seat and the pot
+        // text, on the seat's side of the pot (so villain's bet sits
+        // ABOVE the pot label, hero's bet below).
+        const frac = this.mode === 'game' ? 0.35 : 0.45;
         for (let i = 0; i < this.seatCount; i++) {
             const bet = s.bets[i] || 0;
             if (bet <= 0) continue;
@@ -888,36 +892,34 @@ class PokerTableCanvas {
     _drawChipStack(x, y, amount) {
         if (!this.chipCache) return;
         const ctx = this.ctx;
+        const S = this.S || 1;
         // Compact chip visual: small 20x20 disc on the left, amount label
-        // INLINE to the right in a colored pill. Takes ~20px vertical (was
-        // 52 with the big disc + label-below layout), so the bet display
-        // no longer competes with seat plates or the pot text.
-        const chipR = 10;
+        // INLINE to the right in a colored pill. Scales with S on mobile.
+        const chipR = 10 * S;
         const chipDenom = amount >= 100 ? 3
                         : amount >= 25  ? 2
                         : amount >= 5   ? 1
                         : 0;
-        // Draw chip disc (single, representative)
-        ctx.drawImage(this.chipCache[chipDenom], x - chipR - 12, y - chipR, chipR * 2, chipR * 2);
-        // Amount label pill to the right of the disc
+        ctx.drawImage(this.chipCache[chipDenom], x - chipR - 12 * S, y - chipR, chipR * 2, chipR * 2);
         const labelText = amount.toFixed(1);
         const labelColor = amount >= 6 ? '#ff6b6b'
                          : amount >= 2 ? '#fb923c'
                          : '#fde68a';
         ctx.save();
-        ctx.font = 'bold 11px sans-serif';
+        const labelFont = Math.max(10, Math.round(11 * S));
+        ctx.font = `bold ${labelFont}px sans-serif`;
         ctx.textAlign = 'left';
         ctx.textBaseline = 'middle';
         const textW = ctx.measureText(labelText).width;
-        const pillW = textW + 10;
-        const pillH = 16;
-        const pillX = x + 2;
+        const pillW = textW + 10 * S;
+        const pillH = 16 * S;
+        const pillX = x + 2 * S;
         const pillY = y - pillH / 2;
         ctx.fillStyle = 'rgba(0, 0, 0, 0.78)';
-        this._roundRect(ctx, pillX, pillY, pillW, pillH, 5);
+        this._roundRect(ctx, pillX, pillY, pillW, pillH, 5 * S);
         ctx.fill();
         ctx.fillStyle = labelColor;
-        ctx.fillText(labelText, pillX + 5, pillY + pillH / 2 + 1);
+        ctx.fillText(labelText, pillX + 5 * S, pillY + pillH / 2 + 1);
         ctx.restore();
     }
 
@@ -970,12 +972,13 @@ class PokerTableCanvas {
     _drawSeatGame(seat, pos, isActing, isFolded, now) {
         const ctx = this.ctx;
         const { x, y } = pos;
-        const avR = 18;
-        const avY = y - 20;               // avatar centre slightly above seat anchor
-        const plateW = 76, plateH = 30;
+        const S = this.S;
+        const avR = 18 * S;
+        const avY = y - 20 * S;
+        const plateW = 76 * S, plateH = 30 * S;
         const plateX = x - plateW / 2;
-        const plateY = y + 2;             // plate sits just below avatar
-        const pillY = plateY + plateH + 4;
+        const plateY = y + 2 * S;
+        const pillY = plateY + plateH + 4 * S;
 
         ctx.save();
         if (isFolded) ctx.globalAlpha = 0.38;
@@ -984,9 +987,9 @@ class PokerTableCanvas {
         if (isActing) {
             const pulse = 0.55 + 0.45 * Math.sin(now / 200);
             ctx.strokeStyle = `rgba(251, 191, 36, ${pulse})`;
-            ctx.lineWidth = 3;
+            ctx.lineWidth = Math.max(2, 3 * S);
             ctx.beginPath();
-            ctx.arc(x, avY, avR + 3, 0, Math.PI * 2);
+            ctx.arc(x, avY, avR + 3 * S, 0, Math.PI * 2);
             ctx.stroke();
         }
 
@@ -1008,52 +1011,54 @@ class PokerTableCanvas {
         ctx.fillStyle = '#ffffff';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.font = 'bold 15px sans-serif';
+        ctx.font = `bold ${Math.round(15 * S)}px sans-serif`;
         ctx.fillText(initial, x, avY + 1);
 
-        // Name plate (rounded rect) — holds name (top line) + stack (bottom)
+        // Name plate (rounded rect)
         ctx.fillStyle = seat.isMe ? 'rgba(30, 58, 138, 0.88)' : 'rgba(0, 0, 0, 0.70)';
-        this._roundRect(ctx, plateX, plateY, plateW, plateH, 6);
+        this._roundRect(ctx, plateX, plateY, plateW, plateH, 6 * S);
         ctx.fill();
         ctx.strokeStyle = seat.isMe ? 'rgba(99, 162, 255, 0.85)' : 'rgba(255, 255, 255, 0.18)';
         ctx.lineWidth = 1;
-        this._roundRect(ctx, plateX, plateY, plateW, plateH, 6);
+        this._roundRect(ctx, plateX, plateY, plateW, plateH, 6 * S);
         ctx.stroke();
 
-        // Name (top line, small, white)
+        // Name (top line) — scaled font so it fits the plate width
         const fullName = seat.isEmpty ? '空位' : (seat.name || 'Bot');
+        const nameFont = Math.max(9, Math.round(10 * S));
+        ctx.font = `bold ${nameFont}px sans-serif`;
         const nameText = this._fitText(ctx, fullName, plateW - 8);
         ctx.fillStyle = seat.isEmpty ? 'rgba(99,162,255,0.9)' : '#f3f4f6';
-        ctx.font = 'bold 10px sans-serif';
         ctx.textBaseline = 'top';
-        ctx.fillText(nameText, x, plateY + 3);
+        ctx.fillText(nameText, x, plateY + 3 * S);
 
-        // Stack (bottom line, gold, bolder)
+        // Stack (bottom line, gold)
         ctx.fillStyle = '#fbbf24';
-        ctx.font = 'bold 13px sans-serif';
-        ctx.fillText(`${(seat.stack || 0).toFixed(1)}BB`, x, plateY + 15);
+        ctx.font = `bold ${Math.max(11, Math.round(13 * S))}px sans-serif`;
+        ctx.fillText(`${(seat.stack || 0).toFixed(1)}BB`, x, plateY + 15 * S);
 
         // All-in tag
         if (seat.allIn && !isFolded) {
             ctx.fillStyle = '#a855f7';
-            ctx.font = 'bold 9px sans-serif';
-            ctx.fillText('ALL-IN', x, plateY + plateH + 2);
+            ctx.font = `bold ${Math.round(9 * S)}px sans-serif`;
+            ctx.fillText('ALL-IN', x, plateY + plateH + 2 * S);
         }
 
-        // Position pill — separate rounded pill below the name plate.
+        // Position pill
         if (seat.position) {
-            ctx.font = 'bold 9px sans-serif';
-            const pw = ctx.measureText(seat.position).width + 10;
-            const ph = 13;
+            const pillFont = Math.max(8, Math.round(9 * S));
+            ctx.font = `bold ${pillFont}px sans-serif`;
+            const pw = ctx.measureText(seat.position).width + 10 * S;
+            const ph = 13 * S;
             const pillX = x - pw / 2;
             const posColors = {BTN:'#f59e0b',SB:'#a855f7',BB:'#ef4444',UTG:'#3b82f6',HJ:'#22c55e',CO:'#06b6d4'};
             ctx.fillStyle = posColors[seat.position] || 'rgba(251, 191, 36, 0.85)';
-            this._roundRect(ctx, pillX, pillY, pw, ph, 5);
+            this._roundRect(ctx, pillX, pillY, pw, ph, 5 * S);
             ctx.fill();
             ctx.fillStyle = '#ffffff';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.font = 'bold 9px sans-serif';
+            ctx.font = `bold ${pillFont}px sans-serif`;
             ctx.fillText(seat.position, x, pillY + ph / 2 + 0.5);
         }
 
@@ -1153,6 +1158,7 @@ class PokerTableCanvas {
     _drawHoleCards() {
         const s = this.state;
         if (s.street === 'waiting') return;
+        const S = this.S || 1;
         for (let i = 0; i < this.seatCount; i++) {
             const seat = s.seats[i];
             if (!seat || s.folded[i] || seat.isGhost) continue;
@@ -1163,25 +1169,22 @@ class PokerTableCanvas {
             const c1 = seat.isMe || !faceDown ? cards[1] : null;
 
             if (this.mode === 'game' && seat.isMe) {
-                // Hero (WePoker): big cards below the seat stack, slight
-                // fan tilt ±6° for a "hand held in front" feel.
-                const cw = 44, ch = 60, gap = 4;
-                const cardTop = pos.y + 52;  // below plate + pill
+                // Hero (WePoker): cards below the seat stack, scaled by S
+                // so they shrink on mobile viewports.
+                const cw = 44 * S, ch = 60 * S, gap = 4 * S;
+                const cardTop = pos.y + 52 * S;
                 const lx = pos.x - cw - gap / 2;
                 const rx = pos.x + gap / 2;
                 this._drawCardTilted(c0, lx, cardTop, cw, ch, -6, c0 == null);
                 this._drawCardTilted(c1, rx, cardTop, cw, ch, +6, c1 == null);
             } else if (this.mode === 'game') {
-                // Bot (WePoker): two small cards peeking from BEHIND the
-                // avatar, fanned out ±12°. Drawn before the plate+avatar
-                // (see _draw order), so the avatar overlaps their lower
-                // third while the top ~2/3 is clearly visible above the
-                // avatar — "cards held up behind shoulders" look.
-                const cw = 24, ch = 34;
-                const avY = pos.y - 20;
-                const cardCY = avY - 22;      // push card centre 22px above avatar centre
-                this._drawCardTilted(c0, pos.x - 10 - cw / 2, cardCY - ch / 2, cw, ch, -14, c0 == null);
-                this._drawCardTilted(c1, pos.x + 10 - cw / 2, cardCY - ch / 2, cw, ch, +14, c1 == null);
+                // Bot (WePoker): two small cards peeking from behind the
+                // avatar, fanned ±14°.
+                const cw = 24 * S, ch = 34 * S;
+                const avY = pos.y - 20 * S;
+                const cardCY = avY - 22 * S;
+                this._drawCardTilted(c0, pos.x - 10 * S - cw / 2, cardCY - ch / 2, cw, ch, -14, c0 == null);
+                this._drawCardTilted(c1, pos.x + 10 * S - cw / 2, cardCY - ch / 2, cw, ch, +14, c1 == null);
             } else if (seat.isMe) {
                 // Hero (teach): clean cards below plate, no tilt.
                 const cw = 40, ch = 56, gap = 4;
