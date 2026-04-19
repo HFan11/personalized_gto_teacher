@@ -7,6 +7,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Personalized Poker Teacher</title>
     <link rel="stylesheet" href="css/style.css?v=31">
+    <link rel="stylesheet" href="css/poker-table.css?v=1">
 </head>
 <body>
 
@@ -916,8 +917,8 @@
         </div>
 
         <!-- 6-seat Canvas table (Phase 1: static renderer via PokerTableCanvas) -->
-        <div id="cg-table-container" style="padding:20px 8px 24px;max-width:540px;margin:0 auto;">
-            <canvas id="cg-canvas" style="display:block;width:100%;"></canvas>
+        <div id="cg-table-container" style="padding:12px 8px 16px;max-width:560px;margin:0 auto;">
+            <div id="cg-poker-table"></div>
         </div>
         <!-- Hidden stubs for legacy references (kept so existing DOM query selectors don't throw) -->
         <div id="cg-table" style="display:none;"><div id="cg-seats"></div></div>
@@ -1303,6 +1304,7 @@
 <script src="js/practice.js?v=27"></script>
 <script src="js/casino-fx.js?v=1"></script>
 <script src="js/poker-table.js?v=23"></script>
+<script src="js/poker-table-dom.js?v=1"></script>
 <script src="js/roulette.js?v=3"></script>
 <script src="js/slots.js?v=2"></script>
 <script src="js/cash-game.js?v=1"></script>
@@ -5845,15 +5847,16 @@ function updateCGStats() {
 }
 
 let cgRenderedBoardCount = 0; // (legacy) tracked for potential fallback path
-let cgCanvasTable = null;     // PokerTableCanvas instance
+let cgCanvasTable = null;     // PokerTableDom instance (name kept for back-compat with existing hooks)
 
 function renderCGTable(state) {
-    // Phase 1: drive PokerTableCanvas with state. Cards come in as {rank, suit}
-    // objects; PokerTableCanvas expects "Rs" strings like "As". Convert here.
-    if (!cgCanvasTable && typeof PokerTableCanvas !== 'undefined') {
-        const canvas = document.getElementById('cg-canvas');
-        if (canvas) {
-            cgCanvasTable = new PokerTableCanvas(canvas, { seats: 6, mode: 'game' });
+    // DOM+CSS poker table — drop-in replacement for the old Canvas version.
+    // Cards come in as {rank, suit} objects with unicode suit chars; the
+    // DOM renderer expects 2-char strings like "As" / "Td".
+    if (!cgCanvasTable && typeof PokerTableDom !== 'undefined') {
+        const host = document.getElementById('cg-poker-table');
+        if (host) {
+            cgCanvasTable = new PokerTableDom(host, { seats: 6, mode: 'game' });
         }
     }
     if (!cgCanvasTable) { updateCGStats(); return; }
