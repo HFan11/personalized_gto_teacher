@@ -950,19 +950,15 @@
             <button onclick="leaveCashGame()" style="background:none;border:1px solid var(--border-color);color:var(--text-muted);padding:2px 8px;border-radius:4px;font-size:10px;cursor:pointer;">离开</button>
         </div>
 
-        <!-- 6-seat circular table -->
-        <div style="padding:40px 8px 56px;">
-            <div class="cg-table-wrap" id="cg-table">
-                <!-- Seats positioned absolutely around the oval -->
-                <div id="cg-seats"></div>
-                <!-- Center: pot + board -->
-                <div class="cg-center">
-                    <div class="pot-badge" id="cg-pot-display" style="font-size:12px;">0 BB</div>
-                    <div id="cg-street-label" style="font-size:9px; color:rgba(255,255,255,0.4); margin-bottom:2px;"></div>
-                    <div class="cards-row" id="cg-board-cards" style="justify-content:center; gap:3px; min-height:40px;"></div>
-                </div>
-            </div>
+        <!-- 6-seat Canvas table (Phase 1: static renderer via PokerTableCanvas) -->
+        <div id="cg-table-container" style="padding:20px 8px 24px;max-width:540px;margin:0 auto;">
+            <canvas id="cg-canvas" style="display:block;width:100%;"></canvas>
         </div>
+        <!-- Hidden stubs for legacy references (kept so existing DOM query selectors don't throw) -->
+        <div id="cg-table" style="display:none;"><div id="cg-seats"></div></div>
+        <div id="cg-pot-display" style="display:none;"></div>
+        <div id="cg-street-label" style="display:none;"></div>
+        <div id="cg-board-cards" style="display:none;"></div>
 
         <!-- Action buttons -->
         <div id="cg-actions" style="display:none;">
@@ -1341,6 +1337,7 @@
 <script src="js/preflop-practice.js?v=23"></script>
 <script src="js/practice.js?v=27"></script>
 <script src="js/casino-fx.js?v=1"></script>
+<script src="js/poker-table.js?v=1"></script>
 <script src="js/roulette.js?v=3"></script>
 <script src="js/slots.js?v=2"></script>
 <script src="js/cash-game.js?v=1"></script>
@@ -5612,82 +5609,59 @@ function updateCGStats() {
     }
 }
 
-let cgRenderedBoardCount = 0; // track how many board cards already rendered
+let cgRenderedBoardCount = 0; // (legacy) tracked for potential fallback path
+let cgCanvasTable = null;     // PokerTableCanvas instance
 
 function renderCGTable(state) {
-    // Board cards — only animate NEW cards
-    const boardEl = document.getElementById('cg-board-cards');
-    const currentCount = state.board.length;
-
-    // Reset when new hand starts (preflop = no board)
-    if (currentCount === 0) {
-        if (cgRenderedBoardCount > 0 || boardEl.innerHTML !== '') {
-            boardEl.innerHTML = '';
-            cgRenderedBoardCount = 0;
+    // Phase 1: drive PokerTableCanvas with state. Cards come in as {rank, suit}
+    // objects; PokerTableCanvas expects "Rs" strings like "As". Convert here.
+    if (!cgCanvasTable && typeof PokerTableCanvas !== 'undefined') {
+        const canvas = document.getElementById('cg-canvas');
+        if (canvas) {
+            cgCanvasTable = new PokerTableCanvas(canvas, { seats: 6, mode: 'game' });
         }
-    } else if (currentCount !== cgRenderedBoardCount) {
-        let html = '';
-        for (let i = 0; i < currentCount; i++) {
-            const c = state.board[i];
-            const suitClass = {'♠':'spades','♥':'hearts','♦':'diamonds','♣':'clubs'}[c.suit];
-            const isNew = i >= cgRenderedBoardCount;
-            html += `<div class="playing-card ${suitClass} ${isNew ? 'card-flip-in' : ''}" data-rank="${RANK_DISPLAY[c.rank]}" style="width:32px;height:44px;${isNew ? 'animation-delay:'+(i-cgRenderedBoardCount)*0.1+'s;' : ''}">
-                <span class="card-rank" style="font-size:13px;">${RANK_DISPLAY[c.rank]}</span>
-                <span class="card-suit" style="font-size:11px;">${c.suit}</span>
-            </div>`;
-        }
-        boardEl.innerHTML = html;
-        cgRenderedBoardCount = currentCount;
     }
-    document.getElementById('cg-pot-display').textContent = state.pot.toFixed(1) + ' BB';
-    document.getElementById('cg-street-label').textContent = state.street === 'preflop' ? '' : state.street.charAt(0).toUpperCase() + state.street.slice(1);
+    if (!cgCanvasTable) { updateCGStats(); return; }
 
-    // Render 6 seats around the oval
-    // Visual positions: 0=bottom(hero), 1=bottom-left, 2=top-left, 3=top, 4=top-right, 5=bottom-right
-    let seatsHtml = '';
-    for (let visualPos = 0; visualPos < 6; visualPos++) {
-        // Map visual position to actual seat index
-        // Hero is always at visual pos 0, others relative clockwise
-        const seatIdx = (state.heroSeat + visualPos) % 6;
-        const s = state.seats[seatIdx];
-        if (!s || s.isSittingOut) continue;
+    const suitToChar = { '♠': 's', '♥': 'h', '♦': 'd', '♣': 'c' };
+    const toCardStr = (c) => c ? (c.rank + (suitToChar[c.suit] || c.suit)) : null;
+    const board = (state.board || []).map(toCardStr).filter(Boolean);
 
-        const isHero = s.isHero;
-        const classes = ['cg-seat'];
-        if (s.folded) classes.push('folded');
-        if (s.isActing) classes.push('acting');
-        if (isHero) classes.push('hero-seat');
+    const seats = state.seats.map((s, i) => ({
+        name: s.name,
+        stack: s.stack,
+        folded: s.folded || state.folded?.[i],
+        allIn: s.allIn || state.allIn?.[i],
+        holeCards: s.holeCards ? s.holeCards.map(toCardStr) : null,
+        isMe: !!s.isHero,
+        position: s.position || '',
+        seatIdx: i,
+        isEmpty: !!s.isSittingOut,
+        isBot: !s.isHero,
+    }));
 
-        const isDealer = seatIdx === state.dealerSeat;
-        const posColors = {BTN:'#f59e0b',SB:'#a855f7',BB:'#ef4444',UTG:'#3b82f6',HJ:'#22c55e',CO:'#06b6d4'};
-
-        // Cards display
-        let cardsHtml = '';
-        if (isHero && s.holeCards) {
-            cardsHtml = `<div class="cg-hero-hand">${s.holeCards.map(c => renderPlayingCard(c, '')).join('')}</div>`;
-        } else if (!isHero && s.holeCards && state.street === 'showdown' && !s.folded) {
-            cardsHtml = `<div class="cg-seat-cards">${s.holeCards.map(c => renderPlayingCard(c, 'card-flip-in')).join('')}</div>`;
-        } else if (!isHero && !s.folded) {
-            cardsHtml = `<div class="cg-seat-cards">
-                <div class="playing-card facedown" style="width:28px;height:38px;"></div>
-                <div class="playing-card facedown" style="width:28px;height:38px;"></div>
-            </div>`;
-        }
-
-        seatsHtml += `<div class="${classes.join(' ')}" data-pos="${visualPos}">
-            ${visualPos >= 1 && visualPos <= 2 || visualPos === 3 ? cardsHtml : ''}
-            <div class="cg-seat-info">
-                <div class="cg-seat-name">${s.name}</div>
-                <div class="cg-seat-stack">${s.stack.toFixed(1)}BB</div>
-                <span class="cg-pos-badge" style="background:${posColors[s.position]||'#666'};">${s.position}</span>
-                ${isDealer ? '<span class="cg-dealer-btn">D</span>' : ''}
-            </div>
-            ${s.bet > 0 ? `<div class="cg-seat-bet">${s.bet.toFixed(1)}BB</div>` : ''}
-            ${s.allIn ? '<div style="color:var(--accent-purple);font-size:9px;font-weight:700;">ALL-IN</div>' : ''}
-            ${visualPos === 0 || visualPos >= 4 ? cardsHtml : ''}
-        </div>`;
+    const bets = new Array(6).fill(0);
+    const folded = new Array(6).fill(false);
+    const allIn = new Array(6).fill(false);
+    for (let i = 0; i < 6; i++) {
+        bets[i] = state.seats[i]?.bet || 0;
+        folded[i] = !!state.seats[i]?.folded;
+        allIn[i] = !!state.seats[i]?.allIn;
     }
-    document.getElementById('cg-seats').innerHTML = seatsHtml;
+
+    cgCanvasTable.setState({
+        seats,
+        board,
+        pot: state.pot || 0,
+        bets,
+        folded,
+        allIn,
+        actingSeat: state.actingSeat >= 0 ? state.actingSeat : (state.seats.findIndex(s => s.isActing) ?? -1),
+        dealerSeat: state.dealerSeat || 0,
+        heroSeat: state.heroSeat || 0,
+        street: state.street || 'waiting',
+    });
+    cgRenderedBoardCount = board.length;
     updateCGStats();
 }
 
