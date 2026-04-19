@@ -150,14 +150,14 @@ class PokerTableCanvas {
 
     playAction(seat, action, amount) {
         const seatPos = this._seatPos(seat);
-        // Floating text toast with the action label
+        // Floating text toast with the action label (longer-lived so humans
+        // have time to read it).
         if (typeof casinoFloatingText !== 'undefined') {
             const map = { fold: '弃牌', check: '过牌', call: '跟注', raise: '加注', bet: '下注', allin: 'ALL-IN' };
             const label = map[action] || action;
             const amt = (amount && amount > 0) ? ` ${(+amount).toFixed(1)}` : '';
-            casinoFloatingText.add(label + amt, seatPos.x, seatPos.y - 30, '#fbbf24', 1.0, 15);
+            casinoFloatingText.add(label + amt, seatPos.x, seatPos.y - 30, '#fbbf24', 1.6, 16);
         }
-        // Chip fly for bet/raise/call/allin
         if (amount > 0 && (action === 'bet' || action === 'raise' || action === 'call' || action === 'allin')) {
             this._tweenChipsFrom(seat, amount);
             if (typeof casinoAudio !== 'undefined') casinoAudio.tick(1200, 0.05);
@@ -170,18 +170,18 @@ class PokerTableCanvas {
     }
 
     dealBoard(cards) {
-        // Staggered flip-in of new cards — tracks count vs current state
+        // Staggered flip-in of new cards — slower + more spaced so the
+        // animation reads as "dealing cards" rather than a flash.
         const s = this.state;
         const prev = s.board.length;
         const newCards = cards.slice(prev);
         if (newCards.length === 0) return;
-        // Merge into state immediately (tween flips them in)
         s.board = cards.slice();
         const startAt = performance.now();
         newCards.forEach((c, i) => {
             this._addTween({
-                start: startAt + i * 90,
-                duration: 400,
+                start: startAt + i * 150,
+                duration: 600,
                 easing: (t) => 1 - (1 - t) * (1 - t),
                 update: () => { this._needsRedraw = true; },
             });
@@ -192,15 +192,16 @@ class PokerTableCanvas {
 
     showWinner(seat, amount) {
         const seatPos = this._seatPos(seat);
-        // Floating "+amount"
+        // Floating "+amount" — long enough to read comfortably.
         if (typeof casinoFloatingText !== 'undefined' && amount > 0) {
-            casinoFloatingText.add(`+${(+amount).toFixed(1)}`, seatPos.x, seatPos.y - 40, '#34d399', 1.6, 22);
+            casinoFloatingText.add(`+${(+amount).toFixed(1)}`, seatPos.x, seatPos.y - 40, '#34d399', 2.4, 24);
         }
-        // Particle burst from pot center toward winner
+        // Gold particle burst from pot center — linger 1.5s (was 1.0s) so
+        // the celebration is noticeable.
         if (typeof casinoParticles !== 'undefined') {
-            casinoParticles.emit(this.cx, this.cy, 40, {
+            casinoParticles.emit(this.cx, this.cy, 48, {
                 colors: ['#fbbf24', '#fde68a', '#f59e0b', '#ffffff'],
-                speed: 4, life: 1.0, gravity: 0, shape: 'star', size: 3,
+                speed: 3.5, life: 1.5, gravity: 0, shape: 'star', size: 3,
             });
         }
         if (typeof casinoAudio !== 'undefined') casinoAudio.winJingle(2);
@@ -228,17 +229,13 @@ class PokerTableCanvas {
     }
 
     _tweenChipsFrom(seat, amount) {
-        // Emit a quick particle-like streak from seat toward bet slot.
-        // Uses casinoParticles pool for simplicity.
+        // Chip-fly particles from seat toward bet slot — slightly longer-lived
+        // so the motion is visible (was 0.5s).
         if (typeof casinoParticles === 'undefined') return;
         const seatPos = this._seatPos(seat);
-        const bx = seatPos.x + (this.cx - seatPos.x) * 0.35;
-        const by = seatPos.y + (this.cy - seatPos.y) * 0.35;
-        const vx = (bx - seatPos.x) / 0.5 / 60;
-        const vy = (by - seatPos.y) / 0.5 / 60;
-        casinoParticles.emit(seatPos.x, seatPos.y, 6, {
+        casinoParticles.emit(seatPos.x, seatPos.y, 8, {
             colors: ['#fbbf24', '#fde68a'],
-            speed: 2, life: 0.5, gravity: 0, size: 3,
+            speed: 1.8, life: 0.9, gravity: 0, size: 3,
         });
     }
 
@@ -265,9 +262,10 @@ class PokerTableCanvas {
     _doResize() {
         const parent = this.canvas.parentElement;
         const w = Math.max(280, Math.min(560, parent?.clientWidth || 480));
-        // Portrait aspect 1:1.25 — tall enough to fit the hero card strip
-        // BELOW the hero plate without overflowing typical mobile viewports.
-        const h = Math.round(w * 1.25);
+        // Aspect 1:1.10 — tall enough for a hero card strip below the plate,
+        // but short enough that the whole table + action bar fits on a
+        // typical desktop viewport without vertical scrolling.
+        const h = Math.round(w * 1.10);
         this.canvas.style.width = w + 'px';
         this.canvas.style.height = h + 'px';
         this.canvas.width = Math.round(w * this.dpr);
@@ -276,16 +274,16 @@ class PokerTableCanvas {
         this.W = w;
         this.H = h;
         this.cx = w / 2;
-        // Table center shifted UP — reserves the bottom ~25% of the canvas
-        // for the big hero card strip below the hero plate.
-        this.cy = h * 0.40;
-        // Felt ellipse.
+        // Table shifted up slightly — leaves ~22% of canvas below for hero
+        // hole-card strip.
+        this.cy = h * 0.44;
+        // Felt ellipse — the green surface.
         this.rx = w * 0.46;
-        this.ry = h * 0.36;
-        // Seat distribution radius — smaller than the felt so plates stay
-        // comfortably inside the green (not hanging off the rail).
+        this.ry = h * 0.40;
+        // Seat distribution — deliberately smaller than felt so every plate
+        // stays inside the green (never hanging off the rail).
         this.seatRx = w * 0.34;
-        this.seatRy = h * 0.27;
+        this.seatRy = h * 0.30;
         // Rebuild caches
         this._buildCaches();
         this._needsRedraw = true;
@@ -974,17 +972,17 @@ class PokerTableCanvas {
         }
 
         // Position pill — placed on the OUTWARD edge (away from felt) so it
-        // never overlaps hole cards. Top seats → pill ABOVE plate; bottom seats
-        // → pill BELOW plate; side seats are handled the same way since cards
-        // still sit on the felt-facing side.
+        // Position pill — INWARD side of plate (toward felt center), so it
+        // never conflicts with the hole cards which sit on the outward side
+        // (bots) or below the plate (hero).
         if (seat.position) {
             ctx.font = 'bold 9px sans-serif';
             const pw = ctx.measureText(seat.position).width + 8;
             const ph = 13;
             const aboveCenter = pos.y < this.cy - 4;
-            // Pill goes on the side AWAY from the center (away from cards):
-            //   top seat → above plate; bottom seat → below plate.
-            const pillY = aboveCenter ? (plateY - ph - 2) : (plateY + plateH + 2);
+            // Top seat → pill BELOW plate (toward felt); bottom seat → pill
+            // ABOVE plate (toward felt). Same side for both = inward.
+            const pillY = aboveCenter ? (plateY + plateH + 2) : (plateY - ph - 2);
             const pillX = plateX + plateW / 2 - pw / 2;
             const posColors = {BTN:'#f59e0b',SB:'#a855f7',BB:'#ef4444',UTG:'#3b82f6',HJ:'#22c55e',CO:'#06b6d4'};
             ctx.fillStyle = posColors[seat.position] || 'rgba(251, 191, 36, 0.85)';
@@ -1010,34 +1008,38 @@ class PokerTableCanvas {
             const cards = seat.holeCards && seat.holeCards.length === 2 ? seat.holeCards : [null, null];
 
             if (seat.isMe) {
-                // Hero's cards are BIG and sit BELOW the hero plate, outside
-                // the felt — toward the viewer. They never cover the plate UI.
-                const cw = 56, ch = 78, gap = 8;
+                // Hero: cards below the plate, toward the viewer (outside
+                // felt). The hero plate's UI is never covered.
+                const cw = 48, ch = 66, gap = 6;
                 const plateBottom = pos.y + 22;
-                const cardTop = plateBottom + 12;  // 12px gap below plate
+                const cardTop = plateBottom + 10;
                 const cx1 = pos.x - cw - gap / 2;
                 const cx2 = pos.x + gap / 2;
                 this._drawCardAt(cards[0], cx1, cardTop, cw, ch, cards[0] == null);
                 this._drawCardAt(cards[1], cx2, cardTop, cw, ch, cards[1] == null);
             } else {
-                // Other seats: small cards tucked behind their plate on the
-                // felt-facing side. Drawn BEFORE the plate so the plate covers
-                // the card bottoms (see _draw order).
-                const cw = 24, ch = 34;
-                const dx = this.cx - pos.x;
-                const dy = this.cy - pos.y;
-                const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-                const offset = 12;
-                const centerX = pos.x + (dx / dist) * offset;
-                const centerY = pos.y + (dy / dist) * offset - ch / 2;
+                // Bot/villain: cards positioned on the OUTWARD side of the
+                // plate (away from the table center — visually "behind" the
+                // player from the viewer's POV). Drawn BEFORE the plate, so
+                // the plate covers ~25% of each card bottom; the top ~75%
+                // is clearly visible, reading like the player is holding
+                // their hand out from behind their plate.
+                const cw = 30, ch = 42, gap = 4;
+                const outDx = pos.x - this.cx;
+                const outDy = pos.y - this.cy;
+                const dist = Math.sqrt(outDx * outDx + outDy * outDy) || 1;
+                const nx = outDx / dist, ny = outDy / dist;
+                // Offset ≈ 0.8 * ch — puts ~75% of card visible past the
+                // plate on the outward side.
+                const offset = ch * 0.80;
+                const cardCenterX = pos.x + nx * offset;
+                const cardCenterY = pos.y + ny * offset;
+                const cardTop = cardCenterY - ch / 2;
                 const faceDown = !(seat.holeCards && seat.holeCards.length === 2 && s.street === 'showdown');
-                if (!faceDown) {
-                    this._drawCardAt(cards[0], centerX - cw - 2, centerY, cw, ch, cards[0] == null);
-                    this._drawCardAt(cards[1], centerX + 2, centerY, cw, ch, cards[1] == null);
-                } else {
-                    this._drawCardAt(null, centerX - cw - 2, centerY, cw, ch, true);
-                    this._drawCardAt(null, centerX + 2, centerY, cw, ch, true);
-                }
+                const c0 = faceDown ? null : cards[0];
+                const c1 = faceDown ? null : cards[1];
+                this._drawCardAt(c0, cardCenterX - cw - gap / 2, cardTop, cw, ch, c0 == null);
+                this._drawCardAt(c1, cardCenterX + gap / 2, cardTop, cw, ch, c1 == null);
             }
         }
     }
