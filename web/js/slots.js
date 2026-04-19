@@ -60,9 +60,54 @@ class SlotMachine {
         this._chaseLightsMode = 'idle'; // 'idle' | 'spin' | 'win'
         this._winStrobeEnd = 0;
 
+        // --- Symbol cache: pre-render each symbol to an offscreen canvas.
+        // Drawing complex gradients every frame (x18 symbols x 60fps) was
+        // too slow. Cached canvases are drawn via drawImage which is
+        // orders of magnitude cheaper.
+        this._symbolCache = null;
+        this._buildSymbolCache();
+
+        // --- Static chrome frame cache: the machine border + rivets never
+        // change. Pre-render once to an offscreen canvas and drawImage
+        // each frame instead of regenerating 5+ gradients per frame.
+        this._frameCache = null;
+        this._buildFrameCache();
+
         // --- Start ambient idle loop ---
         this._idleRAF = null;
         this._startIdleLoop();
+    }
+
+    _buildFrameCache() {
+        const dpr = window.devicePixelRatio || 1;
+        const c = document.createElement('canvas');
+        c.width = this.W * dpr;
+        c.height = this.H * dpr;
+        const cx = c.getContext('2d');
+        cx.scale(dpr, dpr);
+        // Temporarily swap ctx to draw to the cache
+        const realCtx = this.ctx;
+        this.ctx = cx;
+        this._drawFrame();
+        this._drawRivets();
+        this.ctx = realCtx;
+        this._frameCache = c;
+    }
+
+    _buildSymbolCache() {
+        const dpr = window.devicePixelRatio || 1;
+        const sharpSize = Math.round(this.symbolHeight * 1.1);
+        const cache = [];
+        for (let id = 0; id < 6; id++) {
+            const c = document.createElement('canvas');
+            c.width = sharpSize * dpr;
+            c.height = sharpSize * dpr;
+            const cx = c.getContext('2d');
+            cx.scale(dpr, dpr);
+            SlotMachine.drawCasinoSymbol(cx, id, sharpSize / 2, sharpSize / 2, sharpSize * 0.42);
+            cache.push({ canvas: c, size: sharpSize });
+        }
+        this._symbolCache = cache;
     }
 
     // -------------------------------------------------------
@@ -101,8 +146,12 @@ class SlotMachine {
         // --- Chase lights (behind frame) ---
         this._drawChaseLightsLayer(dt);
 
-        // --- Chrome machine frame ---
-        this._drawFrame();
+        // --- Chrome machine frame (cached — static) ---
+        if (this._frameCache) {
+            ctx.drawImage(this._frameCache, 0, 0, W, H);
+        } else {
+            this._drawFrame();
+        }
 
         // --- LED header ---
         this._drawHeader(dt);
@@ -116,8 +165,8 @@ class SlotMachine {
         // --- Payline ---
         this._drawPayline();
 
-        // --- Corner rivets ---
-        this._drawRivets();
+        // --- Corner rivets (cached in frame, but draw separately if frame cache failed) ---
+        if (!this._frameCache) this._drawRivets();
 
         // --- Celebration overlay ---
         if (this._celebrationState) {
@@ -321,16 +370,14 @@ class SlotMachine {
             const useMotionBlur = isMoving && Math.abs(reel.speed) > motionBlurThreshold;
 
             if (useMotionBlur) {
-                // Motion blur: 3 offset copies at low alpha
-                const blurOffsets = [-symbolHeight * 0.18, 0, symbolHeight * 0.18];
-                const baseAlpha = 0.12;
-                for (const bOff of blurOffsets) {
-                    ctx.globalAlpha = baseAlpha;
-                    this._drawReelSymbols(ctx, reel, x, reelViewY, reelViewH, bOff);
-                }
+                // Motion blur: 2 offset copies at low alpha (was 3 — lighter work)
+                ctx.globalAlpha = 0.25;
+                this._drawReelSymbols(ctx, reel, x, reelViewY, reelViewH, -symbolHeight * 0.22);
+                this._drawReelSymbols(ctx, reel, x, reelViewY, reelViewH, symbolHeight * 0.22);
                 ctx.globalAlpha = 1;
+                // Sharp center layer on top
+                this._drawReelSymbols(ctx, reel, x, reelViewY, reelViewH, 0);
             } else {
-                // Sharp draw (or decelerating: blend from blur to sharp)
                 this._drawReelSymbols(ctx, reel, x, reelViewY, reelViewH, 0);
             }
 
@@ -356,6 +403,7 @@ class SlotMachine {
         const { reelWidth, symbolHeight } = this;
         const offsetY = reel.offset % symbolHeight;
         const startIdx = Math.floor(reel.offset / symbolHeight);
+        const cache = this._symbolCache;
 
         for (let i = -1; i <= Math.ceil(viewH / symbolHeight) + 1; i++) {
             const symIdx = (startIdx + i) % reel.symbols.length;
@@ -363,7 +411,21 @@ class SlotMachine {
             const symbolId = reel.symbols[si];
             const y = viewY + i * symbolHeight - offsetY + symbolHeight / 2 + extraOffset;
 
-            if (y > viewY - symbolHeight && y < viewY + viewH + symbolHeight) {
+            // Skip symbols outside the visible area (culling)
+            if (y < viewY - symbolHeight || y > viewY + viewH + symbolHeight) continue;
+
+            if (cache && cache[symbolId]) {
+                // Fast path: drawImage of pre-rendered symbol canvas
+                const entry = cache[symbolId];
+                const drawSize = Math.min(reelWidth, symbolHeight) * 0.95;
+                ctx.drawImage(
+                    entry.canvas,
+                    x + (reelWidth - drawSize) / 2,
+                    y - drawSize / 2,
+                    drawSize, drawSize
+                );
+            } else {
+                // Fallback: direct draw (first frame before cache is ready)
                 SlotMachine.drawCasinoSymbol(ctx, symbolId, x + reelWidth / 2, y, Math.min(reelWidth, symbolHeight) * 0.45);
             }
         }
