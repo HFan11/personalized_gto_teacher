@@ -137,6 +137,7 @@ class PokerTableCanvas {
                 seatIdx: i,
                 isEmpty: src.isEmpty || (!src.name && !src.stack),
                 isBot: !!src.isBot,
+                isGhost: !!src.isGhost,
             });
         }
         return out;
@@ -262,10 +263,10 @@ class PokerTableCanvas {
     _doResize() {
         const parent = this.canvas.parentElement;
         const w = Math.max(280, Math.min(560, parent?.clientWidth || 480));
-        // Aspect 1:1.10 — tall enough for a hero card strip below the plate,
-        // but short enough that the whole table + action bar fits on a
-        // typical desktop viewport without vertical scrolling.
-        const h = Math.round(w * 1.10);
+        // Landscape aspect 1:0.85 — real-table-from-above feel. Short
+        // enough that the whole page (header + canvas + action bar) fits
+        // in a ~720-tall viewport without vertical scrolling on desktop.
+        const h = Math.round(w * 0.85);
         this.canvas.style.width = w + 'px';
         this.canvas.style.height = h + 'px';
         this.canvas.width = Math.round(w * this.dpr);
@@ -274,17 +275,14 @@ class PokerTableCanvas {
         this.W = w;
         this.H = h;
         this.cx = w / 2;
-        // Table shifted up slightly — leaves ~22% of canvas below for hero
-        // hole-card strip.
-        this.cy = h * 0.44;
-        // Felt ellipse — the green surface.
+        this.cy = h * 0.48;
+        // Felt ellipse — fills most of the canvas.
         this.rx = w * 0.46;
-        this.ry = h * 0.40;
-        // Seat distribution — deliberately smaller than felt so every plate
-        // stays inside the green (never hanging off the rail).
+        this.ry = h * 0.45;
+        // Seat distribution — tighter than felt so plates + hole cards +
+        // position pills all stay inside the green.
         this.seatRx = w * 0.34;
-        this.seatRy = h * 0.30;
-        // Rebuild caches
+        this.seatRy = h * 0.25;
         this._buildCaches();
         this._needsRedraw = true;
     }
@@ -891,10 +889,33 @@ class PokerTableCanvas {
         for (let i = 0; i < this.seatCount; i++) {
             const seat = s.seats[i] || {};
             const pos = this._seatPos(i);
+            if (seat.isGhost) {
+                this._drawGhostSeat(pos, seat);
+                continue;
+            }
             const isActing = i === s.actingSeat && s.street !== 'waiting';
             const isFolded = s.folded[i];
             this._drawSeat(seat, pos, isActing, isFolded, now);
         }
+    }
+
+    // Draw a "ghost" placeholder at a seat position — just a small dimmed
+    // dot on the felt, marking that a seat exists here in the action order
+    // without occupying visual space like a real plate. Used in teaching
+    // mode where only hero + villain are shown as full seats.
+    _drawGhostSeat(pos, seat) {
+        const ctx = this.ctx;
+        ctx.save();
+        ctx.globalAlpha = 0.35;
+        // Small dimmed circle
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.restore();
     }
 
     _drawSeat(seat, pos, isActing, isFolded, now) {
@@ -1001,37 +1022,46 @@ class PokerTableCanvas {
     _drawHoleCards() {
         const s = this.state;
         if (s.street === 'waiting') return;
+        // Plate extents (match _drawSeat)
+        const plateW = 88, plateH = 44;
         for (let i = 0; i < this.seatCount; i++) {
             const seat = s.seats[i];
-            if (!seat || s.folded[i]) continue;
+            if (!seat || s.folded[i] || seat.isGhost) continue;
             const pos = this._seatPos(i);
             const cards = seat.holeCards && seat.holeCards.length === 2 ? seat.holeCards : [null, null];
 
             if (seat.isMe) {
-                // Hero: cards below the plate, toward the viewer (outside
-                // felt). The hero plate's UI is never covered.
-                const cw = 48, ch = 66, gap = 6;
-                const plateBottom = pos.y + 22;
-                const cardTop = plateBottom + 10;
+                // Hero: cards DIRECTLY BELOW the plate, inside the felt.
+                // Width chosen so both cards + gap fit under the plate.
+                const cw = 40, ch = 56, gap = 4;
+                const cardTop = pos.y + plateH / 2 + 6;  // 6px below plate
                 const cx1 = pos.x - cw - gap / 2;
                 const cx2 = pos.x + gap / 2;
                 this._drawCardAt(cards[0], cx1, cardTop, cw, ch, cards[0] == null);
                 this._drawCardAt(cards[1], cx2, cardTop, cw, ch, cards[1] == null);
             } else {
-                // Bot/villain: cards positioned on the OUTWARD side of the
-                // plate (away from the table center — visually "behind" the
-                // player from the viewer's POV). Drawn BEFORE the plate, so
-                // the plate covers ~25% of each card bottom; the top ~75%
-                // is clearly visible, reading like the player is holding
-                // their hand out from behind their plate.
-                const cw = 30, ch = 42, gap = 4;
+                // Bot/villain: cards placed on the OUTWARD side of the
+                // plate with direction-adaptive offset so the card's
+                // bounding box never overlaps the plate's. Drawn BEFORE
+                // the plate (plate covers nothing — cards fully visible
+                // outside plate).
+                const cw = 28, ch = 40, gap = 4;
                 const outDx = pos.x - this.cx;
                 const outDy = pos.y - this.cy;
                 const dist = Math.sqrt(outDx * outDx + outDy * outDy) || 1;
                 const nx = outDx / dist, ny = outDy / dist;
-                // Offset ≈ 0.8 * ch — puts ~75% of card visible past the
-                // plate on the outward side.
-                const offset = ch * 0.80;
+                // How far along the outward vector we need to push the
+                // card center so its bounding box clears the plate:
+                //   horizontally:  plateW/2 + cw/2 + pad
+                //   vertically:    plateH/2 + ch/2 + pad
+                // Then scale by 1/|nx| or 1/|ny| for the dominant axis so
+                // the projected clearance is right.
+                const pad = 6;
+                const needX = (plateW / 2 + cw + gap / 2 + pad);
+                const needY = (plateH / 2 + ch / 2 + pad);
+                const offsetX = Math.abs(nx) > 0.05 ? needX / Math.abs(nx) : 0;
+                const offsetY = Math.abs(ny) > 0.05 ? needY / Math.abs(ny) : 0;
+                const offset = Math.max(offsetX, offsetY);
                 const cardCenterX = pos.x + nx * offset;
                 const cardCenterY = pos.y + ny * offset;
                 const cardTop = cardCenterY - ch / 2;
