@@ -279,10 +279,12 @@ class PokerTableCanvas {
         // Felt ellipse — fills most of the canvas.
         this.rx = w * 0.46;
         this.ry = h * 0.45;
-        // Seat distribution — tighter than felt so plates + hole cards +
-        // position pills all stay inside the green.
-        this.seatRx = w * 0.34;
-        this.seatRy = h * 0.25;
+        // Seat distribution — tight enough that plates + hole cards +
+        // position pills all stay inside the green felt. Narrower than felt
+        // by ~0.16 W horizontally and 0.20 H vertically to give room for
+        // outward-pushed bot hole cards.
+        this.seatRx = w * 0.30;
+        this.seatRy = h * 0.22;
         this._buildCaches();
         this._needsRedraw = true;
     }
@@ -840,9 +842,11 @@ class PokerTableCanvas {
             const bet = s.bets[i] || 0;
             if (bet <= 0) continue;
             const seat = this._seatPos(i);
-            // Position bet slot halfway between seat and center
-            const bx = seat.x + (this.cx - seat.x) * 0.35;
-            const by = seat.y + (this.cy - seat.y) * 0.35;
+            // Position bet slot further from the plate (48% toward center)
+            // so the chip disc + amount label don't overlap the plate's
+            // position pill on the inward side.
+            const bx = seat.x + (this.cx - seat.x) * 0.48;
+            const by = seat.y + (this.cy - seat.y) * 0.48;
             this._drawChipStack(bx, by, bet);
         }
     }
@@ -1050,18 +1054,19 @@ class PokerTableCanvas {
                 const outDy = pos.y - this.cy;
                 const dist = Math.sqrt(outDx * outDx + outDy * outDy) || 1;
                 const nx = outDx / dist, ny = outDy / dist;
-                // How far along the outward vector we need to push the
-                // card center so its bounding box clears the plate:
-                //   horizontally:  plateW/2 + cw/2 + pad
-                //   vertically:    plateH/2 + ch/2 + pad
-                // Then scale by 1/|nx| or 1/|ny| for the dominant axis so
-                // the projected clearance is right.
+                // How far along the outward vector we push the card
+                // center so its bounding box clears the plate. Either
+                // horizontal OR vertical clearance alone is sufficient
+                // (rectangles don't overlap if separated on any axis),
+                // so we take the MIN of the two constraints — otherwise
+                // a near-horizontal direction divides by a tiny |ny|
+                // and pushes cards way off-canvas.
                 const pad = 6;
-                const needX = (plateW / 2 + cw + gap / 2 + pad);
-                const needY = (plateH / 2 + ch / 2 + pad);
-                const offsetX = Math.abs(nx) > 0.05 ? needX / Math.abs(nx) : 0;
-                const offsetY = Math.abs(ny) > 0.05 ? needY / Math.abs(ny) : 0;
-                const offset = Math.max(offsetX, offsetY);
+                const needX = plateW / 2 + cw + gap / 2 + pad;
+                const needY = plateH / 2 + ch / 2 + pad;
+                const offsetX = Math.abs(nx) > 0.05 ? needX / Math.abs(nx) : Infinity;
+                const offsetY = Math.abs(ny) > 0.05 ? needY / Math.abs(ny) : Infinity;
+                const offset = Math.min(offsetX, offsetY);
                 const cardCenterX = pos.x + nx * offset;
                 const cardCenterY = pos.y + ny * offset;
                 const cardTop = cardCenterY - ch / 2;

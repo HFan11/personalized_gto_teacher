@@ -1302,7 +1302,7 @@
 <script src="js/preflop-practice.js?v=23"></script>
 <script src="js/practice.js?v=27"></script>
 <script src="js/casino-fx.js?v=1"></script>
-<script src="js/poker-table.js?v=10"></script>
+<script src="js/poker-table.js?v=13"></script>
 <script src="js/roulette.js?v=3"></script>
 <script src="js/slots.js?v=2"></script>
 <script src="js/cash-game.js?v=1"></script>
@@ -2089,15 +2089,14 @@ function selectPreflopVillainPosBtn(pos, el) {
     if (el) el.classList.add('active');
 }
 
-// Render the preflop teaching canvas — ONLY hero + villain are rendered
-// as real seat plates. The other 4 positions are "ghost" dots on the
-// felt so the user still sees the 6-max geometry but isn't distracted
-// by bots who aren't in the action.
+// Preflop teaching canvas — heads-up 2-seat layout (Hero bottom, Villain
+// top). Other positions are NOT shown on the felt; position info is
+// conveyed via the plate position pills and the timeline above the canvas.
 //
-// After render, we auto-animate the pre-hero action sequence (folds +
-// aggressive raises), so the user sees the context the way the timeline
-// pills at the top describe it. Action buttons stay disabled until the
-// animation completes, then hero is prompted.
+// After render, we auto-animate only the AGGRESSIVE actions (open raise,
+// 3-bet, 4-bet) at the corresponding seat. Folds by absent positions are
+// implied by the timeline — we don't clutter the felt with fold toasts
+// for players who aren't on the canvas.
 let preflopAnimTimer = null;
 
 function renderPreflopCanvas(scenario) {
@@ -2106,133 +2105,108 @@ function renderPreflopCanvas(scenario) {
     const villainPos = scenario.villainPos;
     const OPEN = 2.5, THREE = 8, FOUR = 22;
 
-    // Rotate PREFLOP_POS_CLOCKWISE so heroPos sits at visual seat 0 (bottom).
-    const heroIdx = PREFLOP_POS_CLOCKWISE.indexOf(heroPos);
-    const positionAtSeat = [];
-    for (let vp = 0; vp < 6; vp++) {
-        positionAtSeat.push(PREFLOP_POS_CLOCKWISE[(heroIdx + vp) % 6]);
-    }
-
-    // Initial bets: just the blinds. Aggressive raises are applied
-    // progressively during the auto-animation below.
-    const bets = [0, 0, 0, 0, 0, 0];
-    const folded = [false, false, false, false, false, false];
-    const pushBet = (pos, amount) => {
-        const vp = positionAtSeat.indexOf(pos);
-        if (vp >= 0) bets[vp] = amount;
-    };
-    pushBet('SB', 0.5);
-    pushBet('BB', 1.0);
-
-    // Build seats: hero is always real. Villain is real ONLY for scenarios
-    // where they actually engaged (vs_raise/vs_3bet/vs_4bet). In RFI they're
-    // just another folded position, rendered as a ghost dot.
     const suitToChar = { '♠':'s','♥':'h','♦':'d','♣':'c' };
     const toCardStr = (c) => c ? (c.rank + (suitToChar[c.suit] || c.suit)) : null;
     const heroCardsStr = (scenario.heroCards || []).map(toCardStr);
     const villainIsReal = scenario.type !== 'rfi';
 
-    const seats = [];
-    for (let vp = 0; vp < 6; vp++) {
-        const pos = positionAtSeat[vp];
-        const isHero = (pos === heroPos);
-        const isVillain = (pos === villainPos) && villainIsReal;
-        const isReal = isHero || isVillain;
-        seats.push({
-            name: isHero ? 'Hero' : (isVillain ? 'Villain' : ''),
-            stack: 100 - (bets[vp] || 0),
-            holeCards: isHero ? heroCardsStr : (isReal ? [null, null] : null),
-            isMe: isHero,
-            position: pos,
-            folded: false,
-            isGhost: !isReal,
-        });
-    }
+    // Blinds: 0.5 SB / 1 BB. If hero or villain is one of the blinds, that
+    // amount sits on their canvas seat as their initial bet. Otherwise it's
+    // "dead money" (posted by a position we're not rendering) — added to
+    // the pot directly.
+    const blindOf = (p) => p === 'SB' ? 0.5 : p === 'BB' ? 1.0 : 0;
+    const heroInitialBet = blindOf(heroPos);
+    const villainInitialBet = villainIsReal ? blindOf(villainPos) : 0;
+    let deadBlinds = 0;
+    if (heroPos !== 'SB' && !(villainIsReal && villainPos === 'SB')) deadBlinds += 0.5;
+    if (heroPos !== 'BB' && !(villainIsReal && villainPos === 'BB')) deadBlinds += 1.0;
+
+    // 2-seat state. vp=0 hero (bottom), vp=1 villain (top).
+    // For RFI there's no real villain — seat 1 is hidden-ish (empty seat).
+    const seats = [
+        {
+            name: 'Hero',
+            stack: 100 - heroInitialBet,
+            holeCards: heroCardsStr,
+            isMe: true,
+            position: heroPos,
+        },
+        villainIsReal
+            ? { name: 'Villain', stack: 100 - villainInitialBet, holeCards: [null, null], isMe: false, position: villainPos }
+            : { name: '', stack: 0, holeCards: null, isMe: false, position: '', isGhost: true },
+    ];
+
+    const recomputePot = () => {
+        const b = preflopCanvasTable.state.bets;
+        preflopCanvasTable.state.pot = (b[0] || 0) + (b[1] || 0) + deadBlinds;
+    };
 
     preflopCanvasTable.setState({
         seats,
         board: [],
-        pot: bets.reduce((a, b) => a + b, 0),
-        bets,
-        folded,
-        allIn: [false, false, false, false, false, false],
-        actingSeat: -1,  // no one is "acting" during replay
-        dealerSeat: positionAtSeat.indexOf('BTN'),
+        pot: heroInitialBet + villainInitialBet + deadBlinds,
+        bets: [heroInitialBet, villainInitialBet],
+        folded: [false, false],
+        allIn: [false, false],
+        actingSeat: -1,
+        dealerSeat: -1,
         heroSeat: 0,
         street: 'preflop',
     });
     preflopCanvasTable.clearEffects();
 
-    // ---- Auto-animation: replay the action sequence that led to hero's turn ----
+    // ---- Auto-animation: only aggressive actions (raises). Folds are
+    // implicit (the wizard timeline at the top shows "Folds to you" or
+    // the exact open → 3-bet → 4-bet sequence). ----
     if (preflopAnimTimer) { clearTimeout(preflopAnimTimer); preflopAnimTimer = null; }
     const actionButtons = document.getElementById('preflop-action-buttons');
-    if (actionButtons) actionButtons.style.pointerEvents = 'none';
-    if (actionButtons) actionButtons.style.opacity = '0.4';
-
-    const preflopOrder = ['UTG', 'HJ', 'CO', 'BTN', 'SB', 'BB'];
-    const actOrder = (p) => preflopOrder.indexOf(p);
-    const heroAct = actOrder(heroPos);
-    const villainAct = actOrder(villainPos);
-    const vpOf = (p) => positionAtSeat.indexOf(p);
-
-    const sequence = [];  // {vp, action, amount}
-    // Fold every position in (fromActExcl, toActExcl) that's not in the skip set.
-    const foldsInRange = (fromActExcl, toActExcl, skipSet) => {
-        for (const p of preflopOrder) {
-            if (skipSet.has(p)) continue;
-            const o = actOrder(p);
-            if (o > fromActExcl && o < toActExcl) {
-                sequence.push({ vp: vpOf(p), action: 'fold', amount: 0 });
-            }
-        }
-    };
-    const skipHero = new Set([heroPos]);
-    const skipHeroVillain = new Set([heroPos, villainPos]);
-
-    if (scenario.type === 'rfi') {
-        // Hero is about to RFI — everyone before hero (including villainPos)
-        // just folded.
-        foldsInRange(-1, heroAct, skipHero);
-    } else if (scenario.type === 'vs_raise') {
-        foldsInRange(-1, villainAct, skipHeroVillain);
-        sequence.push({ vp: vpOf(villainPos), action: 'raise', amount: OPEN });
-        foldsInRange(villainAct, heroAct, skipHeroVillain);
-    } else if (scenario.type === 'vs_3bet') {
-        foldsInRange(-1, heroAct, skipHeroVillain);
-        sequence.push({ vp: 0 /* hero */, action: 'raise', amount: OPEN });
-        foldsInRange(heroAct, villainAct, skipHeroVillain);
-        sequence.push({ vp: vpOf(villainPos), action: 'raise', amount: THREE });
-    } else if (scenario.type === 'vs_4bet') {
-        foldsInRange(-1, villainAct, skipHeroVillain);
-        sequence.push({ vp: vpOf(villainPos), action: 'raise', amount: OPEN });
-        foldsInRange(villainAct, heroAct, skipHeroVillain);
-        sequence.push({ vp: 0 /* hero */, action: 'raise', amount: THREE });
-        sequence.push({ vp: vpOf(villainPos), action: 'raise', amount: FOUR });
+    if (actionButtons) {
+        actionButtons.style.pointerEvents = 'none';
+        actionButtons.style.opacity = '0.4';
     }
 
-    const STEP_MS = 800;
+    const sequence = [];  // {vp, action, amount}
+    if (scenario.type === 'vs_raise') {
+        sequence.push({ vp: 1 /* villain */, action: 'raise', amount: OPEN });
+    } else if (scenario.type === 'vs_3bet') {
+        sequence.push({ vp: 0 /* hero */, action: 'raise', amount: OPEN });
+        sequence.push({ vp: 1 /* villain */, action: 'raise', amount: THREE });
+    } else if (scenario.type === 'vs_4bet') {
+        sequence.push({ vp: 1 /* villain */, action: 'raise', amount: OPEN });
+        sequence.push({ vp: 0 /* hero */, action: 'raise', amount: THREE });
+        sequence.push({ vp: 1 /* villain */, action: 'raise', amount: FOUR });
+    }
+    // rfi has no pre-actions — hero acts first.
+
+    const STEP_MS = 900;
     const runStep = (i) => {
         if (i >= sequence.length) {
-            // Animation finished → let hero act.
-            if (actionButtons) actionButtons.style.pointerEvents = '';
-            if (actionButtons) actionButtons.style.opacity = '';
+            if (actionButtons) {
+                actionButtons.style.pointerEvents = '';
+                actionButtons.style.opacity = '';
+            }
             preflopCanvasTable.state.actingSeat = 0;
             preflopCanvasTable._needsRedraw = true;
             return;
         }
         const step = sequence[i];
-        if (step.action === 'fold') {
-            preflopCanvasTable.state.folded[step.vp] = true;
-        } else if (step.action === 'raise') {
-            preflopCanvasTable.state.bets[step.vp] = step.amount;
-            preflopCanvasTable.state.pot = preflopCanvasTable.state.bets.reduce((a, b) => a + b, 0);
-        }
+        preflopCanvasTable.state.bets[step.vp] = step.amount;
+        recomputePot();
         preflopCanvasTable.playAction(step.vp, step.action, step.amount);
         preflopCanvasTable._needsRedraw = true;
         preflopAnimTimer = setTimeout(() => runStep(i + 1), STEP_MS);
     };
-    // Small initial delay so the scene settles before the replay starts.
-    preflopAnimTimer = setTimeout(() => runStep(0), 400);
+    // If there are no auto-actions (RFI), enable buttons immediately.
+    if (sequence.length === 0) {
+        if (actionButtons) {
+            actionButtons.style.pointerEvents = '';
+            actionButtons.style.opacity = '';
+        }
+        preflopCanvasTable.state.actingSeat = 0;
+        preflopCanvasTable._needsRedraw = true;
+    } else {
+        preflopAnimTimer = setTimeout(() => runStep(0), 400);
+    }
 }
 
 function renderPreflopTimeline(scenario) {
@@ -2327,7 +2301,7 @@ function startPreflopHand() {
         if (!preflopCanvasTable && typeof PokerTableCanvas !== 'undefined') {
             const canvas = document.getElementById('preflop-canvas');
             if (canvas) {
-                preflopCanvasTable = new PokerTableCanvas(canvas, { seats: 6, mode: 'teach' });
+                preflopCanvasTable = new PokerTableCanvas(canvas, { seats: 2, mode: 'teach' });
             }
         }
         if (preflopCanvasTable) {
