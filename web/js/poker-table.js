@@ -151,13 +151,19 @@ class PokerTableCanvas {
 
     playAction(seat, action, amount) {
         const seatPos = this._seatPos(seat);
-        // Floating text toast with the action label (longer-lived so humans
-        // have time to read it).
+        // Floating text toast with the action label. Offset in the OUTWARD
+        // direction (away from felt centre) so it doesn't overlap the
+        // position pill (which sits on the inward edge of the plate).
         if (typeof casinoFloatingText !== 'undefined') {
             const map = { fold: '弃牌', check: '过牌', call: '跟注', raise: '加注', bet: '下注', allin: 'ALL-IN' };
             const label = map[action] || action;
             const amt = (amount && amount > 0) ? ` ${(+amount).toFixed(1)}` : '';
-            casinoFloatingText.add(label + amt, seatPos.x, seatPos.y - 30, '#fbbf24', 1.6, 16);
+            const outDx = seatPos.x - this.cx;
+            const outDy = seatPos.y - this.cy;
+            const dist = Math.sqrt(outDx * outDx + outDy * outDy) || 1;
+            const tx = seatPos.x + (outDx / dist) * 42;
+            const ty = seatPos.y + (outDy / dist) * 42;
+            casinoFloatingText.add(label + amt, tx, ty, '#fbbf24', 1.6, 16);
         }
         if (amount > 0 && (action === 'bet' || action === 'raise' || action === 'call' || action === 'allin')) {
             this._tweenChipsFrom(seat, amount);
@@ -263,10 +269,15 @@ class PokerTableCanvas {
     _doResize() {
         const parent = this.canvas.parentElement;
         const w = Math.max(280, Math.min(560, parent?.clientWidth || 480));
-        // Landscape aspect 1:0.85 — real-table-from-above feel. Short
-        // enough that the whole page (header + canvas + action bar) fits
-        // in a ~720-tall viewport without vertical scrolling on desktop.
-        const h = Math.round(w * 0.85);
+        // Mode-aware aspect:
+        //   game (6-max): flatter landscape 1:0.80 — seats spread across
+        //     the long axis, board + pot sit in the middle horizontally.
+        //   teach (2-seat 1v1): taller 1:0.95 — hero and villain sit at
+        //     poles (top/bottom), needs vertical room to separate them and
+        //     leave clean space between for cards, chip stacks, pot text.
+        const isTeach = this.mode === 'teach';
+        const aspect = isTeach ? 0.95 : 0.80;
+        const h = Math.round(w * aspect);
         this.canvas.style.width = w + 'px';
         this.canvas.style.height = h + 'px';
         this.canvas.width = Math.round(w * this.dpr);
@@ -277,14 +288,13 @@ class PokerTableCanvas {
         this.cx = w / 2;
         this.cy = h * 0.48;
         // Felt ellipse — fills most of the canvas.
-        this.rx = w * 0.46;
+        this.rx = w * 0.48;
         this.ry = h * 0.45;
-        // Seat distribution — tight enough that plates + hole cards +
-        // position pills all stay inside the green felt. Narrower than felt
-        // by ~0.16 W horizontally and 0.20 H vertically to give room for
-        // outward-pushed bot hole cards.
-        this.seatRx = w * 0.30;
-        this.seatRy = h * 0.22;
+        // Seat distribution — tight inside the felt. In teach mode seats
+        // sit closer to the rail (big seatRy) so the middle of the felt
+        // is empty for pot + cards + chip animations.
+        this.seatRx = isTeach ? w * 0.30 : w * 0.28;
+        this.seatRy = isTeach ? h * 0.33 : h * 0.22;
         this._buildCaches();
         this._needsRedraw = true;
     }
@@ -810,7 +820,6 @@ class PokerTableCanvas {
         const s = this.state;
         if (s.pot <= 0) return;
         const ctx = this.ctx;
-        // Pot text above the board
         const label = `底池 ${s.pot.toFixed(1)} BB`;
         ctx.save();
         ctx.font = 'bold 13px sans-serif';
@@ -821,7 +830,11 @@ class PokerTableCanvas {
         const boxW = metrics.width + padX * 2;
         const boxH = 20;
         const boxX = this.cx - boxW / 2;
-        const boxY = this.cy - 45;
+        // Pot text well above the board cards (which sit at cy ± ~44).
+        // Offset scales with mode so teach-mode (taller canvas) places
+        // the label clearly in the empty middle above the board.
+        const offsetAbove = this.mode === 'teach' ? 80 : 70;
+        const boxY = this.cy - offsetAbove;
         // Background
         ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
         this._roundRect(ctx, boxX, boxY, boxW, boxH, 10);
