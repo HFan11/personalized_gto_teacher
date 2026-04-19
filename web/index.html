@@ -5486,6 +5486,8 @@ function nextCGHand() {
     }
     document.getElementById('cg-result').style.display = 'none';
     document.getElementById('cg-actions').style.display = 'none';
+    // Clear transient FX from previous hand so stale toasts don't bleed in.
+    if (cgCanvasTable && typeof cgCanvasTable.clearEffects === 'function') cgCanvasTable.clearEffects();
     cashGame.startHand();
     renderCGTable(cashGame.getState());
     advanceCGAction();
@@ -5511,11 +5513,21 @@ function advanceCGAction() {
             const decision = BotAI.decide(cashGame, actorSeat);
             const didFold = decision.action === 'fold';
             const result = cashGame.processAction(actorSeat, decision.action, decision.amount);
+            // Canvas-side animations (toast + chip fly + fold)
+            if (cgCanvasTable) cgCanvasTable.playAction(actorSeat, decision.action, decision.amount);
             renderCGTable(cashGame.getState());
-            showActionToast(actorSeat, decision.action, decision.amount);
             if (didFold) triggerFoldAnim(actorSeat);
-            if (result?.showdown) { showCGResult(result); }
-            else if (result?.nextStreet || result?.nextActor !== undefined) { advanceCGAction(); }
+            if (result?.showdown) {
+                if (cgCanvasTable && result.winner !== undefined && result.winAmount) {
+                    cgCanvasTable.showWinner(result.winner, result.winAmount);
+                }
+                showCGResult(result);
+            }
+            else if (result?.nextStreet) {
+                if (cgCanvasTable) cgCanvasTable.dealBoard(cashGame.board.map(c => c.rank + (c.suit === '♠' ? 's' : c.suit === '♥' ? 'h' : c.suit === '♦' ? 'd' : 'c')));
+                advanceCGAction();
+            }
+            else if (result?.nextActor !== undefined) { advanceCGAction(); }
         }, delay);
     }
 }
@@ -5525,11 +5537,20 @@ function heroAction(action, amount) {
     document.getElementById('cg-actions').style.display = 'none';
     const didFold = action === 'fold';
     const result = cashGame.processAction(cashGame.heroSeat, action, amount);
+    if (cgCanvasTable) cgCanvasTable.playAction(cashGame.heroSeat, action, amount);
     renderCGTable(cashGame.getState());
-    showActionToast(cashGame.heroSeat, action, amount);
     if (didFold) triggerFoldAnim(cashGame.heroSeat);
-    if (result?.showdown) { showCGResult(result); }
-    else if (result?.nextStreet || result?.nextActor !== undefined) { advanceCGAction(); }
+    if (result?.showdown) {
+        if (cgCanvasTable && result.winner !== undefined && result.winAmount) {
+            cgCanvasTable.showWinner(result.winner, result.winAmount);
+        }
+        showCGResult(result);
+    }
+    else if (result?.nextStreet) {
+        if (cgCanvasTable) cgCanvasTable.dealBoard(cashGame.board.map(c => c.rank + (c.suit === '♠' ? 's' : c.suit === '♥' ? 'h' : c.suit === '♦' ? 'd' : 'c')));
+        advanceCGAction();
+    }
+    else if (result?.nextActor !== undefined) { advanceCGAction(); }
 }
 
 function showActionToast(seatIdx, action, amount) {

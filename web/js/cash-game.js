@@ -294,12 +294,17 @@ class CashGameEngine {
         // Check if everyone has matched the current bet
         const allMatched = notAllIn.every(i => this.bets[i] === this.currentBet);
         if (allMatched && this.lastAggressor === -1 && next === this._firstToAct()) {
-            // Preflop special: BB option
+            // Preflop BB option: give BB a chance only if BB hasn't just acted.
+            // Previously checked only `actionClosed` flag, which wasn't set when
+            // the BB option condition fired AFTER BB already checked — causing
+            // an infinite loop back to BB. Fix: detect "BB just acted" by
+            // comparing actingSeat (the player who just acted) to bbSeat.
             if (this.street === 'preflop' && !this.actionClosed) {
-                this.actionClosed = true;
-                // BB gets option
                 const bbSeat = this._nextSeat(this._nextSeat(this.dealerSeat));
-                if (!this.folded[bbSeat] && !this.allIn[bbSeat]) {
+                this.actionClosed = true;
+                // If BB is NOT the one who just acted, give them the option.
+                // Otherwise fall through to _nextStreet.
+                if (bbSeat !== this.actingSeat && !this.folded[bbSeat] && !this.allIn[bbSeat]) {
                     this.actingSeat = bbSeat;
                     return { nextActor: bbSeat, state: this.getState() };
                 }

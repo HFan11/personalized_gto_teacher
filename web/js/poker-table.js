@@ -134,12 +134,104 @@ class PokerTableCanvas {
     }
 
     playAction(seat, action, amount) {
-        // Phase 2 — for now just re-request render
+        const seatPos = this._seatPos(seat);
+        // Floating text toast with the action label
+        if (typeof casinoFloatingText !== 'undefined') {
+            const map = { fold: '弃牌', check: '过牌', call: '跟注', raise: '加注', bet: '下注', allin: 'ALL-IN' };
+            const label = map[action] || action;
+            const amt = (amount && amount > 0) ? ` ${(+amount).toFixed(1)}` : '';
+            casinoFloatingText.add(label + amt, seatPos.x, seatPos.y - 30, '#fbbf24', 1.0, 15);
+        }
+        // Chip fly for bet/raise/call/allin
+        if (amount > 0 && (action === 'bet' || action === 'raise' || action === 'call' || action === 'allin')) {
+            this._tweenChipsFrom(seat, amount);
+            if (typeof casinoAudio !== 'undefined') casinoAudio.tick(1200, 0.05);
+        }
+        if (action === 'fold') {
+            this.foldSeat(seat);
+            if (typeof casinoAudio !== 'undefined') casinoAudio.tick(400, 0.07);
+        }
         this._needsRedraw = true;
     }
-    dealBoard(cards) { this._needsRedraw = true; }
-    showWinner(seat, amount) { this._needsRedraw = true; }
-    foldSeat(seat) { this._needsRedraw = true; }
+
+    dealBoard(cards) {
+        // Staggered flip-in of new cards — tracks count vs current state
+        const s = this.state;
+        const prev = s.board.length;
+        const newCards = cards.slice(prev);
+        if (newCards.length === 0) return;
+        // Merge into state immediately (tween flips them in)
+        s.board = cards.slice();
+        const startAt = performance.now();
+        newCards.forEach((c, i) => {
+            this._addTween({
+                start: startAt + i * 90,
+                duration: 400,
+                easing: (t) => 1 - (1 - t) * (1 - t),
+                update: () => { this._needsRedraw = true; },
+            });
+        });
+        if (typeof casinoAudio !== 'undefined') casinoAudio.tick(900, 0.05);
+        this._needsRedraw = true;
+    }
+
+    showWinner(seat, amount) {
+        const seatPos = this._seatPos(seat);
+        // Floating "+amount"
+        if (typeof casinoFloatingText !== 'undefined' && amount > 0) {
+            casinoFloatingText.add(`+${(+amount).toFixed(1)}`, seatPos.x, seatPos.y - 40, '#34d399', 1.6, 22);
+        }
+        // Particle burst from pot center toward winner
+        if (typeof casinoParticles !== 'undefined') {
+            casinoParticles.emit(this.cx, this.cy, 40, {
+                colors: ['#fbbf24', '#fde68a', '#f59e0b', '#ffffff'],
+                speed: 4, life: 1.0, gravity: 0, shape: 'star', size: 3,
+            });
+        }
+        if (typeof casinoAudio !== 'undefined') casinoAudio.winJingle(2);
+        this._needsRedraw = true;
+    }
+
+    foldSeat(seat) {
+        // Simple fold cue — state.folded drives visual dim already.
+        // Optional: shake / slide cards off. For Phase 2 just mark redraw.
+        this._needsRedraw = true;
+    }
+
+    // Clears transient FX (floating-text toasts, particle bursts, tweens).
+    // Call this at the start of a new hand so stale "弃牌" / "加注" toasts
+    // from the previous hand don't bleed into the new hand's render.
+    clearEffects() {
+        this.activeTweens.length = 0;
+        if (typeof casinoFloatingText !== 'undefined' && casinoFloatingText.texts) {
+            casinoFloatingText.texts.length = 0;
+        }
+        if (typeof casinoParticles !== 'undefined' && casinoParticles.pool) {
+            for (const p of casinoParticles.pool) p.alive = false;
+        }
+        this._needsRedraw = true;
+    }
+
+    _tweenChipsFrom(seat, amount) {
+        // Emit a quick particle-like streak from seat toward bet slot.
+        // Uses casinoParticles pool for simplicity.
+        if (typeof casinoParticles === 'undefined') return;
+        const seatPos = this._seatPos(seat);
+        const bx = seatPos.x + (this.cx - seatPos.x) * 0.35;
+        const by = seatPos.y + (this.cy - seatPos.y) * 0.35;
+        const vx = (bx - seatPos.x) / 0.5 / 60;
+        const vy = (by - seatPos.y) / 0.5 / 60;
+        casinoParticles.emit(seatPos.x, seatPos.y, 6, {
+            colors: ['#fbbf24', '#fde68a'],
+            speed: 2, life: 0.5, gravity: 0, size: 3,
+        });
+    }
+
+    _addTween(t) {
+        // Stores a tween with absolute start time; render loop processes.
+        this.activeTweens.push(t);
+        this._needsRedraw = true;
+    }
 
     destroy() {
         if (this._rafId) cancelAnimationFrame(this._rafId);
@@ -520,11 +612,11 @@ class PokerTableCanvas {
 
     _startRenderLoop() {
         const tick = (now) => {
-            const dt = Math.min((now - this._lastFrame) / 1000, 0.05);
             this._lastFrame = now;
-            // Advance tweens
+            // Advance tweens (tw.start is absolute timestamp)
             for (let i = this.activeTweens.length - 1; i >= 0; i--) {
                 const tw = this.activeTweens[i];
+                if (now < tw.start) continue; // not started yet
                 const t = Math.min(1, (now - tw.start) / tw.duration);
                 tw.update(tw.easing ? tw.easing(t) : t);
                 if (t >= 1) {
@@ -533,8 +625,18 @@ class PokerTableCanvas {
                 }
                 this._needsRedraw = true;
             }
-            // Acting pulse animation
-            if (this.state.actingSeat >= 0) this._needsRedraw = true;
+            // Update casino-fx modules (particles + floating text)
+            const dt = 1 / 60;
+            if (typeof casinoParticles !== 'undefined' && casinoParticles.hasAlive && casinoParticles.hasAlive()) {
+                casinoParticles.update(dt);
+                this._needsRedraw = true;
+            }
+            if (typeof casinoFloatingText !== 'undefined' && casinoFloatingText.hasActive && casinoFloatingText.hasActive()) {
+                casinoFloatingText.update(dt);
+                this._needsRedraw = true;
+            }
+            // Acting pulse animation keeps rendering
+            if (this.state.actingSeat >= 0 && this.state.street !== 'waiting') this._needsRedraw = true;
             // Draw if needed
             if (this._needsRedraw) {
                 this._draw();
@@ -567,6 +669,13 @@ class PokerTableCanvas {
         this._drawSeats();
         // Hole cards (hero's own cards shown face-up)
         this._drawHoleCards();
+        // Particles + floating text (casino-fx overlays)
+        if (typeof casinoParticles !== 'undefined' && casinoParticles.draw) {
+            casinoParticles.draw(this.ctx);
+        }
+        if (typeof casinoFloatingText !== 'undefined' && casinoFloatingText.draw) {
+            casinoFloatingText.draw(this.ctx);
+        }
     }
 
     _drawDealerButton() {
@@ -796,15 +905,18 @@ class PokerTableCanvas {
             ctx.fillText('ALL-IN', textX, plateY + 35);
         }
 
-        // Position pill — placed on the felt-facing edge of the plate
-        // (below for top seats, above for bottom seats, inside for side seats).
+        // Position pill — placed on the OUTWARD edge (away from felt) so it
+        // never overlaps hole cards. Top seats → pill ABOVE plate; bottom seats
+        // → pill BELOW plate; side seats are handled the same way since cards
+        // still sit on the felt-facing side.
         if (seat.position) {
             ctx.font = 'bold 9px sans-serif';
             const pw = ctx.measureText(seat.position).width + 8;
             const ph = 13;
-            // Decide side based on seat location: above-center -> pill below plate
             const aboveCenter = pos.y < this.cy - 4;
-            const pillY = aboveCenter ? (plateY + plateH + 2) : (plateY - ph - 2);
+            // Pill goes on the side AWAY from the center (away from cards):
+            //   top seat → above plate; bottom seat → below plate.
+            const pillY = aboveCenter ? (plateY - ph - 2) : (plateY + plateH + 2);
             const pillX = plateX + plateW / 2 - pw / 2;
             const posColors = {BTN:'#f59e0b',SB:'#a855f7',BB:'#ef4444',UTG:'#3b82f6',HJ:'#22c55e',CO:'#06b6d4'};
             ctx.fillStyle = posColors[seat.position] || 'rgba(251, 191, 36, 0.85)';
