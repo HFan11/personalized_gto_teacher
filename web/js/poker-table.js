@@ -276,10 +276,11 @@ class PokerTableCanvas {
         //     poles (top/bottom), needs vertical room to separate them and
         //     leave clean space between for cards, chip stacks, pot text.
         const isTeach = this.mode === 'teach';
-        // Game mode slightly taller (1:0.88) so 6 seats + cards + pot text
-        // + chip stacks all fit without colliding. Teach mode stays taller
-        // still (1:0.95) since the 2-seat poles need room between them.
-        const aspect = isTeach ? 0.95 : 0.88;
+        // Game mode aspect 1:0.95 so 6 vertical-stack WePoker seats have
+        // enough spread (both horizontally and vertically) that their
+        // chip/pot/plates don't all converge in the centre. Teach mode
+        // stays 1:0.95 for the 2-seat poles.
+        const aspect = 0.95;
         const h = Math.round(w * aspect);
         this.canvas.style.width = w + 'px';
         this.canvas.style.height = h + 'px';
@@ -293,11 +294,10 @@ class PokerTableCanvas {
         // Felt ellipse — fills most of the canvas.
         this.rx = w * 0.46;
         this.ry = h * 0.45;
-        // Seat distribution — tight inside the felt. Plate is 104 wide
-        // so seatRx needs enough margin for plate + card offsets to fit
-        // inside the felt on side seats.
-        this.seatRx = isTeach ? w * 0.28 : w * 0.26;
-        this.seatRy = isTeach ? h * 0.33 : h * 0.24;
+        // Seat distribution — wider spread in game mode so 6 vertical
+        // WePoker seats don't visually overlap each other's chips.
+        this.seatRx = isTeach ? w * 0.28 : w * 0.32;
+        this.seatRy = isTeach ? h * 0.33 : h * 0.29;
         this._buildCaches();
         this._needsRedraw = true;
     }
@@ -888,51 +888,36 @@ class PokerTableCanvas {
     _drawChipStack(x, y, amount) {
         if (!this.chipCache) return;
         const ctx = this.ctx;
-        const denoms = [100, 25, 5, 1];
-        let remaining = amount;
-        const chips = [];
-        for (const d of denoms) {
-            const n = Math.floor(remaining / d);
-            if (n > 0) {
-                chips.push({ d, n: Math.min(n, 3) });
-                remaining -= n * d;
-            }
-        }
-        let stackY = y;
-        let total = 0;
-        for (const item of chips) {
-            for (let k = 0; k < item.n; k++) {
-                const denomIdx = [1, 5, 25, 100].indexOf(item.d);
-                if (denomIdx < 0) continue;
-                ctx.drawImage(this.chipCache[denomIdx], x - 14, stackY - 14, 28, 28);
-                stackY -= 2.5;
-                total++;
-                if (total >= 5) break;
-            }
-            if (total >= 5) break;
-        }
-        // Amount label — BELOW the chip stack (chip disc ends at y+14),
-        // with a dark pill background so the number reads cleanly even
-        // on top of the felt. Bigger bets get highlighted colours.
+        // Compact chip visual: small 20x20 disc on the left, amount label
+        // INLINE to the right in a colored pill. Takes ~20px vertical (was
+        // 52 with the big disc + label-below layout), so the bet display
+        // no longer competes with seat plates or the pot text.
+        const chipR = 10;
+        const chipDenom = amount >= 100 ? 3
+                        : amount >= 25  ? 2
+                        : amount >= 5   ? 1
+                        : 0;
+        // Draw chip disc (single, representative)
+        ctx.drawImage(this.chipCache[chipDenom], x - chipR - 12, y - chipR, chipR * 2, chipR * 2);
+        // Amount label pill to the right of the disc
         const labelText = amount.toFixed(1);
-        // Colour by bet size: blind-ish = yellow, open = orange,
-        // big-raise/3-bet+ = red. Makes RAISES visually obvious.
         const labelColor = amount >= 6 ? '#ff6b6b'
                          : amount >= 2 ? '#fb923c'
                          : '#fde68a';
         ctx.save();
         ctx.font = 'bold 11px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'top';
-        const labelW = ctx.measureText(labelText).width + 10;
-        const labelH = 14;
-        const labelX = x - labelW / 2;
-        const labelY = y + 18;  // 18px below chip centre = ~4px below disc bottom
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
-        this._roundRect(ctx, labelX, labelY, labelW, labelH, 5);
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        const textW = ctx.measureText(labelText).width;
+        const pillW = textW + 10;
+        const pillH = 16;
+        const pillX = x + 2;
+        const pillY = y - pillH / 2;
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.78)';
+        this._roundRect(ctx, pillX, pillY, pillW, pillH, 5);
         ctx.fill();
         ctx.fillStyle = labelColor;
-        ctx.fillText(labelText, x, labelY + 1);
+        ctx.fillText(labelText, pillX + 5, pillY + pillH / 2 + 1);
         ctx.restore();
     }
 
