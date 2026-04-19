@@ -850,13 +850,15 @@
         </div>
     </div>
 
-    <div style="padding:20px 8px 40px;">
-        <div class="cg-table-wrap" id="pvp-table">
-            <div id="pvp-seats"></div>
-            <div class="cg-center">
-                <div class="pot-badge" id="pvp-pot" style="font-size:12px;">等待发牌</div>
-                <div class="cards-row" id="pvp-board" style="justify-content:center;gap:3px;min-height:40px;"></div>
-            </div>
+    <div id="pvp-table-container" style="padding:20px 8px 24px;max-width:540px;margin:0 auto;">
+        <canvas id="pvp-canvas" style="display:block;width:100%;"></canvas>
+    </div>
+    <!-- Legacy DOM kept hidden — existing code still references #pvp-pot / #pvp-board / #pvp-seats -->
+    <div class="cg-table-wrap" id="pvp-table" style="display:none;">
+        <div id="pvp-seats"></div>
+        <div class="cg-center">
+            <div class="pot-badge" id="pvp-pot" style="font-size:12px;">等待发牌</div>
+            <div class="cards-row" id="pvp-board" style="justify-content:center;gap:3px;min-height:40px;"></div>
         </div>
     </div>
 
@@ -4968,121 +4970,156 @@ async function pvpOnRoomUpdate(room) {
 }
 
 // ------- Render the unified table -------
+// Canvas instance (lazy) + last room (for click-handler context + diff-based animations)
+let pvpCanvasTable = null;
+let pvpLastRoom = null;
+
 function pvpRenderTable(room) {
     const seats = room.seats || [];
     const userId = supabase.user?.id;
     const board = room.board || [];
     const lastAction = room.last_action || {};
-    const streetNames = {preflop:'翻前', flop:'翻牌', turn:'转牌', river:'河牌', waiting:'等待中'};
-    const streetLabel = streetNames[room.street] || room.street;
 
-    // Board
-    const sm = {c:'♣',d:'♦',h:'♥',s:'♠'};
-    const sc = {c:'clubs',d:'diamonds',h:'hearts',s:'spades'};
-    document.getElementById('pvp-board').innerHTML = board.map(c => {
-        const r = c[0], suit = c[1];
-        return `<div class="playing-card ${sc[suit]||''}" data-rank="${r==='T'?'10':r}" style="width:32px;height:44px;">
-            <span class="card-rank" style="font-size:13px;">${r==='T'?'10':r}</span>
-            <span class="card-suit" style="font-size:11px;">${sm[suit]||suit}</span></div>`;
-    }).join('');
-
-    // Pot / result / street label
-    const potEl = document.getElementById('pvp-pot');
-    if (room.street === 'waiting' && lastAction.type) {
-        const winner = lastAction.winner;
-        const winAmt = lastAction.amount || 0;
-        const winnerName = winner >= 0 ? (seats[winner]?.name || 'Seat ' + winner) : '?';
-        const resultType = lastAction.type === 'showdown' ? '摊牌' : '弃牌';
-        potEl.innerHTML = `<span style="color:var(--accent-green);font-weight:700;">${winnerName} 赢 ${winAmt.toFixed(1)}BB</span>
-            <span style="font-size:10px;opacity:0.6;margin-left:4px;">(${resultType})</span>`;
-    } else if (room.street === 'waiting') {
-        potEl.textContent = '等待发牌';
-    } else {
-        potEl.textContent = `${streetLabel} · 底池 ${(room.pot||0).toFixed(1)} BB · #${room.hand_number}`;
+    // ---- Lazy-create canvas (once) ----
+    if (!pvpCanvasTable && typeof PokerTableCanvas !== 'undefined') {
+        const canvas = document.getElementById('pvp-canvas');
+        if (canvas) {
+            pvpCanvasTable = new PokerTableCanvas(canvas, { seats: 6, interactive: true, mode: 'game' });
+            pvpCanvasTable.onSeatClick = (visualPos) => {
+                // Translate visual → real seat. Only allow empty-bot seats for unseated users.
+                const room2 = pvpLastRoom;
+                if (!room2) return;
+                const heroAnchor2 = pvpMySeat >= 0 ? pvpMySeat : 0;
+                const realSeat = (heroAnchor2 + visualPos) % 6;
+                const s2 = (room2.seats || [])[realSeat];
+                const userId2 = supabase.user?.id;
+                if (!s2) return;
+                if (pvpIsBot(s2) && userId2 && pvpMySeat < 0 && pvpMyPendingSeat < 0) {
+                    pvpSitSeat(realSeat);
+                }
+            };
+        }
     }
 
-    // Seats — rotate so seated user appears at visual pos 0 (bottom).
-    // Spectators see seat 0 at bottom by default.
     const heroAnchor = pvpMySeat >= 0 ? pvpMySeat : 0;
     const d = room.dealer_seat ?? 0;
-    const posLabels = [];
-    posLabels[d] = 'D';
-    posLabels[(d+1)%6] = 'SB';
-    posLabels[(d+2)%6] = 'BB';
 
-    let html = '';
+    // 6-max position labels — dealer is BTN.
+    const realPosition = [];
+    realPosition[d] = 'BTN';
+    realPosition[(d+1)%6] = 'SB';
+    realPosition[(d+2)%6] = 'BB';
+    realPosition[(d+3)%6] = 'UTG';
+    realPosition[(d+4)%6] = 'HJ';
+    realPosition[(d+5)%6] = 'CO';
+
+    // Build visual-ordered (rotated) state for the canvas so seat 0 is at bottom.
+    const visualSeats = [];
+    const visualFolded = [];
+    const visualAllIn = [];
+    const visualBets = [];
+    let visualActingSeat = -1;
+    let visualDealerSeat = -1;
+    const showdownActive = room.street === 'waiting' && lastAction.type === 'showdown';
+
     for (let vp = 0; vp < 6; vp++) {
-        const seatIdx = (heroAnchor + vp) % 6;
-        const s = seats[seatIdx];
-        if (!s) continue;
-        const isMe = userId && s.user_id === userId;
-        const isActing = seatIdx === room.acting_seat;
-        const isFolded = room.folded?.[seatIdx];
-        const isAllIn = room.all_in?.[seatIdx];
+        const realIdx = (heroAnchor + vp) % 6;
+        const s = seats[realIdx] || {};
+        const isMe = !!(userId && s.user_id === userId);
         const isBot = pvpIsBot(s);
-        const isWinner = room.street === 'waiting' && lastAction.winner === seatIdx;
-
-        const cls = ['cg-seat',
-            isFolded && 'folded',
-            isActing && 'acting',
-            isMe && 'hero-seat',
-            isWinner && 'winner-seat',
-            isBot && 'pvp-seat-bot'
-        ].filter(Boolean).join(' ');
-
-        const bet = room.bets?.[seatIdx] || 0;
-
-        // Card display
-        //   - During live hand: face-down for non-me active seats
-        //   - At showdown (street=waiting + last_action.type=showdown):
-        //     reveal non-folded hands from pvpShowdownCache
-        let cards = '';
-        const showdownActive = room.street === 'waiting' && lastAction.type === 'showdown';
-        const revealCards = showdownActive
-            ? pvpShowdownCache[room.hand_number]?.[seatIdx]
-            : null;
-
-        if (revealCards && !isMe) {
-            // Reveal bot/other hand at showdown
-            const sm = {c:'♣',d:'♦',h:'♥',s:'♠'}, scls = {c:'clubs',d:'diamonds',h:'hearts',s:'spades'};
-            cards = `<div class="cg-seat-cards cg-showdown-reveal">${revealCards.map(c => {
-                const r = c[0], su = c[1];
-                return `<div class="playing-card ${scls[su]||''}" data-rank="${r==='T'?'10':r}" style="width:30px;height:40px;">
-                    <span class="card-rank" style="font-size:12px;">${r==='T'?'10':r}</span>
-                    <span class="card-suit" style="font-size:10px;">${sm[su]||su}</span></div>`;
-            }).join('')}</div>`;
-        } else if (room.street !== 'waiting' && !isFolded && !isMe) {
-            // Live hand: face-down
-            cards = `<div class="cg-seat-cards"><div class="playing-card facedown" style="width:24px;height:33px;"></div><div class="playing-card facedown" style="width:24px;height:33px;"></div></div>`;
-        }
-
-        // Click handler: click bot seat to sit (if logged in + not seated)
+        const isFolded = !!room.folded?.[realIdx];
+        const isAllIn = !!room.all_in?.[realIdx];
+        const bet = room.bets?.[realIdx] || 0;
         const clickable = isBot && userId && pvpMySeat < 0 && pvpMyPendingSeat < 0;
-        const onclick = clickable ? `onclick="pvpSitSeat(${seatIdx})"` : '';
-        const clickableCls = clickable ? ' clickable-seat' : '';
 
-        // Pending-sit indicator
-        let pendingTag = '';
-        if (pvpMyPendingSeat === seatIdx) {
-            pendingTag = `<div class="pvp-pending-tag">下一手入座</div>`;
+        // Hole cards: self always shown, others revealed at showdown.
+        let holeCards = null;
+        if (isMe && Array.isArray(pvpMyCards) && pvpMyCards.length === 2) {
+            holeCards = pvpMyCards.slice();
+        } else if (showdownActive) {
+            const reveal = pvpShowdownCache[room.hand_number]?.[realIdx];
+            if (reveal && reveal.length === 2 && !isFolded) holeCards = reveal.slice();
         }
 
-        html += `<div class="${cls}${clickableCls}" data-pos="${vp}" ${onclick}>
-            ${pendingTag}
-            ${vp>=1&&vp<=3?cards:''}
-            <div class="cg-seat-info">
-                <div class="cg-seat-name">
-                    ${isMe?'⭐ ':''}${isBot ? (clickable ? '<span class="pvp-empty-label">空位</span>' : (PVP_BOT_PROFILE_BY_SEAT?.[seatIdx]?.name || 'Player')) : (s.name || 'Player')}
-                </div>
-                <div class="cg-seat-stack">${(s.stack||0).toFixed(1)}BB</div>
-                ${posLabels[seatIdx]?`<span class="cg-dealer-btn">${posLabels[seatIdx]}</span>`:''}
-            </div>
-            ${bet>0?`<div class="cg-seat-bet">${bet.toFixed(1)}</div>`:''}
-            ${isAllIn&&!isFolded?'<div style="color:var(--accent-purple);font-size:9px;font-weight:700;">ALL-IN</div>':''}
-            ${vp===0||vp>=4?cards:''}
-        </div>`;
+        const nameDisplay = clickable ? '空位' :
+            (isBot ? (PVP_BOT_PROFILE_BY_SEAT?.[realIdx]?.name || 'Player') : (s.name || 'Player'));
+
+        visualSeats.push({
+            name: nameDisplay,
+            stack: s.stack || 0,
+            holeCards: holeCards,
+            isMe,
+            position: realPosition[realIdx] || '',
+            folded: isFolded,
+            allIn: isAllIn,
+            isEmpty: clickable,
+        });
+        visualFolded.push(isFolded);
+        visualAllIn.push(isAllIn);
+        visualBets.push(bet);
+        if (room.acting_seat === realIdx) visualActingSeat = vp;
+        if (d === realIdx) visualDealerSeat = vp;
     }
-    document.getElementById('pvp-seats').innerHTML = html;
+
+    // Push state + fire animations on diffs.
+    if (pvpCanvasTable) {
+        pvpCanvasTable.setState({
+            seats: visualSeats,
+            board: board.slice(),
+            pot: room.pot || 0,
+            bets: visualBets,
+            folded: visualFolded,
+            allIn: visualAllIn,
+            actingSeat: visualActingSeat,
+            dealerSeat: visualDealerSeat,
+            heroSeat: 0,
+            street: room.street || 'waiting',
+        });
+
+        if (pvpLastRoom) {
+            const prevTs = pvpLastRoom.last_action?.ts || 0;
+            const currTs = lastAction.ts || 0;
+            // New action toast + chip fly.
+            if (currTs > prevTs && typeof lastAction.seat === 'number' && lastAction.action) {
+                const vs = (lastAction.seat - heroAnchor + 6) % 6;
+                pvpCanvasTable.playAction(vs, lastAction.action, lastAction.amount || 0);
+            }
+            // Board grew → deal animation.
+            if ((board.length || 0) > (pvpLastRoom.board?.length || 0)) {
+                pvpCanvasTable.dealBoard(board.slice());
+            }
+            // Street transitioned to waiting with a winner → winner animation.
+            if (pvpLastRoom.street && pvpLastRoom.street !== 'waiting'
+                && room.street === 'waiting' && typeof lastAction.winner === 'number' && lastAction.winner >= 0) {
+                const vw = (lastAction.winner - heroAnchor + 6) % 6;
+                pvpCanvasTable.showWinner(vw, lastAction.amount || 0);
+            }
+            // New hand dealt → clear FX so old toasts don't bleed in.
+            if ((pvpLastRoom.hand_number || 0) !== (room.hand_number || 0)) {
+                pvpCanvasTable.clearEffects();
+            }
+        }
+    }
+    pvpLastRoom = room;
+
+    // Keep legacy hidden DOM in sync for any old code paths that still query it.
+    const potEl = document.getElementById('pvp-pot');
+    if (potEl) {
+        const streetNames = {preflop:'翻前', flop:'翻牌', turn:'转牌', river:'河牌', waiting:'等待中'};
+        const streetLabel = streetNames[room.street] || room.street;
+        if (room.street === 'waiting' && lastAction.type) {
+            const winner = lastAction.winner;
+            const winAmt = lastAction.amount || 0;
+            const winnerName = winner >= 0 ? (seats[winner]?.name || 'Seat ' + winner) : '?';
+            const resultType = lastAction.type === 'showdown' ? '摊牌' : '弃牌';
+            potEl.innerHTML = `<span style="color:var(--accent-green);font-weight:700;">${winnerName} 赢 ${winAmt.toFixed(1)}BB</span>
+                <span style="font-size:10px;opacity:0.6;margin-left:4px;">(${resultType})</span>`;
+        } else if (room.street === 'waiting') {
+            potEl.textContent = '等待发牌';
+        } else {
+            potEl.textContent = `${streetLabel} · 底池 ${(room.pot||0).toFixed(1)} BB · #${room.hand_number}`;
+        }
+    }
 
     // Status line + buttons
     const statusEl = document.getElementById('pvp-status');
