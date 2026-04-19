@@ -265,7 +265,9 @@ class PokerTableCanvas {
     _doResize() {
         const parent = this.canvas.parentElement;
         const w = Math.max(280, Math.min(560, parent?.clientWidth || 480));
-        const h = Math.round(w / 1.5); // 1.5:1 aspect ratio
+        // Taller aspect ratio (portrait-ish) — more vertical breathing room
+        // per seat and better fit for phone screens.
+        const h = Math.round(w * 1.15);
         this.canvas.style.width = w + 'px';
         this.canvas.style.height = h + 'px';
         this.canvas.width = Math.round(w * this.dpr);
@@ -273,11 +275,13 @@ class PokerTableCanvas {
         this.ctx.scale(this.dpr, this.dpr);
         this.W = w;
         this.H = h;
-        // Ellipse parameters
+        // Ellipse parameters — rx/ry sized so seat plates, position pills,
+        // and the hero's big hole cards all fit comfortably inside the canvas
+        // with margin (rx 0.36 width, ry 0.32 height).
         this.cx = w / 2;
         this.cy = h / 2;
-        this.rx = w * 0.38;
-        this.ry = h * 0.34;
+        this.rx = w * 0.36;
+        this.ry = h * 0.32;
         // Rebuild caches
         this._buildCaches();
         this._needsRedraw = true;
@@ -610,14 +614,15 @@ class PokerTableCanvas {
     // ============ Seat positioning ============
 
     _seatPos(i) {
-        // Seat 0 (hero) at 270° (bottom center). Others clockwise.
-        // For 6 seats: 270, 330, 30, 90, 150, 210 (in ccw? check)
-        // Actually use: 90 = bottom in standard canvas (y grows down).
-        // Map seat i to angle: hero at 90° (bottom), go counter-clockwise
+        // Seat 0 (hero) at 90° (bottom center, since canvas Y grows down).
+        // Remaining seats spread CLOCKWISE around the ellipse (viewer's
+        // perspective: next seat is to hero's right-side first, wrapping to
+        // upper-left). Canvas Y is flipped vs math, so ADDING to the angle
+        // gives visual clockwise motion.
         const n = this.seatCount;
         const baseAngleDeg = 90;  // bottom center
         const step = 360 / n;
-        const angle = (baseAngleDeg - i * step) * Math.PI / 180;
+        const angle = (baseAngleDeg + i * step) * Math.PI / 180;
         const x = this.cx + Math.cos(angle) * this.rx;
         const y = this.cy + Math.sin(angle) * this.ry;
         return { x, y, angle };
@@ -702,10 +707,13 @@ class PokerTableCanvas {
         this._drawPot();
         // Bets (current street bets per seat — between seat and pot)
         this._drawBets();
-        // Seats
+        // Hero's hole cards FIRST (big), so the plate draws on top and the
+        // cards appear tucked behind the name plate.
+        this._drawHoleCards('hero');
+        // Seats (plates render above hero's cards)
         this._drawSeats();
-        // Hole cards (hero's own cards shown face-up)
-        this._drawHoleCards();
+        // Other seats' hole cards (small, on top of their plates)
+        this._drawHoleCards('others');
         // Particles + floating text (casino-fx overlays)
         if (typeof casinoParticles !== 'undefined' && casinoParticles.draw) {
             casinoParticles.draw(this.ctx);
@@ -987,22 +995,30 @@ class PokerTableCanvas {
         ctx.restore();
     }
 
-    _drawHoleCards() {
+    // Draw hole cards. filter = 'hero' draws only the hero's cards (called
+    // BEFORE seats so the plate overlaps the card bottoms); filter = 'others'
+    // draws every non-hero seat (called AFTER seats so their small cards
+    // render on top of the plate); undefined draws all.
+    _drawHoleCards(filter) {
         const s = this.state;
         if (s.street === 'waiting') return;
-        const cw = 26, ch = 36;
+        const smallCw = 26, smallCh = 36;
+        const heroCw = 44, heroCh = 60;  // hero cards are visibly bigger
         for (let i = 0; i < this.seatCount; i++) {
             const seat = s.seats[i];
             if (!seat || s.folded[i]) continue;
+            if (filter === 'hero' && !seat.isMe) continue;
+            if (filter === 'others' && seat.isMe) continue;
             const pos = this._seatPos(i);
-            // Position cards ALONG THE VECTOR from seat toward table center,
-            // so cards always sit on the felt (not outside the table).
             const dx = this.cx - pos.x;
             const dy = this.cy - pos.y;
             const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-            // Push cards further away from the seat plate (~52px instead of 34)
-            // to avoid overlapping the plate, especially for side seats.
-            const offset = 52;
+            const cw = seat.isMe ? heroCw : smallCw;
+            const ch = seat.isMe ? heroCh : smallCh;
+            // Hero: position so the plate overlaps the card bottoms (cards
+            // appear tucked behind the name plate). Others: push further out
+            // so their small cards sit clearly on the felt above the plate.
+            const offset = seat.isMe ? 28 : 52;
             const centerX = pos.x + (dx / dist) * offset;
             const centerY = pos.y + (dy / dist) * offset - ch / 2;
 
@@ -1010,11 +1026,9 @@ class PokerTableCanvas {
             const cards = seat.holeCards && seat.holeCards.length === 2 ? seat.holeCards : [null, null];
 
             if (seat.isMe || !faceDown) {
-                // Show faces (hero, or showdown reveal)
                 this._drawCardAt(cards[0], centerX - cw - 2, centerY, cw, ch, cards[0] == null);
                 this._drawCardAt(cards[1], centerX + 2, centerY, cw, ch, cards[1] == null);
             } else {
-                // Face-down
                 this._drawCardAt(null, centerX - cw - 2, centerY, cw, ch, true);
                 this._drawCardAt(null, centerX + 2, centerY, cw, ch, true);
             }
