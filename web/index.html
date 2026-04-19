@@ -549,65 +549,26 @@
             <!-- Action Timeline -->
             <div class="action-timeline" id="action-timeline"></div>
 
-            <!-- Poker Table -->
-            <div class="poker-table">
-                <!-- Villain area -->
-                <div class="villain-area" id="villain-table-area">
-                    <div style="display:flex; align-items:center; gap:6px; justify-content:center;">
-                        <span class="position-badge villain-badge" id="villain-pos-badge" style="font-size:10px;">BB</span>
-                        <span id="villain-name-badge" style="font-size:10px;"></span>
-                        <div id="villain-stack-display" class="chip-stack" style="margin-left:4px;">97BB</div>
-                    </div>
-                    <div style="display:flex; align-items:center; gap:4px; justify-content:center; margin-top:4px;">
-                        <div class="cards-row" id="villain-cards-display">
-                            <div class="playing-card facedown"></div>
-                            <div class="playing-card facedown"></div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Villain bet chip -->
-                <div id="villain-bet-area" style="text-align:center; min-height:24px; margin:3px 0;">
-                    <div id="villain-bet-chip" class="bet-chip bet-chip-villain" style="display:none;">
-                        <span class="chip-icon"><span class="chip-dot chip-dot-red"></span></span>
-                        <span class="chip-amount">4.0</span>
-                    </div>
-                </div>
-
-                <!-- Board + Pot center -->
-                <div class="board-area">
-                    <div class="pot-badge">
-                        <strong id="pot-display">6BB</strong>
-                        <span style="font-size:9px; opacity:0.6; margin-left:4px;" id="street-display">Flop</span>
-                    </div>
-                    <div class="cards-row" id="board-cards"></div>
-                </div>
-
-                <!-- Hero bet chip -->
-                <div id="hero-bet-area" style="text-align:center; min-height:24px; margin:3px 0;">
-                    <div id="hero-bet-chip" class="bet-chip bet-chip-hero" style="display:none;">
-                        <span class="chip-icon"><span class="chip-dot chip-dot-blue"></span></span>
-                        <span class="chip-amount">4.0</span>
-                    </div>
-                </div>
-
-                <!-- Hero area -->
-                <div class="hero-area">
-                    <div style="display:flex; align-items:center; gap:4px; justify-content:center;">
-                        <div class="cards-row" id="hero-cards"></div>
-                    </div>
-                    <div style="display:flex; align-items:center; gap:6px; justify-content:center; margin-top:4px;">
-                        <span class="position-badge" id="hero-pos-badge">BTN</span>
-                        <span style="font-size:11px;">Hero</span>
-                        <div id="hero-stack-display" class="chip-stack" style="margin-left:4px;">97BB</div>
-                    </div>
-                </div>
-
-                <!-- Hidden compat -->
-                <span id="stack-display" style="display:none;"></span>
-                <span id="spr-display" style="display:none;"></span>
-                <span id="bet-display" style="display:none;"><strong id="bet-amount-display"></strong></span>
+            <!-- Canvas table (heads-up teaching) -->
+            <div id="practice-table-container" style="padding:12px 8px 16px;max-width:520px;margin:0 auto;">
+                <canvas id="practice-canvas" style="display:block;width:100%;"></canvas>
             </div>
+            <!-- Hidden compat spans (some code still reads these) -->
+            <span id="pot-display" style="display:none;">0BB</span>
+            <span id="street-display" style="display:none;">Flop</span>
+            <span id="hero-stack-display" style="display:none;">0BB</span>
+            <span id="villain-stack-display" style="display:none;">0BB</span>
+            <span id="hero-pos-badge" style="display:none;">BTN</span>
+            <span id="villain-pos-badge" style="display:none;">BB</span>
+            <span id="villain-name-badge" style="display:none;"></span>
+            <span id="hero-cards" style="display:none;"></span>
+            <span id="villain-cards-display" style="display:none;"></span>
+            <span id="board-cards" style="display:none;"></span>
+            <span id="hero-bet-chip" style="display:none;"><span class="chip-amount"></span></span>
+            <span id="villain-bet-chip" style="display:none;"><span class="chip-amount"></span></span>
+            <span id="stack-display" style="display:none;"></span>
+            <span id="spr-display" style="display:none;"></span>
+            <span id="bet-display" style="display:none;"><strong id="bet-amount-display"></strong></span>
 
             <!-- Hand Info (compact single row) -->
             <div id="hand-info-card" style="display:flex; align-items:center; gap:8px; padding:6px 10px; background:var(--bg-card); border:1px solid var(--border-color); border-radius:8px; margin-bottom:6px; font-size:12px;">
@@ -2528,6 +2489,8 @@ function startPracticeHand() {
     if (dealBtn) dealBtn.innerHTML = '<span class="spinner"></span>';
     actionLog = [];
     handsPlayed++;
+    // Mark this as a fresh hand so renderPracticeHand resets canvas board
+    window.__practiceNewHand = true;
 
     setTimeout(() => {
         // Apply pot type configuration
@@ -2635,6 +2598,17 @@ function addVillainPostflopAction() {
     }
 }
 
+// Heads-up teaching canvas (lazy)
+let practiceCanvasTable = null;
+let practicePrevBoard = [];
+
+// Convert {rank, suit:'♠'} → "As" / "Td" format used by PokerTableCanvas
+function practiceCardStr(c) {
+    if (!c) return null;
+    const suitMap = { '♠':'s','♥':'h','♦':'d','♣':'c' };
+    return c.rank + (suitMap[c.suit] || c.suit);
+}
+
 function renderPracticeHand() {
     document.getElementById('practice-setup').style.display = 'none';
     document.getElementById('practice-hand').style.display = 'block';
@@ -2648,65 +2622,86 @@ function renderPracticeHand() {
 
     const state = currentState;
 
-    // Table info
+    // Table info (kept as hidden spans for any compat readers)
     document.getElementById('pot-display').textContent = state.potSize.toFixed(1) + 'BB';
     document.getElementById('stack-display').textContent = state.effectiveStack.toFixed(1) + 'BB';
     document.getElementById('spr-display').textContent = state.spr.toFixed(1);
     document.getElementById('street-display').textContent = state.street.charAt(0).toUpperCase() + state.street.slice(1);
-
-    // Stack displays next to player cards
-    const heroStackEl = document.getElementById('hero-stack-display');
-    const villainStackEl = document.getElementById('villain-stack-display');
-    if (heroStackEl) heroStackEl.textContent = state.effectiveStack.toFixed(1) + 'BB';
-    if (villainStackEl) villainStackEl.textContent = state.effectiveStack.toFixed(1) + 'BB';
-
-    // Bet chips on table
-    const villainBetChip = document.getElementById('villain-bet-chip');
-    const heroBetChip = document.getElementById('hero-bet-chip');
-    if (villainBetChip) {
-        if (state.facingBet && practice.villainBetSize > 0) {
-            const betAmt = practice.villainBetSize;
-            const dotCount = betAmt >= 30 ? 4 : betAmt >= 15 ? 3 : betAmt >= 5 ? 2 : 1;
-            const dots = Array(dotCount).fill('<span class="chip-dot chip-dot-red"></span>').join('');
-            villainBetChip.querySelector('.chip-icon').innerHTML = dots;
-            villainBetChip.querySelector('.chip-amount').textContent = betAmt.toFixed(1);
-            villainBetChip.style.display = '';
-        } else {
-            villainBetChip.style.display = 'none';
-        }
-    }
-    if (heroBetChip) heroBetChip.style.display = 'none';
-
-    // Positions & villain info
+    document.getElementById('hero-stack-display').textContent = state.effectiveStack.toFixed(1) + 'BB';
+    document.getElementById('villain-stack-display').textContent = state.effectiveStack.toFixed(1) + 'BB';
     document.getElementById('hero-pos-badge').textContent = state.heroPosition;
     document.getElementById('villain-pos-badge').textContent = state.villainPosition;
     document.getElementById('villain-name-badge').textContent = state.villainProfile.avatar + ' ' + state.villainProfile.name;
 
-    // Villain face-down cards
-    document.getElementById('villain-cards-display').innerHTML =
-        '<div class="playing-card facedown"></div><div class="playing-card facedown"></div>';
+    // ---- Canvas (heads-up teaching mode) ----
+    if (!practiceCanvasTable && typeof PokerTableCanvas !== 'undefined') {
+        const canvas = document.getElementById('practice-canvas');
+        if (canvas) {
+            practiceCanvasTable = new PokerTableCanvas(canvas, { seats: 2, mode: 'teach' });
+        }
+    }
+    if (practiceCanvasTable) {
+        const heroCardsStr = state.heroCards.map(practiceCardStr);
+        const villainBet = state.facingBet && practice.villainBetSize > 0 ? practice.villainBetSize : 0;
+        const heroBet = 0;  // hero hasn't acted yet when renderPracticeHand first fires
+        const isNewHand = !!window.__practiceNewHand;
+        const boardStr = state.boardCards.map(practiceCardStr);
 
-    // Board & hero cards — start facedown, then flip to reveal
-    const boardEl = document.getElementById('board-cards');
+        // If a brand-new hand: reset canvas state (clear old board + FX). If same
+        // hand advancing streets, preserve canvas board so dealBoard only animates the new card.
+        const stateToSet = {
+            seats: [
+                {
+                    name: 'Hero',
+                    stack: state.effectiveStack,
+                    holeCards: heroCardsStr,
+                    isMe: true,
+                    position: state.heroPosition,
+                },
+                {
+                    name: state.villainProfile.name || 'Villain',
+                    stack: state.effectiveStack,
+                    holeCards: null,  // face-down until showdown
+                    isMe: false,
+                    position: state.villainPosition,
+                },
+            ],
+            pot: state.potSize,
+            bets: [heroBet, villainBet],
+            folded: [false, false],
+            allIn: [false, false],
+            actingSeat: 0,
+            dealerSeat: -1,  // no dealer button in teach mode
+            heroSeat: 0,
+            street: state.street || 'flop',
+        };
+        if (isNewHand) {
+            // Wipe board + FX so the flop flip-in animates cleanly
+            stateToSet.board = [];
+            practiceCanvasTable.setState(stateToSet);
+            practiceCanvasTable.clearEffects();
+            practicePrevBoard = [];
+        } else {
+            // Preserve existing board; dealBoard below will animate the new card only
+            practiceCanvasTable.setState(stateToSet);
+        }
+
+        // Staggered deal: on new hand this animates the full flop; on street
+        // advance it animates just the new turn/river card.
+        setTimeout(() => {
+            if (practiceCanvasTable) practiceCanvasTable.dealBoard(boardStr);
+            practicePrevBoard = boardStr.slice();
+        }, isNewHand ? 400 : 200);
+        window.__practiceNewHand = false;
+    }
+
+    // Legacy hidden-DOM compat so any old queries still return sensible content
     const heroEl = document.getElementById('hero-cards');
-
-    // Cancel any pending board flip from previous render
-    if (window._boardFlipTimer) clearTimeout(window._boardFlipTimer);
-    if (window._heroFlipTimer) clearTimeout(window._heroFlipTimer);
-
-    // Step 1: show facedown cards
-    heroEl.innerHTML = '<div class="playing-card facedown"></div><div class="playing-card facedown"></div>';
-    boardEl.innerHTML = state.boardCards.map(() => '<div class="playing-card facedown"></div>').join('');
-
-    // Step 2: flip hero cards after 400ms
-    window._heroFlipTimer = setTimeout(() => {
-        heroEl.innerHTML = state.heroCards.map(c => renderPlayingCard(c, 'card-flip-in')).join('');
-    }, 400);
-
-    // Step 3: flip board cards after 900ms (may be overridden by nextStreet)
-    window._boardFlipTimer = setTimeout(() => {
-        boardEl.innerHTML = state.boardCards.map(c => renderPlayingCard(c, 'card-flip-in')).join('');
-    }, 900);
+    const boardEl = document.getElementById('board-cards');
+    const vcEl = document.getElementById('villain-cards-display');
+    if (heroEl) heroEl.innerHTML = state.heroCards.map(c => renderPlayingCard(c)).join('');
+    if (boardEl) boardEl.innerHTML = state.boardCards.map(c => renderPlayingCard(c)).join('');
+    if (vcEl) vcEl.innerHTML = '<div class="playing-card facedown"></div><div class="playing-card facedown"></div>';
 
     // Hand info (compact row)
     const cat = state.handCategory;
@@ -2886,6 +2881,12 @@ function makeAction(action, sizingPct) {
     // Add hero action to timeline
     actionLog.push({ street: streetLabel, position: currentState.heroPosition, action: actionLabel, sizing: betSizeLabel, isVillain: false });
 
+    // Canvas animation: hero's action toast + chip fly
+    if (practiceCanvasTable) {
+        const canvasAction = action === 'raise' ? (facingBet ? 'raise' : 'bet') : action;
+        practiceCanvasTable.playAction(0, canvasAction, action === 'raise' ? heroBetAmount : 0);
+    }
+
     // Score the action — clear old result first, then show spinner
     const inlineStrip = document.getElementById('inline-result');
     if (inlineStrip) { inlineStrip.style.display = 'block'; }
@@ -2961,6 +2962,12 @@ function makeAction(action, sizingPct) {
 
     // === Post-action flow ===
     if (action === 'fold') {
+        // Canvas: villain wins the pot
+        if (practiceCanvasTable) {
+            setTimeout(() => {
+                if (practiceCanvasTable) practiceCanvasTable.showWinner(1, practice.potSize || 0);
+            }, 300);
+        }
         renderFoldResult();
         showPostButtons('end');
     } else if (action === 'check') {
@@ -3029,6 +3036,15 @@ function handleCheckFlow(streetLabel, isRiver, heroIsIP) {
             });
         }
 
+        // Canvas animation: villain's response toast + chip fly (if bet)
+        if (practiceCanvasTable) {
+            if (villainResponse === 'bet') {
+                practiceCanvasTable.playAction(1, 'bet', practice.villainBetSize || 0);
+            } else {
+                practiceCanvasTable.playAction(1, 'check', 0);
+            }
+        }
+
         if (villainResponse === 'bet') {
             // Villain bets → hero must face the bet
             // Clear old check result to avoid confusion
@@ -3085,11 +3101,21 @@ function handleBetFlow(streetLabel, isRiver, heroBetAmount, wasFacingBet) {
 
     if (villainResponse === 'fold') {
         actionLog.push({ street: streetLabel, position: currentState.villainPosition, action: 'Fold', sizing: '', isVillain: true });
+        // Canvas: villain fold + hero wins pot
+        if (practiceCanvasTable) {
+            practiceCanvasTable.playAction(1, 'fold', 0);
+            setTimeout(() => {
+                if (practiceCanvasTable) practiceCanvasTable.showWinner(0, practice.potSize || 0);
+            }, 300);
+        }
         renderHeroWinResult();
         showPostButtons('end');
     } else {
         // Villain calls — matches hero's bet amount
         const villainCallAmount = wasFacingBet ? (heroBetAmount - practice.villainBetSize) : heroBetAmount;
+        if (practiceCanvasTable) {
+            practiceCanvasTable.playAction(1, 'call', villainCallAmount);
+        }
         const callBetPct = heroBetAmount / practice.potSize;
         practice._updateVillainRangeWeights('call', callBetPct);
         actionLog.push({ street: streetLabel, position: currentState.villainPosition, action: 'Call', sizing: '', isVillain: true });
@@ -3442,6 +3468,24 @@ function renderShowdown() {
 
     // Also reveal on table
     document.getElementById('villain-cards-display').innerHTML = state.villainCards.map(c => renderPlayingCard(c)).join('');
+
+    // Canvas: reveal villain cards + winner burst
+    if (practiceCanvasTable) {
+        const villainStr = state.villainCards.map(practiceCardStr);
+        // Patch villain seat's holeCards in-place so the canvas shows the reveal.
+        const seats = practiceCanvasTable.state.seats;
+        if (seats && seats[1]) seats[1].holeCards = villainStr;
+        practiceCanvasTable._needsRedraw = true;
+        if (heroEval.score > villainEval.score) {
+            practiceCanvasTable.showWinner(0, state.potSize);
+        } else if (heroEval.score < villainEval.score) {
+            practiceCanvasTable.showWinner(1, state.potSize);
+        } else {
+            // Split pot — show a winner burst on both seats
+            practiceCanvasTable.showWinner(0, state.potSize / 2);
+            practiceCanvasTable.showWinner(1, state.potSize / 2);
+        }
+    }
 
     const resultEl = document.getElementById('showdown-result');
     const potEl = document.getElementById('showdown-pot');
