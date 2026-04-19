@@ -276,14 +276,11 @@ class PokerTableCanvas {
         //     poles (top/bottom), needs vertical room to separate them and
         //     leave clean space between for cards, chip stacks, pot text.
         const isTeach = this.mode === 'teach';
-        // Adaptive aspect — keep canvas short enough that header + canvas
-        // + action bar all fit on typical viewports without scrolling.
-        //   narrow viewports (phones, w<440): taller aspect (1.05) so 6
-        //     seats + cards fit vertically at the smaller width
-        //   desktop: shorter landscape aspect. Teach mode goes shorter
-        //     still because there are only 2 seats to fit.
+        // Adaptive aspect — mobile gets a taller canvas so 6 WePoker
+        // seats fit vertically with breathing room. Desktop is shorter
+        // landscape because horizontal space is ample.
         const aspect = w < 440
-            ? (isTeach ? 1.00 : 1.05)
+            ? (isTeach ? 1.05 : 1.15)
             : (isTeach ? 0.80 : 0.85);
         const h = Math.round(w * aspect);
         this.canvas.style.width = w + 'px';
@@ -293,15 +290,15 @@ class PokerTableCanvas {
         this.ctx.scale(this.dpr, this.dpr);
         this.W = w;
         this.H = h;
-        // Scale factor for fixed-pixel UI (avatar/plate/cards/chips) so
-        // sizes shrink proportionally on narrow canvases.
-        this.S = Math.max(0.72, Math.min(1, w / 540));
+        // Scale factor for all fixed-pixel UI. On mobile we apply an
+        // extra 15% shrink so seat visuals don't crowd each other.
+        const baseS = Math.min(1, w / 540);
+        const mobileShrink = w < 440 ? 0.82 : 1.0;
+        this.S = Math.max(0.58, baseS * mobileShrink);
         this.cx = w / 2;
         this.cy = h * 0.48;
         this.rx = w * 0.46;
         this.ry = h * 0.45;
-        // Seats pulled a bit toward centre (smaller seatRy) so hero cards
-        // below the plate + pill still fit within canvas height.
         this.seatRx = isTeach ? w * 0.28 : w * 0.32;
         this.seatRy = isTeach ? h * 0.30 : h * 0.24;
         this._buildCaches();
@@ -917,9 +914,8 @@ class PokerTableCanvas {
                         : 0;
         ctx.drawImage(this.chipCache[chipDenom], x - chipR - 12 * S, y - chipR, chipR * 2, chipR * 2);
         const labelText = amount.toFixed(1);
-        const labelColor = amount >= 6 ? '#ff6b6b'
-                         : amount >= 2 ? '#fb923c'
-                         : '#fde68a';
+        // Single gold colour for all amounts — less visual noise.
+        const labelColor = '#fbbf24';
         ctx.save();
         const labelFont = Math.max(10, Math.round(11 * S));
         ctx.font = `bold ${labelFont}px sans-serif`;
@@ -998,7 +994,8 @@ class PokerTableCanvas {
         ctx.save();
         if (isFolded) ctx.globalAlpha = 0.38;
 
-        // Acting pulse ring around the AVATAR
+        // Acting pulse ring around the AVATAR (only colour accent besides
+        // the hero's blue — everything else is monochrome).
         if (isActing) {
             const pulse = 0.55 + 0.45 * Math.sin(now / 200);
             ctx.strokeStyle = `rgba(251, 191, 36, ${pulse})`;
@@ -1008,18 +1005,15 @@ class PokerTableCanvas {
             ctx.stroke();
         }
 
-        // Avatar circle
-        const hue = (seat.seatIdx * 60) % 360;
-        const ag = ctx.createRadialGradient(x - 4, avY - 4, 1, x, avY, avR);
-        ag.addColorStop(0, `hsl(${hue}, 70%, 60%)`);
-        ag.addColorStop(1, `hsl(${hue}, 70%, 28%)`);
-        ctx.fillStyle = ag;
+        // Avatar circle — FLAT solid fill. Hero uses app's blue accent,
+        // all bots share a single neutral slate colour so the table
+        // feels coherent with the rest of the app UI instead of a
+        // rainbow of hues.
+        const avColor = seat.isMe ? '#3b5bf5' : '#475569';
+        ctx.fillStyle = avColor;
         ctx.beginPath();
         ctx.arc(x, avY, avR, 0, Math.PI * 2);
         ctx.fill();
-        ctx.strokeStyle = 'rgba(255,255,255,0.45)';
-        ctx.lineWidth = 1;
-        ctx.stroke();
 
         // Initial letter inside avatar
         const initial = (seat.name || '?')[0].toUpperCase();
@@ -1029,48 +1023,46 @@ class PokerTableCanvas {
         ctx.font = `bold ${Math.round(15 * S)}px sans-serif`;
         ctx.fillText(initial, x, avY + 1);
 
-        // Name plate (rounded rect)
-        ctx.fillStyle = seat.isMe ? 'rgba(30, 58, 138, 0.88)' : 'rgba(0, 0, 0, 0.70)';
-        this._roundRect(ctx, plateX, plateY, plateW, plateH, 6 * S);
+        // Name plate — flat dark background, no border (less visual noise).
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.58)';
+        this._roundRect(ctx, plateX, plateY, plateW, plateH, 5 * S);
         ctx.fill();
-        ctx.strokeStyle = seat.isMe ? 'rgba(99, 162, 255, 0.85)' : 'rgba(255, 255, 255, 0.18)';
-        ctx.lineWidth = 1;
-        this._roundRect(ctx, plateX, plateY, plateW, plateH, 6 * S);
-        ctx.stroke();
 
-        // Name (top line) — scaled font so it fits the plate width
+        // Name (top line)
         const fullName = seat.isEmpty ? '空位' : (seat.name || 'Bot');
         const nameFont = Math.max(9, Math.round(10 * S));
-        ctx.font = `bold ${nameFont}px sans-serif`;
+        ctx.font = `${nameFont}px sans-serif`;
         const nameText = this._fitText(ctx, fullName, plateW - 8);
-        ctx.fillStyle = seat.isEmpty ? 'rgba(99,162,255,0.9)' : '#f3f4f6';
+        ctx.fillStyle = seat.isEmpty ? 'rgba(99,162,255,0.9)' : 'rgba(230, 230, 230, 0.95)';
         ctx.textBaseline = 'top';
         ctx.fillText(nameText, x, plateY + 3 * S);
 
-        // Stack (bottom line, gold)
+        // Stack (bottom line, gold — the one yellow accent kept)
         ctx.fillStyle = '#fbbf24';
         ctx.font = `bold ${Math.max(11, Math.round(13 * S))}px sans-serif`;
         ctx.fillText(`${(seat.stack || 0).toFixed(1)}BB`, x, plateY + 15 * S);
 
         // All-in tag
         if (seat.allIn && !isFolded) {
-            ctx.fillStyle = '#a855f7';
+            ctx.fillStyle = '#fbbf24';
             ctx.font = `bold ${Math.round(9 * S)}px sans-serif`;
             ctx.fillText('ALL-IN', x, plateY + plateH + 2 * S);
         }
 
-        // Position pill
+        // Position pill — single neutral colour (dark slate with white
+        // text) for ALL positions. User can still read which position
+        // this is from the letters, but the visual weight matches the
+        // rest of the app instead of a colourful rainbow.
         if (seat.position) {
             const pillFont = Math.max(8, Math.round(9 * S));
             ctx.font = `bold ${pillFont}px sans-serif`;
             const pw = ctx.measureText(seat.position).width + 10 * S;
             const ph = 13 * S;
             const pillX = x - pw / 2;
-            const posColors = {BTN:'#f59e0b',SB:'#a855f7',BB:'#ef4444',UTG:'#3b82f6',HJ:'#22c55e',CO:'#06b6d4'};
-            ctx.fillStyle = posColors[seat.position] || 'rgba(251, 191, 36, 0.85)';
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.14)';
             this._roundRect(ctx, pillX, pillY, pw, ph, 5 * S);
             ctx.fill();
-            ctx.fillStyle = '#ffffff';
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.font = `bold ${pillFont}px sans-serif`;
