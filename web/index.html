@@ -445,9 +445,9 @@
                 <!-- Pot & Position Info -->
                 <div id="preflop-pot-info" style="display:flex; justify-content:center; gap:12px; padding:4px 8px; font-size:11px; color:var(--text-muted);"></div>
 
-                <!-- Canvas table (6-max teach mode with all positions visible) -->
-                <div id="preflop-table-container" style="padding:8px 8px 12px;max-width:520px;margin:0 auto;">
-                    <canvas id="preflop-canvas" style="display:block;width:100%;"></canvas>
+                <!-- DOM+CSS teach table (2-seat HU: hero bottom, villain top) -->
+                <div id="preflop-table-container" style="padding:6px 8px 12px;max-width:520px;margin:0 auto;">
+                    <div id="preflop-poker-table"></div>
                 </div>
                 <!-- Hand label + IP/OOP hint below the canvas -->
                 <div style="text-align:center;font-size:13px;font-weight:600;margin-bottom:8px;">
@@ -552,9 +552,9 @@
             <!-- Action Timeline -->
             <div class="action-timeline" id="action-timeline"></div>
 
-            <!-- Canvas table (heads-up teaching) -->
-            <div id="practice-table-container" style="padding:12px 8px 16px;max-width:520px;margin:0 auto;">
-                <canvas id="practice-canvas" style="display:block;width:100%;"></canvas>
+            <!-- DOM+CSS table (heads-up teaching) -->
+            <div id="practice-table-container" style="padding:8px 8px 12px;max-width:520px;margin:0 auto;">
+                <div id="practice-poker-table"></div>
             </div>
             <!-- Hidden compat spans (some code still reads these) -->
             <span id="pot-display" style="display:none;">0BB</span>
@@ -814,8 +814,8 @@
         </div>
     </div>
 
-    <div id="pvp-table-container" style="padding:20px 8px 24px;max-width:540px;margin:0 auto;">
-        <canvas id="pvp-canvas" style="display:block;width:100%;"></canvas>
+    <div id="pvp-table-container" style="padding:12px 8px 16px;max-width:560px;margin:0 auto;">
+        <div id="pvp-poker-table"></div>
     </div>
     <!-- Legacy DOM kept hidden — existing code still references #pvp-pot / #pvp-board / #pvp-seats -->
     <div class="cg-table-wrap" id="pvp-table" style="display:none;">
@@ -916,7 +916,7 @@
             <button onclick="leaveCashGame()" style="background:none;border:1px solid var(--border-color);color:var(--text-muted);padding:2px 8px;border-radius:4px;font-size:10px;cursor:pointer;">离开</button>
         </div>
 
-        <!-- 6-seat Canvas table (Phase 1: static renderer via PokerTableCanvas) -->
+        <!-- 6-seat DOM+CSS table (PokerTableDom) -->
         <div id="cg-table-container" style="padding:12px 8px 16px;max-width:560px;margin:0 auto;">
             <div id="cg-poker-table"></div>
         </div>
@@ -1303,8 +1303,7 @@
 <script src="js/preflop-practice.js?v=23"></script>
 <script src="js/practice.js?v=27"></script>
 <script src="js/casino-fx.js?v=1"></script>
-<script src="js/poker-table.js?v=23"></script>
-<script src="js/poker-table-dom.js?v=1"></script>
+<script src="js/poker-table-dom.js?v=2"></script>
 <script src="js/roulette.js?v=3"></script>
 <script src="js/slots.js?v=2"></script>
 <script src="js/cash-game.js?v=1"></script>
@@ -2300,10 +2299,10 @@ function startPreflopHand() {
         if (preflopCardsEl) preflopCardsEl.innerHTML = scenario.heroCards.map(c => renderPlayingCard(c)).join('');
 
         // ---- Canvas (6-max teach mode) ----
-        if (!preflopCanvasTable && typeof PokerTableCanvas !== 'undefined') {
-            const canvas = document.getElementById('preflop-canvas');
-            if (canvas) {
-                preflopCanvasTable = new PokerTableCanvas(canvas, { seats: 2, mode: 'teach' });
+        if (!preflopCanvasTable && typeof PokerTableDom !== 'undefined') {
+            const host = document.getElementById('preflop-poker-table');
+            if (host) {
+                preflopCanvasTable = new PokerTableDom(host, { seats: 2, mode: 'teach' });
             }
         }
         if (preflopCanvasTable) {
@@ -2737,7 +2736,7 @@ function addVillainPostflopAction() {
 let practiceCanvasTable = null;
 let practicePrevBoard = [];
 
-// Convert {rank, suit:'♠'} → "As" / "Td" format used by PokerTableCanvas
+// Convert {rank, suit:'♠'} → "As" / "Td" format used by PokerTableDom
 function practiceCardStr(c) {
     if (!c) return null;
     const suitMap = { '♠':'s','♥':'h','♦':'d','♣':'c' };
@@ -2769,10 +2768,10 @@ function renderPracticeHand() {
     document.getElementById('villain-name-badge').textContent = state.villainProfile.avatar + ' ' + state.villainProfile.name;
 
     // ---- Canvas (heads-up teaching mode) ----
-    if (!practiceCanvasTable && typeof PokerTableCanvas !== 'undefined') {
-        const canvas = document.getElementById('practice-canvas');
-        if (canvas) {
-            practiceCanvasTable = new PokerTableCanvas(canvas, { seats: 2, mode: 'teach' });
+    if (!practiceCanvasTable && typeof PokerTableDom !== 'undefined') {
+        const host = document.getElementById('practice-poker-table');
+        if (host) {
+            practiceCanvasTable = new PokerTableDom(host, { seats: 2, mode: 'teach' });
         }
     }
     if (practiceCanvasTable) {
@@ -5159,11 +5158,11 @@ function pvpRenderTable(room) {
     const board = room.board || [];
     const lastAction = room.last_action || {};
 
-    // ---- Lazy-create canvas (once) ----
-    if (!pvpCanvasTable && typeof PokerTableCanvas !== 'undefined') {
-        const canvas = document.getElementById('pvp-canvas');
-        if (canvas) {
-            pvpCanvasTable = new PokerTableCanvas(canvas, { seats: 6, interactive: true, mode: 'game' });
+    // ---- Lazy-create DOM table (once) ----
+    if (!pvpCanvasTable && typeof PokerTableDom !== 'undefined') {
+        const host = document.getElementById('pvp-poker-table');
+        if (host) {
+            pvpCanvasTable = new PokerTableDom(host, { seats: 6, interactive: true, mode: 'game' });
             pvpCanvasTable.onSeatClick = (visualPos) => {
                 // Translate visual → real seat. Only allow empty-bot seats for unseated users.
                 const room2 = pvpLastRoom;

@@ -538,6 +538,14 @@ class PokerTableDom {
     // =========== Compat (no-ops used by legacy code) ===========
     resize() { /* CSS handles resize — no-op */ }
 
+    // Old canvas used a rAF loop keyed off _needsRedraw. With DOM we just
+    // re-render immediately. Provide a setter so legacy callers that poked
+    // state fields directly and then set _needsRedraw = true still work.
+    set _needsRedraw(v) {
+        if (v) this._render();
+    }
+    get _needsRedraw() { return false; }
+
     destroy() {
         this.el.innerHTML = '';
         this.el.classList.remove('poker-table');

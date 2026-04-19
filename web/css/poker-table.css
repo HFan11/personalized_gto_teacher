@@ -1,6 +1,6 @@
 /* ============================================================
    poker-table.css — DOM+CSS based poker table (WePoker-inspired)
-   Replaces the Canvas-based PokerTableCanvas rendering.
+   DOM+CSS WePoker-style table used across every poker surface.
 
    Responsive via CSS custom properties: a single set of vars
    controls all sizes, and the mobile breakpoint just re-assigns
@@ -383,16 +383,7 @@
 .poker-table .seat:not(.is-hero) .hole-cards .card:last-child  { --tilt:  12deg; }
 
 .poker-table .seat.is-folded .hole-cards { display: none; }
-.poker-table .seat.is-ghost .hole-cards,
-.poker-table .seat.is-ghost .player-info,
-.poker-table .seat.is-ghost .position-pill { display: none; }
-.poker-table .seat.is-ghost .avatar {
-    width: 8px;
-    height: 8px;
-    background: rgba(255, 255, 255, 0.22);
-    box-shadow: none;
-    font-size: 0;
-}
+.poker-table .seat.is-ghost { visibility: hidden; pointer-events: none; }
 
 /* Bet chip display */
 .poker-table .bet-chip {
