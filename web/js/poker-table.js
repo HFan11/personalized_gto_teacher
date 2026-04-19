@@ -276,11 +276,15 @@ class PokerTableCanvas {
         //     poles (top/bottom), needs vertical room to separate them and
         //     leave clean space between for cards, chip stacks, pot text.
         const isTeach = this.mode === 'teach';
-        // Adaptive aspect: narrow viewports (phones) get a taller canvas
-        // so hero cards + bot cards + pot + chip stacks still fit without
-        // overflowing. Wider desktops use landscape aspect for the
-        // "real table from above" feel.
-        const aspect = w < 440 ? 1.08 : 0.95;
+        // Adaptive aspect — keep canvas short enough that header + canvas
+        // + action bar all fit on typical viewports without scrolling.
+        //   narrow viewports (phones, w<440): taller aspect (1.05) so 6
+        //     seats + cards fit vertically at the smaller width
+        //   desktop: shorter landscape aspect. Teach mode goes shorter
+        //     still because there are only 2 seats to fit.
+        const aspect = w < 440
+            ? (isTeach ? 1.00 : 1.05)
+            : (isTeach ? 0.80 : 0.85);
         const h = Math.round(w * aspect);
         this.canvas.style.width = w + 'px';
         this.canvas.style.height = h + 'px';
@@ -289,16 +293,17 @@ class PokerTableCanvas {
         this.ctx.scale(this.dpr, this.dpr);
         this.W = w;
         this.H = h;
-        // Scale factor — shrinks fixed-pixel UI (avatar / plate / cards)
-        // proportionally on narrow canvases so everything stays inside
-        // the canvas on mobile.
+        // Scale factor for fixed-pixel UI (avatar/plate/cards/chips) so
+        // sizes shrink proportionally on narrow canvases.
         this.S = Math.max(0.72, Math.min(1, w / 540));
         this.cx = w / 2;
         this.cy = h * 0.48;
         this.rx = w * 0.46;
         this.ry = h * 0.45;
+        // Seats pulled a bit toward centre (smaller seatRy) so hero cards
+        // below the plate + pill still fit within canvas height.
         this.seatRx = isTeach ? w * 0.28 : w * 0.32;
-        this.seatRy = isTeach ? h * 0.33 : h * 0.29;
+        this.seatRy = isTeach ? h * 0.30 : h * 0.24;
         this._buildCaches();
         this._needsRedraw = true;
     }
@@ -409,8 +414,10 @@ class PokerTableCanvas {
     // ============ Card face/back cache ============
 
     _buildCardCache() {
-        const w = 64;  // base size — drawImage scales
-        const h = 88;
+        // Render at 1.5x the largest real draw size for crisp scaling. This
+        // is before DPR — the inner context already multiplies by DPR.
+        const w = 96;
+        const h = 132;
         const cache = [];
         const ranks = ['2','3','4','5','6','7','8','9','T','J','Q','K','A'];
         const suits = ['c', 'd', 'h', 's'];
@@ -419,7 +426,7 @@ class PokerTableCanvas {
                 cache.push(this._renderCardFace(rank, suit, w, h));
             }
         }
-        cache.push(this._renderCardBack(w, h));  // index 52 = back
+        cache.push(this._renderCardBack(w, h));
         this.cardCache = cache;
         this._cardIdx = (rank, suit) => {
             const ri = ranks.indexOf(rank);
@@ -429,51 +436,58 @@ class PokerTableCanvas {
         };
     }
 
+    // WePoker-style card face — big bold rank in two corners, huge
+    // centre suit symbol. Clean white background. Red / near-black
+    // for the two colour families.
     _renderCardFace(rank, suit, w, h) {
         const c = document.createElement('canvas');
         c.width = Math.round(w * this.dpr);
         c.height = Math.round(h * this.dpr);
         const cx = c.getContext('2d');
         cx.scale(this.dpr, this.dpr);
-        // White background with subtle vertical gradient
+        // Soft white gradient background
         const g = cx.createLinearGradient(0, 0, 0, h);
         g.addColorStop(0, '#ffffff');
-        g.addColorStop(1, '#e8e8ea');
+        g.addColorStop(1, '#e6e6e9');
         cx.fillStyle = g;
-        this._roundRect(cx, 0.5, 0.5, w - 1, h - 1, 6);
+        this._roundRect(cx, 0.5, 0.5, w - 1, h - 1, 8);
         cx.fill();
-        // Outer stroke
-        cx.strokeStyle = '#0a0a0a';
-        cx.lineWidth = 0.8;
-        this._roundRect(cx, 0.5, 0.5, w - 1, h - 1, 6);
+        // Thin dark border
+        cx.strokeStyle = 'rgba(0, 0, 0, 0.9)';
+        cx.lineWidth = 1;
+        this._roundRect(cx, 0.5, 0.5, w - 1, h - 1, 8);
         cx.stroke();
 
         const red = (suit === 'h' || suit === 'd');
-        cx.fillStyle = red ? '#d01a2e' : '#0a0a0a';
+        const inkColor = red ? '#d91e3a' : '#111111';
+        cx.fillStyle = inkColor;
 
-        // Top-left index
+        const rankText = rank === 'T' ? '10' : rank;
+        const suitChar = this._suitChar(suit);
+
+        // Top-left: large rank + suit below
         cx.textAlign = 'left';
         cx.textBaseline = 'top';
-        cx.font = `bold 16px -apple-system, "Helvetica Neue", sans-serif`;
-        cx.fillText(rank === 'T' ? '10' : rank, 4, 3);
-        cx.font = '12px sans-serif';
-        cx.fillText(this._suitChar(suit), 5, 20);
+        cx.font = `900 ${Math.round(w * 0.32)}px -apple-system, "Helvetica Neue", Arial, sans-serif`;
+        cx.fillText(rankText, 5, 3);
+        cx.font = `${Math.round(w * 0.22)}px "Apple Color Emoji", sans-serif`;
+        cx.fillText(suitChar, 5, Math.round(h * 0.27));
 
-        // Bottom-right index (rotated 180°)
+        // Bottom-right (rotated 180°)
         cx.save();
-        cx.translate(w - 4, h - 3);
+        cx.translate(w - 5, h - 3);
         cx.rotate(Math.PI);
-        cx.font = `bold 16px -apple-system, "Helvetica Neue", sans-serif`;
-        cx.fillText(rank === 'T' ? '10' : rank, 0, 0);
-        cx.font = '12px sans-serif';
-        cx.fillText(this._suitChar(suit), 1, 17);
+        cx.font = `900 ${Math.round(w * 0.32)}px -apple-system, "Helvetica Neue", Arial, sans-serif`;
+        cx.fillText(rankText, 0, 0);
+        cx.font = `${Math.round(w * 0.22)}px "Apple Color Emoji", sans-serif`;
+        cx.fillText(suitChar, 1, Math.round(h * 0.20));
         cx.restore();
 
-        // Center suit (large)
+        // HUGE centre suit symbol
         cx.textAlign = 'center';
         cx.textBaseline = 'middle';
-        cx.font = 'bold 34px sans-serif';
-        cx.fillText(this._suitChar(suit), w / 2, h / 2 + 2);
+        cx.font = `bold ${Math.round(w * 0.55)}px "Apple Color Emoji", sans-serif`;
+        cx.fillText(suitChar, w / 2, h / 2 + 3);
 
         return c;
     }
@@ -792,10 +806,11 @@ class PokerTableCanvas {
     _drawBoard() {
         const s = this.state;
         if (!s.board || s.board.length === 0) return;
-        const cw = 36, ch = 50, gap = 5;
+        const S = this.S || 1;
+        const cw = 40 * S, ch = 56 * S, gap = 5 * S;
         const totalW = 5 * cw + 4 * gap;
         const startX = this.cx - totalW / 2;
-        const y = this.cy - ch / 2 - 8;
+        const y = this.cy - ch / 2 - 8 * S;
         for (let i = 0; i < 5; i++) {
             const cx = startX + i * (cw + gap);
             if (i < s.board.length) {
@@ -1169,31 +1184,30 @@ class PokerTableCanvas {
             const c1 = seat.isMe || !faceDown ? cards[1] : null;
 
             if (this.mode === 'game' && seat.isMe) {
-                // Hero (WePoker): cards below the seat stack, scaled by S
-                // so they shrink on mobile viewports.
-                const cw = 44 * S, ch = 60 * S, gap = 4 * S;
+                // Hero (WePoker): prominent readable cards below the seat
+                // stack — bigger so rank/suit are obvious at a glance.
+                const cw = 52 * S, ch = 72 * S, gap = 4 * S;
                 const cardTop = pos.y + 52 * S;
                 const lx = pos.x - cw - gap / 2;
                 const rx = pos.x + gap / 2;
                 this._drawCardTilted(c0, lx, cardTop, cw, ch, -6, c0 == null);
                 this._drawCardTilted(c1, rx, cardTop, cw, ch, +6, c1 == null);
             } else if (this.mode === 'game') {
-                // Bot (WePoker): two small cards peeking from behind the
-                // avatar, fanned ±14°.
-                const cw = 24 * S, ch = 34 * S;
+                // Bot (WePoker): small cards peek from behind the avatar.
+                const cw = 28 * S, ch = 40 * S;
                 const avY = pos.y - 20 * S;
-                const cardCY = avY - 22 * S;
-                this._drawCardTilted(c0, pos.x - 10 * S - cw / 2, cardCY - ch / 2, cw, ch, -14, c0 == null);
-                this._drawCardTilted(c1, pos.x + 10 * S - cw / 2, cardCY - ch / 2, cw, ch, +14, c1 == null);
+                const cardCY = avY - 24 * S;
+                this._drawCardTilted(c0, pos.x - 11 * S - cw / 2, cardCY - ch / 2, cw, ch, -14, c0 == null);
+                this._drawCardTilted(c1, pos.x + 11 * S - cw / 2, cardCY - ch / 2, cw, ch, +14, c1 == null);
             } else if (seat.isMe) {
-                // Hero (teach): clean cards below plate, no tilt.
-                const cw = 40, ch = 56, gap = 4;
+                // Hero (teach): clean readable cards below plate, no tilt.
+                const cw = 48 * S, ch = 66 * S, gap = 4 * S;
                 const cardTop = pos.y + 46 / 2 + 6;
                 this._drawCardAt(cards[0], pos.x - cw - gap / 2, cardTop, cw, ch, cards[0] == null);
                 this._drawCardAt(cards[1], pos.x + gap / 2, cardTop, cw, ch, cards[1] == null);
             } else {
                 // Bot (teach): outward adaptive offset (GTO-Wizard-ish).
-                const cw = 28, ch = 40, gap = 4;
+                const cw = 32 * S, ch = 44 * S, gap = 4;
                 const plateW = 104, plateH = 46;
                 const outDx = pos.x - this.cx;
                 const outDy = pos.y - this.cy;
