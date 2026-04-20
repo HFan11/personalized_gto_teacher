@@ -1320,7 +1320,7 @@
 <script src="js/roulette.js?v=3"></script>
 <script src="js/slots.js?v=2"></script>
 <script src="js/cash-game.js?v=1"></script>
-<script src="js/bot-ai.js?v=1"></script>
+<script src="js/bot-ai.js?v=3"></script>
 <script>
 // ============================================================
 // App State
@@ -5751,7 +5751,7 @@ async function pvpDriveBotAction(room) {
         const botCards = await pvpFetchBotCards(handNum);
         if (botCards[seat] && typeof BotAI !== 'undefined' && typeof categorizeHand === 'function') {
             const game = pvpBuildGameForBot(room, seat, botCards);
-            const decision = BotAI.decide(game, seat);
+            const decision = await BotAI.decide(game, seat);
             action = decision.action; amount = decision.amount || 0;
         } else {
             // Simple fallback
@@ -5849,6 +5849,24 @@ function startCashGame() {
     cashGame.dealerSeat = Math.floor(Math.random() * 6);
     document.getElementById('cashgame-buyin').style.display = 'none';
     document.getElementById('cashgame-table').style.display = 'block';
+
+    // Pre-warm the preflop solver so the first bot's preflop decision
+    // doesn't take the 4s first-solve hit. Async, non-blocking — the
+    // hand starts immediately and the solver finishes in the background
+    // well before any bot actually needs it (bots have a 600-1000ms
+    // thinking delay built in, and there's the initial deal-in animation).
+    if (typeof PreflopSolver !== 'undefined') {
+        setTimeout(() => {
+            const solver = PreflopSolver.getInstance();
+            if (!solver.solved) {
+                const t0 = performance.now();
+                try { solver.solve({ iterations: 500 }); }
+                catch (e) { console.warn('[cashgame] solver warmup failed:', e.message); }
+                console.log(`[cashgame] preflop solver warmup ${(performance.now()-t0).toFixed(0)}ms`);
+            }
+        }, 0);
+    }
+
     nextCGHand();
 }
 
@@ -5913,10 +5931,11 @@ function advanceCGAction() {
         const jitter = isPreflop ? 400 : 800;
         const delay = baseDelay + Math.random() * jitter;
 
-        setTimeout(() => {
+        setTimeout(async () => {
             if (!cashGame) return;
             const actorSeat = state.actingSeat;
-            const decision = BotAI.decide(cashGame, actorSeat);
+            const decision = await BotAI.decide(cashGame, actorSeat);
+            if (!cashGame) return;   // user may have left mid-await
             const didFold = decision.action === 'fold';
             const result = cashGame.processAction(actorSeat, decision.action, decision.amount);
             // Canvas-side animations (toast + chip fly + fold)

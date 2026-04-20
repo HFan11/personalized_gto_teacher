@@ -1,10 +1,16 @@
 // ============================================================
 // Bot AI — Decision engine for 6-max cash game bots
 // Style-based play: NIT, TAG, LAG, FISH, REG
+// Preflop uses the CFR+ PreflopSolver (same engine that powers the
+// preflop practice module) and then applies a per-style tilt layer on
+// top of the GTO frequencies so each bot still has a distinct
+// personality. Postflop still uses heuristic for speed.
 // ============================================================
 
 class BotAI {
-    static decide(game, seat) {
+    // Async so it can await the preflop solver's solve() on first use
+    // of a session. Subsequent calls just hit the cached strategy table.
+    static async decide(game, seat) {
         const bot = game.seats[seat];
         const style = bot.style;
         const pos = game.getSeatPosition(seat);
@@ -22,9 +28,161 @@ class BotAI {
         const isPFR = game.handHistory.some(h => h.seat === seat && (h.action === 'raise' || h.action === 'allin') && h.street === 'preflop');
 
         if (street === 'preflop') {
+            // Try the GTO solver first. If it can't resolve this spot
+            // (unusual multi-way / limped pot / solver not loaded) fall
+            // back to the heuristic so the hand never stalls.
+            try {
+                const solved = await this._solverPreflop(holeCards, pos, style, toCall, bb, stack, seat, game, playersInHand);
+                if (solved) return solved;
+            } catch (e) {
+                console.warn('[BotAI] solver preflop failed, using heuristic:', e.message);
+            }
             return this._preflopDecision(holeCards, pos, style, toCall, bb, stack, seat, game, playersInHand);
         } else {
             return this._postflopDecision(holeCards, board, pos, style, toCall, potSize, stack, seat, game, playersInHand, isPFR);
+        }
+    }
+
+    // ============================================================
+    // SOLVER-BACKED PREFLOP
+    // ============================================================
+    //
+    // Maps the live cash-game state to one of the four canonical
+    // preflop scenarios the solver knows about:
+    //   - 'rfi'       : folded to us, first raise of the hand
+    //   - 'vs_raise'  : one prior raise to call / fold / 3-bet
+    //   - 'vs_3bet'   : two prior raises (original opener facing 3b)
+    //   - 'vs_4bet'   : three prior raises
+    // Multi-way / squeeze / limped pots fall through to the heuristic.
+    //
+    // After we have a {fold, call, raise/3bet/4bet/jam} mixed strategy,
+    // we apply a per-style tilt multiplier and then sample an action
+    // proportional to the resulting weights. Sizing of the raise still
+    // uses the standard cash-game defaults (2.5x open, 3x 3-bet, 2.5x
+    // 4-bet) because the solver only outputs the frequency mix, not a
+    // bet size.
+    static async _solverPreflop(holeCards, pos, style, toCall, bb, stack, seat, game, playersInHand) {
+        if (typeof PreflopSolver === 'undefined') return null;
+        const solver = PreflopSolver.getInstance();
+        if (!solver.solved) {
+            // Solve once — takes ~0.8s on first call. Cached from then on.
+            try { solver.solve({ iterations: 500 }); }
+            catch (e) { return null; }
+        }
+
+        // Work out the scenario by scanning THIS street's preflop history.
+        const history = game.handHistory.filter(h => h.street === 'preflop');
+        const raiseActions = history.filter(h => h.action === 'raise' || h.action === 'allin');
+        let scenario, villainPos;
+        if (raiseActions.length === 0) {
+            scenario = 'rfi';
+            villainPos = null;
+        } else if (raiseActions.length === 1) {
+            scenario = 'vs_raise';
+            villainPos = game.getSeatPosition(raiseActions[0].seat);
+        } else if (raiseActions.length === 2) {
+            // We're the opener facing a 3-bet
+            const lastRaiser = raiseActions[raiseActions.length - 1];
+            if (lastRaiser.seat === seat) return null;   // shouldn't happen (we're acting)
+            scenario = 'vs_3bet';
+            villainPos = game.getSeatPosition(lastRaiser.seat);
+        } else if (raiseActions.length === 3) {
+            scenario = 'vs_4bet';
+            villainPos = game.getSeatPosition(raiseActions[raiseActions.length - 1].seat);
+        } else {
+            return null;   // 5-bet+ spots: heuristic handles jam/fold
+        }
+
+        // Don't ask the solver for spots it wasn't trained on
+        if (scenario === 'rfi' && pos === 'BB') return null;   // BB doesn't open when folded to
+
+        // Multi-way detection: only treat as "tight multi-way" when there
+        // are 1+ prior CALLERS (not just folded players behind). The 2-player
+        // solver output is a reasonable approximation for the 6-max
+        // "facing one raise" spot since nobody has called yet.
+        const priorCallers = history.filter(h =>
+            h.action === 'call' && h.seat !== seat
+        ).length;
+        if (priorCallers >= 1 && scenario !== 'rfi') return null;   // multi-way — heuristic
+
+        const handKey = this._handToKey(holeCards);
+        const strat = solver.getStrategy(pos, handKey, scenario, villainPos);
+        if (!strat) return null;
+
+        // Apply style tilt: each style biases the GTO frequencies a bit
+        // (tight players fold more, loose more raise/call) so bots retain
+        // their personality even when they play close to GTO.
+        const tilted = this._tiltStrategy(strat, style);
+
+        // Sample an action from the mixed strategy
+        const picked = this._sampleStrategy(tilted);
+        return this._translateSolverAction(picked, scenario, toCall, bb, stack, seat, game);
+    }
+
+    static _tiltStrategy(strat, style) {
+        // Multiplier per action per style. Numbers are mild (±0.3) so bots
+        // still track GTO — they just lean tight / loose / aggressive.
+        const tilts = {
+            NIT:  { fold: 1.35, call: 0.80, raise: 0.70, '3bet': 0.70, '4bet': 0.60, jam: 0.70 },
+            TAG:  { fold: 1.10, call: 0.95, raise: 1.00, '3bet': 1.00, '4bet': 0.90, jam: 0.90 },
+            REG:  { fold: 1.00, call: 1.00, raise: 1.00, '3bet': 1.00, '4bet': 1.00, jam: 1.00 },
+            LAG:  { fold: 0.70, call: 1.10, raise: 1.30, '3bet': 1.40, '4bet': 1.30, jam: 1.20 },
+            FISH: { fold: 0.55, call: 1.55, raise: 0.85, '3bet': 0.70, '4bet': 0.60, jam: 0.70 },
+        };
+        const t = tilts[style] || tilts.REG;
+        const out = {};
+        let total = 0;
+        for (const [act, freq] of Object.entries(strat)) {
+            const m = t[act] != null ? t[act] : 1.0;
+            out[act] = Math.max(0, freq * m);
+            total += out[act];
+        }
+        if (total > 0) { for (const k in out) out[k] /= total; }
+        return out;
+    }
+
+    static _sampleStrategy(strat) {
+        const r = Math.random();
+        let acc = 0;
+        for (const [act, freq] of Object.entries(strat)) {
+            acc += freq;
+            if (r <= acc) return act;
+        }
+        // Fall back to the highest-frequency action (rounding guard)
+        let best = null, bestFreq = -1;
+        for (const [act, freq] of Object.entries(strat)) {
+            if (freq > bestFreq) { bestFreq = freq; best = act; }
+        }
+        return best || 'fold';
+    }
+
+    static _translateSolverAction(action, scenario, toCall, bb, stack, seat, game) {
+        const myBet = game.bets[seat] || 0;
+        const maxBet = stack + myBet;
+        switch (action) {
+            case 'fold':
+                // If we're already checked-down with no bet to call, check instead
+                return toCall <= 0 ? { action: 'check' } : { action: 'fold' };
+            case 'call':
+                return toCall <= 0 ? { action: 'check' } : { action: 'call', amount: toCall };
+            case 'raise': {
+                // RFI default open size — slightly larger from SB (per GTO)
+                const pos = game.getSeatPosition(seat);
+                const size = pos === 'SB' ? 3 * bb : 2.5 * bb;
+                return this._raise(Math.min(size, maxBet), game);
+            }
+            case '3bet': {
+                const size = Math.round(game.currentBet * 3 * 10) / 10;
+                return this._raise(Math.min(size, maxBet), game);
+            }
+            case '4bet': {
+                const size = Math.round(game.currentBet * 2.3 * 10) / 10;
+                return this._raise(Math.min(size, maxBet), game);
+            }
+            case 'jam':
+                return { action: 'allin', amount: maxBet };
+            default:
+                return null;
         }
     }
 
