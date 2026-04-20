@@ -20,12 +20,12 @@
     --pt-avatar-size: 40px;
     --pt-plate-w: 100px;
     --pt-plate-h: 30px;
-    --pt-card-w: 58px;
-    --pt-card-h: 82px;
-    --pt-board-card-w: 50px;
-    --pt-board-card-h: 70px;
-    --pt-bot-card-w: 28px;
-    --pt-bot-card-h: 38px;
+    --pt-card-w: 46px;
+    --pt-card-h: 64px;
+    --pt-board-card-w: 44px;
+    --pt-board-card-h: 62px;
+    --pt-bot-card-w: 26px;
+    --pt-bot-card-h: 36px;
     --pt-pill-font: 10px;
     --pt-stack-font: 13px;
     --pt-name-font: 11px;
@@ -69,12 +69,12 @@
         --pt-avatar-size: 32px;
         --pt-plate-w: 78px;
         --pt-plate-h: 26px;
-        --pt-card-w: 48px;
-        --pt-card-h: 68px;
-        --pt-board-card-w: 40px;
-        --pt-board-card-h: 56px;
-        --pt-bot-card-w: 24px;
-        --pt-bot-card-h: 33px;
+        --pt-card-w: 38px;
+        --pt-card-h: 54px;
+        --pt-board-card-w: 34px;
+        --pt-board-card-h: 48px;
+        --pt-bot-card-w: 22px;
+        --pt-bot-card-h: 30px;
         --pt-pill-font: 9px;
         --pt-stack-font: 12px;
         --pt-name-font: 10px;
@@ -89,26 +89,26 @@
    board cards are sized so both fit without overlapping. */
 .poker-table[data-mode="teach"] {
     --pt-seat-rx: 0%;
-    --pt-seat-ry: 40%;
-    --pt-card-w: 52px;
-    --pt-card-h: 72px;
+    --pt-seat-ry: 42%;
+    --pt-card-w: 42px;
+    --pt-card-h: 60px;
     --pt-board-card-w: 36px;
     --pt-board-card-h: 50px;
 }
 .poker-table[data-mode="teach"][data-seats="2"] {
-    aspect-ratio: 1 / 0.82;
+    aspect-ratio: 1 / 0.85;
     max-width: 520px;
 }
 @media (max-width: 600px) {
     .poker-table[data-mode="teach"] {
-        --pt-card-w: 46px;
-        --pt-card-h: 64px;
+        --pt-card-w: 36px;
+        --pt-card-h: 52px;
         --pt-board-card-w: 32px;
         --pt-board-card-h: 44px;
     }
     .poker-table[data-mode="teach"][data-seats="2"] {
-        aspect-ratio: 1 / 1.05;
-        --pt-seat-ry: 38%;
+        aspect-ratio: 1 / 0.95;
+        --pt-seat-ry: 40%;
     }
 }
 

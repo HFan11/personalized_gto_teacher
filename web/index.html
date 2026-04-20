@@ -442,8 +442,8 @@
                 <!-- Action Timeline (replaces dense text) -->
                 <div class="action-timeline" id="preflop-action-timeline"></div>
 
-                <!-- Pot & Position Info -->
-                <div id="preflop-pot-info" style="display:flex; justify-content:center; gap:12px; padding:4px 8px; font-size:11px; color:var(--text-muted);"></div>
+                <!-- Pot / SPR info (hidden — the table now shows the pot prominently) -->
+                <div id="preflop-pot-info" style="display:none;"></div>
 
                 <!-- DOM+CSS teach table (2-seat HU: hero bottom, villain top) -->
                 <div id="preflop-table-container" style="padding:6px 8px 12px;max-width:520px;margin:0 auto;">
@@ -2195,6 +2195,10 @@ function renderPreflopCanvas(scenario) {
             return;
         }
         const step = sequence[i];
+        // Stack = starting 100 BB - whatever this player has posted this
+        // street (their total bet is step.amount since it's a raise-to).
+        const seat = preflopCanvasTable.state.seats[step.vp];
+        if (seat) seat.stack = Math.max(0, 100 - step.amount);
         preflopCanvasTable.state.bets[step.vp] = step.amount;
         recomputePot();
         preflopCanvasTable.playAction(step.vp, step.action, step.amount);
@@ -2344,6 +2348,33 @@ function startPreflopHand() {
 function preflopAction(action) {
     const result = preflopPractice.processAnswer(action);
     if (!result) return;
+
+    // Visualise hero's action on the table — update the hero bet chip,
+    // decrement hero's stack, and fire the toast + chip-fly animation.
+    if (preflopCanvasTable) {
+        const OPEN = 2.5, THREE = 8, FOUR = 22;
+        let heroBet = 0, toastAction = action;
+        if (action === 'raise') heroBet = OPEN;
+        else if (action === '3bet') heroBet = THREE;
+        else if (action === '4bet') heroBet = FOUR;
+        else if (action === '5bet-jam') heroBet = 100;
+        else if (action === 'call') heroBet = preflopCanvasTable.state.bets[1] || 0;
+        // For the toast, collapse all raise variants into 'raise' / 'allin'
+        if (['raise', '3bet', '4bet'].includes(action)) toastAction = 'raise';
+        if (action === '5bet-jam') toastAction = 'allin';
+
+        const heroSeat = preflopCanvasTable.state.seats[0];
+        if (heroSeat) heroSeat.stack = Math.max(0, 100 - heroBet);
+        preflopCanvasTable.state.bets[0] = heroBet;
+        // Recompute pot to include hero's new contribution
+        const b = preflopCanvasTable.state.bets;
+        preflopCanvasTable.state.pot = (b[0] || 0) + (b[1] || 0) +
+            (preflopCanvasTable.state.pot - ((b[0] || 0) + (b[1] || 0)) > 0
+                ? preflopCanvasTable.state.pot - ((b[0] || 0) + (b[1] || 0))
+                : 0);
+        preflopCanvasTable.playAction(0, toastAction, heroBet);
+        preflopCanvasTable._needsRedraw = true;
+    }
 
     // Hide action buttons
     document.getElementById('preflop-action-buttons').style.display = 'none';

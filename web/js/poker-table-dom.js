@@ -387,7 +387,10 @@ class PokerTableDom {
         } catch (e) { /* ignore */ }
     }
 
-    // Fly a single chip sprite from a seat toward its bet slot
+    // Fly a single chip sprite from a seat toward its bet slot. In teach
+    // mode the bet slot is right next to the avatar (small travel), so we
+    // fly a SECOND chip toward the pot as well — that's the WePoker feel
+    // the user wants.
     _animateChipFly(seatIdx) {
         const seatEl = this.seatEls[seatIdx];
         if (!seatEl) return;
@@ -398,8 +401,8 @@ class PokerTableDom {
         const betRect = betChipEl.getBoundingClientRect();
         const fromX = avRect.left - parentRect.left + avRect.width / 2;
         const fromY = avRect.top - parentRect.top + avRect.height / 2;
-        // If bet chip is hidden (size 0), approximate its slot location 50/50
-        // between seat and table centre.
+        // Primary destination: the bet-slot (or an inferred slot between
+        // the seat and centre if the bet chip element has no size yet).
         let toX, toY;
         if (betRect.width > 0) {
             toX = betRect.left - parentRect.left + betRect.width / 2;
@@ -410,6 +413,16 @@ class PokerTableDom {
             toY = fromY + (cy - fromY) * 0.5;
         }
         this._spawnFlyingChip(fromX, fromY, toX, toY, 520);
+        // In teach mode the bet slot is beside the avatar, so also fly a
+        // delayed chip from the avatar toward the pot for clarity.
+        if (this.mode === 'teach') {
+            const potRect = this.potEl.getBoundingClientRect();
+            const potX = potRect.left - parentRect.left + potRect.width / 2;
+            const potY = potRect.top - parentRect.top + potRect.height / 2;
+            setTimeout(() => {
+                this._spawnFlyingChip(fromX, fromY, potX, potY, 620);
+            }, 120);
+        }
         this._sound('chip');
     }
 
