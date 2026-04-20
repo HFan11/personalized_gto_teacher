@@ -276,18 +276,19 @@ class PokerTableDom {
         const wasEmpty = hcEl.children.length === 0;
         const isHero = !!seat.isMe;
 
+        const revealing = isHero || (cards.length === 2 && street === 'showdown' && cards[0] && cards[1]);
         hcEl.innerHTML = '';
         for (let k = 0; k < 2; k++) {
-            let card;
-            if (isHero || (cards.length === 2 && street === 'showdown')) {
-                card = cards[k];
-            }
-            const cel = this._makeCardEl(card, !isHero);
+            const card = revealing ? cards[k] : null;
+            // facedown when the seat is NOT revealing (non-hero outside showdown)
+            const cel = this._makeCardEl(card, !revealing);
+            // Opponent seats keep the "small peek" style even at showdown —
+            // it visually matches the pre-showdown peek position.
             if (!isHero) cel.classList.add('small');
             if (wasEmpty) {
                 cel.classList.add('dealing-in');
                 cel.style.animationDelay = (i * 0.08 + k * 0.05) + 's';
-            } else if (street === 'showdown') {
+            } else if (street === 'showdown' && !isHero) {
                 cel.classList.add('flipping-in');
                 cel.style.animationDelay = (k * 0.12) + 's';
             }

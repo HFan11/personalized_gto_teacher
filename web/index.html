@@ -1307,7 +1307,7 @@
 <script src="js/preflop-practice.js?v=23"></script>
 <script src="js/practice.js?v=27"></script>
 <script src="js/casino-fx.js?v=1"></script>
-<script src="js/poker-table-dom.js?v=2"></script>
+<script src="js/poker-table-dom.js?v=3"></script>
 <script src="js/roulette.js?v=3"></script>
 <script src="js/slots.js?v=2"></script>
 <script src="js/cash-game.js?v=1"></script>
@@ -2824,18 +2824,24 @@ function renderPracticeHand() {
 
         // If a brand-new hand: reset canvas state (clear old board + FX). If same
         // hand advancing streets, preserve canvas board so dealBoard only animates the new card.
+        // Per-seat stack: the practice engine only tracks a single effective
+        // stack (the hero's). Villain's pending bet on the current street
+        // hasn't been applied to effectiveStack yet — subtract it so the
+        // villain plate reads the right number.
+        const heroStackDisplay = state.effectiveStack;
+        const villainStackDisplay = Math.max(0, state.effectiveStack - villainBet);
         const stateToSet = {
             seats: [
                 {
                     name: 'Hero',
-                    stack: state.effectiveStack,
+                    stack: heroStackDisplay,
                     holeCards: heroCardsStr,
                     isMe: true,
                     position: state.heroPosition,
                 },
                 {
                     name: state.villainProfile.name || 'Villain',
-                    stack: state.effectiveStack,
+                    stack: villainStackDisplay,
                     holeCards: null,  // face-down until showdown
                     isMe: false,
                     position: state.villainPosition,
@@ -3178,12 +3184,8 @@ function makeAction(action, sizingPct) {
 
     // === Post-action flow ===
     if (action === 'fold') {
-        // Canvas: villain wins the pot
-        if (practiceCanvasTable) {
-            setTimeout(() => {
-                if (practiceCanvasTable) practiceCanvasTable.showWinner(1, practice.potSize || 0);
-            }, 300);
-        }
+        // Fold: renderFoldResult reveals villain's cards on the table and
+        // triggers the winner burst; no need for an extra showWinner here.
         renderFoldResult();
         showPostButtons('end');
     } else if (action === 'check') {
@@ -3685,22 +3687,27 @@ function renderShowdown() {
     // Also reveal on table
     document.getElementById('villain-cards-display').innerHTML = state.villainCards.map(c => renderPlayingCard(c)).join('');
 
-    // Canvas: reveal villain cards + winner burst
+    // Canvas: reveal villain cards + winner burst. Set street to
+    // 'showdown' so the DOM renderer unfaces the villain's cards.
     if (practiceCanvasTable) {
         const villainStr = state.villainCards.map(practiceCardStr);
-        // Patch villain seat's holeCards in-place so the canvas shows the reveal.
         const seats = practiceCanvasTable.state.seats;
         if (seats && seats[1]) seats[1].holeCards = villainStr;
+        practiceCanvasTable.state.street = 'showdown';
         practiceCanvasTable._needsRedraw = true;
-        if (heroEval.score > villainEval.score) {
-            practiceCanvasTable.showWinner(0, state.potSize);
-        } else if (heroEval.score < villainEval.score) {
-            practiceCanvasTable.showWinner(1, state.potSize);
-        } else {
-            // Split pot — show a winner burst on both seats
-            practiceCanvasTable.showWinner(0, state.potSize / 2);
-            practiceCanvasTable.showWinner(1, state.potSize / 2);
-        }
+        // Small delay so the flip-in animation reads before the winner burst
+        const announceWinner = () => {
+            if (!practiceCanvasTable) return;
+            if (heroEval.score > villainEval.score) {
+                practiceCanvasTable.showWinner(0, state.potSize);
+            } else if (heroEval.score < villainEval.score) {
+                practiceCanvasTable.showWinner(1, state.potSize);
+            } else {
+                practiceCanvasTable.showWinner(0, state.potSize / 2);
+                practiceCanvasTable.showWinner(1, state.potSize / 2);
+            }
+        };
+        setTimeout(announceWinner, 650);
     }
 
     const resultEl = document.getElementById('showdown-result');
@@ -3733,6 +3740,20 @@ function renderFoldResult() {
 
     // Also reveal on table
     document.getElementById('villain-cards-display').innerHTML = state.villainCards.map(c => renderPlayingCard(c)).join('');
+
+    // Reveal villain cards on the DOM poker table as well (teaching feature —
+    // even though hero folded, show what they had so the user learns).
+    if (practiceCanvasTable) {
+        const villainStr = state.villainCards.map(practiceCardStr);
+        const seats = practiceCanvasTable.state.seats;
+        if (seats && seats[1]) seats[1].holeCards = villainStr;
+        practiceCanvasTable.state.street = 'showdown';
+        practiceCanvasTable._needsRedraw = true;
+        // Pot still goes to villain since hero folded.
+        setTimeout(() => {
+            if (practiceCanvasTable) practiceCanvasTable.showWinner(1, state.potSize);
+        }, 500);
+    }
 
     // Show whether hero would have won if they didn't fold
     const heroEval = evaluateBest(state.heroCards, state.boardCards);
@@ -5910,9 +5931,11 @@ function showCGResult(result) {
     tableWrap.appendChild(chipAnim);
     setTimeout(() => chipAnim.remove(), 1600);
 
-    // Auto advance to next hand after delay
+    // Auto advance to next hand. Showdowns need extra time so the user
+    // can actually see the villain's cards flip open and the winner burst.
     const savedGame = cashGame;
-    setTimeout(() => { if (cashGame === savedGame && cashGame) nextCGHand(); }, 2200);
+    const delayMs = result.showdown ? 3400 : 2200;
+    setTimeout(() => { if (cashGame === savedGame && cashGame) nextCGHand(); }, delayMs);
 }
 
 function updateCGStats() {

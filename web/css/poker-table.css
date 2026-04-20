@@ -440,6 +440,15 @@
 .poker-table .seat:not(.is-hero) .hole-cards .card:first-child { --tilt: -12deg; }
 .poker-table .seat:not(.is-hero) .hole-cards .card:last-child  { --tilt:  12deg; }
 
+/* In teach HU mode, the villain seat sits near the top of the table —
+   cards peeking above the avatar clip the felt border. Tuck them
+   BEHIND the avatar so they peek DOWNWARD toward the board instead. */
+.poker-table[data-mode="teach"] .seat:not(.is-hero) .hole-cards {
+    top: calc(var(--pt-avatar-size) * 0.55);
+}
+.poker-table[data-mode="teach"] .seat:not(.is-hero) .hole-cards .card:first-child { --tilt: -6deg; }
+.poker-table[data-mode="teach"] .seat:not(.is-hero) .hole-cards .card:last-child  { --tilt:  6deg; }
+
 .poker-table .seat.is-folded .hole-cards { display: none; }
 .poker-table .seat.is-ghost { visibility: hidden; pointer-events: none; }
 
