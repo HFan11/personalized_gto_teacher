@@ -39,7 +39,118 @@ class BotAI {
             }
             return this._preflopDecision(holeCards, pos, style, toCall, bb, stack, seat, game, playersInHand);
         } else {
+            // Postflop: try precomputed GTO lookup on the flop; fall
+            // through to heuristic for turn/river and uncovered flops.
+            try {
+                const solved = await this._solverPostflop(holeCards, board, pos, style, toCall, potSize, stack, seat, game, playersInHand, isPFR);
+                if (solved) return solved;
+            } catch (e) {
+                console.warn('[BotAI] solver postflop failed, using heuristic:', e.message);
+            }
             return this._postflopDecision(holeCards, board, pos, style, toCall, potSize, stack, seat, game, playersInHand, isPFR);
+        }
+    }
+
+    // ============================================================
+    // SOLVER-BACKED POSTFLOP (flop only, via PrecomputedLookup)
+    // ============================================================
+    //
+    // Our precomputed flop library (235 boards, ~293 hands each) is
+    // fuzzy-matched by rank/suit pattern, so ~80% of flops hit a
+    // solved strategy for free. The strategy is for a generic "SRP
+    // IP vs OOP" setup — ideal for the cash-game common case where
+    // the bot got here after raise-call preflop.
+    //
+    // Strategy shape:
+    //   { check: 0.5, "bet_BET 3.0": 0.4, "bet_BET 10.0": 0.1 }
+    // or { fold: 0.4, call: 0.5, "raise_RAISE 12.0": 0.1 }
+    //
+    // We collapse the sized-bet keys into generic "bet" / "raise"
+    // totals, apply the same style-tilt layer as preflop, sample an
+    // action, then pick a concrete sizing based on the hand's
+    // strength (value hands bet bigger, bluffs smaller).
+    static async _solverPostflop(holeCards, board, pos, style, toCall, potSize, stack, seat, game, playersInHand, isPFR) {
+        if (typeof precomputedLookup === 'undefined') return null;
+        if (board.length !== 3) return null;                       // flop only for now
+        if (playersInHand > 2) return null;                        // precomputed is HU
+        if (stack <= 0 || potSize < game.bb) return null;          // degenerate
+
+        const isIP = pos === 'BTN' || pos === 'CO';
+        const facingBet = toCall > 0;
+        const result = await precomputedLookup.getStrategy(board, holeCards, isIP, facingBet);
+        if (!result || !result.strategy) return null;
+
+        // Collapse sized-bet/raise keys into plain "bet"/"raise"
+        const raw = result.strategy;
+        const collapsed = { check: 0, fold: 0, call: 0, bet: 0, raise: 0 };
+        for (const [k, v] of Object.entries(raw)) {
+            if (k === 'check') collapsed.check += v;
+            else if (k === 'fold') collapsed.fold += v;
+            else if (k === 'call') collapsed.call += v;
+            else if (k.startsWith('bet_')) collapsed.bet += v;
+            else if (k.startsWith('raise_')) collapsed.raise += v;
+        }
+        // Drop zero-freq actions before tilt so we don't divide by zero
+        const cleaned = {};
+        for (const [k, v] of Object.entries(collapsed)) if (v > 0.001) cleaned[k] = v;
+        if (Object.keys(cleaned).length === 0) return null;
+
+        // Apply the same per-style tilt, but only the relevant keys
+        const tilts = {
+            NIT:  { fold: 1.4,  call: 0.8, check: 1.1, bet: 0.7, raise: 0.6 },
+            TAG:  { fold: 1.1,  call: 0.95, check: 1.0, bet: 0.95, raise: 0.9 },
+            REG:  { fold: 1.0,  call: 1.0,  check: 1.0, bet: 1.0,  raise: 1.0 },
+            LAG:  { fold: 0.7,  call: 1.0,  check: 0.85, bet: 1.3, raise: 1.35 },
+            FISH: { fold: 0.55, call: 1.5,  check: 1.0, bet: 0.9, raise: 0.7 },
+        };
+        const t = tilts[style] || tilts.REG;
+        const tilted = {};
+        let total = 0;
+        for (const [k, v] of Object.entries(cleaned)) {
+            const m = t[k] != null ? t[k] : 1.0;
+            tilted[k] = Math.max(0, v * m);
+            total += tilted[k];
+        }
+        if (total <= 0) return null;
+        for (const k in tilted) tilted[k] /= total;
+
+        const picked = this._sampleStrategy(tilted);
+        return this._translatePostflopAction(picked, holeCards, board, toCall, potSize, stack, seat, game);
+    }
+
+    static _translatePostflopAction(action, holeCards, board, toCall, potSize, stack, seat, game) {
+        const myBet = game.bets[seat] || 0;
+        const maxBet = stack + myBet;
+        switch (action) {
+            case 'check':
+                return { action: 'check' };
+            case 'fold':
+                // Never fold when you can check for free
+                return toCall <= 0 ? { action: 'check' } : { action: 'fold' };
+            case 'call':
+                return toCall <= 0 ? { action: 'check' } : { action: 'call', amount: toCall };
+            case 'bet': {
+                // Pick sizing by hand strength: value hands bet ~66% pot,
+                // medium hands ~33-50%, bluffs mixed.
+                const evalH = (typeof categorizeHand === 'function') ? categorizeHand(holeCards, board) : null;
+                const str = evalH ? evalH.strength : 0.4;
+                let pct;
+                if (str >= 0.85) pct = 0.66;
+                else if (str >= 0.6) pct = 0.5;
+                else if (str >= 0.35) pct = 0.33;
+                else pct = Math.random() < 0.5 ? 0.66 : 0.33;
+                const size = Math.max(game.bb, Math.round(potSize * pct * 10) / 10);
+                if (size >= maxBet - 0.5) return { action: 'allin', amount: maxBet };
+                return { action: 'bet', amount: Math.min(size, maxBet) };
+            }
+            case 'raise': {
+                // Raise-to = currentBet * 2.5 with pot-size guardrail
+                const raiseTo = Math.round(game.currentBet * 2.5 * 10) / 10;
+                if (raiseTo >= maxBet - 0.5) return { action: 'allin', amount: maxBet };
+                return { action: 'raise', amount: Math.min(raiseTo, maxBet) };
+            }
+            default:
+                return null;
         }
     }
 
