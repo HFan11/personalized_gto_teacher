@@ -20,12 +20,12 @@
     --pt-avatar-size: 40px;
     --pt-plate-w: 100px;
     --pt-plate-h: 30px;
-    --pt-card-w: 54px;
-    --pt-card-h: 76px;
-    --pt-board-card-w: 44px;
-    --pt-board-card-h: 62px;
-    --pt-bot-card-w: 26px;
-    --pt-bot-card-h: 36px;
+    --pt-card-w: 58px;
+    --pt-card-h: 82px;
+    --pt-board-card-w: 50px;
+    --pt-board-card-h: 70px;
+    --pt-bot-card-w: 28px;
+    --pt-bot-card-h: 38px;
     --pt-pill-font: 10px;
     --pt-stack-font: 13px;
     --pt-name-font: 11px;
@@ -69,12 +69,12 @@
         --pt-avatar-size: 32px;
         --pt-plate-w: 78px;
         --pt-plate-h: 26px;
-        --pt-card-w: 44px;
-        --pt-card-h: 62px;
-        --pt-board-card-w: 34px;
-        --pt-board-card-h: 48px;
-        --pt-bot-card-w: 22px;
-        --pt-bot-card-h: 30px;
+        --pt-card-w: 48px;
+        --pt-card-h: 68px;
+        --pt-board-card-w: 40px;
+        --pt-board-card-h: 56px;
+        --pt-bot-card-w: 24px;
+        --pt-bot-card-h: 33px;
         --pt-pill-font: 9px;
         --pt-stack-font: 12px;
         --pt-name-font: 10px;
@@ -85,13 +85,15 @@
 }
 
 /* Teach mode (2-seat — compact so the whole hand + action bar fits
-   on a single screen, especially on mobile). Board cards are sized
-   down so hero's hole-cards-above-seat don't overlap with them.     */
+   on a single screen, especially on mobile). Hero hole-cards and
+   board cards are sized so both fit without overlapping. */
 .poker-table[data-mode="teach"] {
     --pt-seat-rx: 0%;
     --pt-seat-ry: 40%;
-    --pt-board-card-w: 34px;
-    --pt-board-card-h: 48px;
+    --pt-card-w: 52px;
+    --pt-card-h: 72px;
+    --pt-board-card-w: 36px;
+    --pt-board-card-h: 50px;
 }
 .poker-table[data-mode="teach"][data-seats="2"] {
     aspect-ratio: 1 / 0.82;
@@ -99,8 +101,10 @@
 }
 @media (max-width: 600px) {
     .poker-table[data-mode="teach"] {
-        --pt-board-card-w: 30px;
-        --pt-board-card-h: 42px;
+        --pt-card-w: 46px;
+        --pt-card-h: 64px;
+        --pt-board-card-w: 32px;
+        --pt-board-card-h: 44px;
     }
     .poker-table[data-mode="teach"][data-seats="2"] {
         aspect-ratio: 1 / 1.05;
@@ -187,61 +191,102 @@
     min-height: var(--pt-board-card-h);
 }
 
-/* ============ Cards ============ */
+/* ============ Cards (WePoker-style) ============
+   Large, readable rank anchored top-left. A prominent suit symbol
+   below it (also top-left) and a big centred suit glyph so the suit
+   is always identifiable at a glance. No mirrored rank/suit at the
+   bottom-right — clean face like WePoker.
+*/
 .poker-table .card {
     width: var(--pt-card-w);
     height: var(--pt-card-h);
-    background: linear-gradient(180deg, #ffffff 0%, #e8e8eb 100%);
+    /* Anchor child font-sizes to the card height so % scales correctly */
+    font-size: var(--pt-card-h);
+    background: linear-gradient(180deg, #ffffff 0%, #f2f2f5 100%);
     border-radius: 6px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(0,0,0,0.06);
     position: relative;
     font-weight: 900;
-    font-family: -apple-system, "Helvetica Neue", Arial, sans-serif;
-    display: grid;
-    place-items: center;
+    font-family: -apple-system, "Helvetica Neue", "SF Pro Display", Arial, sans-serif;
+    font-feature-settings: "lnum" 1, "tnum" 1;
     flex-shrink: 0;
+    overflow: hidden;
 }
 
 /* Board-card variant is smaller */
 .poker-table .board-cards .card {
     width: var(--pt-board-card-w);
     height: var(--pt-board-card-h);
+    font-size: var(--pt-board-card-h);
 }
 /* Bot peek card variant */
 .poker-table .hole-cards .card.small {
     width: var(--pt-bot-card-w);
     height: var(--pt-bot-card-h);
+    font-size: var(--pt-bot-card-h);
     border-radius: 4px;
 }
 
 .poker-table .card.red { color: var(--pt-card-red); }
 .poker-table .card.black { color: var(--pt-card-black); }
 
-/* Rank at top-left, suit below. Stacked via CSS grid. */
+/* BIG rank — top-left, takes up ~half the card width */
 .poker-table .card::before {
     content: attr(data-rank);
     position: absolute;
-    top: 5%;
+    top: 4%;
     left: 8%;
+    font-size: 52%;
+    line-height: 0.95;
+    font-weight: 900;
+    letter-spacing: -0.04em;
+}
+/* 10 is wider — squeeze letter-spacing + shift slightly */
+.poker-table .card[data-rank="10"]::before {
+    font-size: 44%;
+    letter-spacing: -0.12em;
+    left: 5%;
+}
+
+/* Suit symbol right below the rank */
+.poker-table .card .suit-corner {
+    position: absolute;
+    top: 46%;
+    left: 10%;
     font-size: 32%;
     line-height: 1;
     font-weight: 900;
-    letter-spacing: -0.05em;
 }
-.poker-table .card .suit-corner {
+.poker-table .card[data-rank="10"] .suit-corner { top: 44%; left: 12%; }
+
+/* Big centre suit glyph (a softer watermark) */
+.poker-table .card .suit-center {
     position: absolute;
-    top: 32%;
-    left: 10%;
-    font-size: 22%;
+    right: 6%;
+    bottom: 4%;
+    font-size: 48%;
     line-height: 1;
+    font-weight: 900;
+    opacity: 0.92;
 }
 
-/* Big centre suit */
-.poker-table .card .suit-center {
-    font-size: 55%;
-    line-height: 1;
-    font-weight: 700;
+/* Small cards (bot peek) don't need the centre suit — rank + corner suit is enough */
+.poker-table .card.small::before {
+    font-size: 48%;
+    top: 8%;
+    left: 12%;
 }
+.poker-table .card.small[data-rank="10"]::before {
+    font-size: 40%;
+    letter-spacing: -0.14em;
+    left: 8%;
+}
+.poker-table .card.small .suit-corner {
+    top: 52%;
+    left: 14%;
+    font-size: 34%;
+}
+.poker-table .card.small .suit-center { display: none; }
 
 /* Face-down card back */
 .poker-table .card.facedown {
