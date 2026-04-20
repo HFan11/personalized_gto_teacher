@@ -169,20 +169,66 @@
     z-index: 3;
 }
 
+/* Pot rendered as a row of chip stacks + a small BB label. The chips
+   are the primary visual; the amount sits below as a subtitle. */
 .poker-table .pot-display {
-    padding: 4px 14px;
-    background: rgba(0, 0, 0, 0.55);
-    border: 1px solid var(--pt-gold-soft);
-    border-radius: 14px;
-    color: var(--pt-gold);
-    font-size: 14px;
-    font-weight: 700;
-    white-space: nowrap;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
     min-height: 22px;
-    transition: transform 0.2s;
+    padding: 0;
+    background: transparent;
+    border: none;
+    pointer-events: none;
 }
-.poker-table .pot-display:empty {
-    opacity: 0;
+.poker-table .pot-display:not(.has-pot) { opacity: 0; }
+
+.poker-table .pot-stack-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+}
+.poker-table .pot-chip-stack {
+    display: flex;
+    flex-direction: column-reverse;
+    align-items: center;
+}
+.poker-table .pot-chip {
+    width: 22px;
+    height: 6px;
+    border-radius: 50%;
+    margin-bottom: -3px;
+    border: 1px solid rgba(0, 0, 0, 0.3);
+    box-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.5),
+        inset 0 -1.5px 0 rgba(0, 0, 0, 0.22),
+        inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+.poker-table .pot-chip.chip-1 {
+    background: linear-gradient(to bottom, #ffffff 0%, #d4d7de 100%);
+}
+.poker-table .pot-chip.chip-5 {
+    background: linear-gradient(to bottom, #fb7185 0%, #991b1b 100%);
+}
+.poker-table .pot-chip.chip-25 {
+    background: linear-gradient(to bottom, #4ade80 0%, #14532d 100%);
+}
+.poker-table .pot-chip.chip-100 {
+    background: linear-gradient(to bottom, #475569 0%, #0f172a 100%);
+}
+.poker-table .pot-amount {
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--pt-gold);
+    letter-spacing: 0.4px;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+    font-variant-numeric: tabular-nums;
+    margin-top: 2px;
+}
+@media (max-width: 600px) {
+    .poker-table .pot-chip { width: 18px; height: 5px; margin-bottom: -2.5px; }
+    .poker-table .pot-amount { font-size: 12px; }
 }
 
 .poker-table .board-cards {
@@ -316,6 +362,11 @@
     z-index: 4;
     transition: opacity 0.3s;
 }
+/* In teach mode (only the villain seat above the board), give more
+   breathing room between the avatar / plate / position pill — the
+   compact 6-seat layout isn't needed here. */
+.poker-table[data-mode="teach"] .seat { gap: 6px; }
+.poker-table[data-mode="teach"] .seat .position-pill { margin-top: 2px; }
 
 .poker-table .seat.is-folded {
     opacity: 0.35;
@@ -529,10 +580,11 @@
    pot pill in the compact teach layout. Offsets are anchored to the
    avatar-size variable so mobile and desktop line up cleanly. */
 /* With hero hole-cards pulled ABOVE the seat (absolute), hero + villain
-   seats are the same compact height. Both chips sit beside the avatar. */
+   seats are the same compact height. Both chips sit beside the avatar,
+   well clear of the plate so the layout feels less compact. */
 .poker-table[data-seats="2"] .seat .bet-chip {
     top: calc(var(--pt-avatar-size, 40px) * 0.5);
-    left: calc(50% + var(--pt-avatar-size, 40px) * 0.9);
+    left: calc(50% + var(--pt-avatar-size, 40px) * 1.35);
     transform: translate(-50%, -50%);
 }
 

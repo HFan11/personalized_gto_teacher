@@ -166,7 +166,7 @@ class PokerTableDom {
     _render() {
         const s = this.state;
         // Pot
-        this.potEl.textContent = s.pot > 0 ? `底池 ${s.pot.toFixed(1)} BB` : '';
+        this._renderPot(s.pot);
 
         // Board
         this._renderBoard();
@@ -178,6 +178,55 @@ class PokerTableDom {
 
         // Dealer button
         this._renderDealer();
+    }
+
+    // Render the pot as a row of chip stacks (100 / 25 / 5 / 1 denominations)
+    // plus a small "X BB" label underneath. Caps each column at 6 chips so the
+    // stack stays proportional for huge pots.
+    _renderPot(pot) {
+        if (!this.potEl) return;
+        this.potEl.innerHTML = '';
+        if (!pot || pot <= 0.01) {
+            this.potEl.classList.remove('has-pot');
+            return;
+        }
+        this.potEl.classList.add('has-pot');
+
+        // Break pot into denominations
+        const denoms = [
+            { value: 100, cls: 'chip-100', max: 5 },
+            { value: 25,  cls: 'chip-25',  max: 5 },
+            { value: 5,   cls: 'chip-5',   max: 6 },
+            { value: 1,   cls: 'chip-1',   max: 6 },
+        ];
+        let remaining = pot;
+        const columns = [];
+        for (const d of denoms) {
+            const count = Math.floor((remaining + 0.001) / d.value);
+            if (count > 0) columns.push({ cls: d.cls, count: Math.min(count, d.max) });
+            remaining -= count * d.value;
+        }
+        // If nothing made it through (very small pot < 1), force one white chip
+        if (columns.length === 0) columns.push({ cls: 'chip-1', count: 1 });
+
+        const stackRow = document.createElement('div');
+        stackRow.className = 'pot-stack-row';
+        for (const col of columns) {
+            const stack = document.createElement('div');
+            stack.className = 'pot-chip-stack';
+            for (let i = 0; i < col.count; i++) {
+                const chip = document.createElement('div');
+                chip.className = 'pot-chip ' + col.cls;
+                stack.appendChild(chip);
+            }
+            stackRow.appendChild(stack);
+        }
+        this.potEl.appendChild(stackRow);
+
+        const label = document.createElement('div');
+        label.className = 'pot-amount';
+        label.textContent = pot.toFixed(1) + ' BB';
+        this.potEl.appendChild(label);
     }
 
     _renderBoard() {

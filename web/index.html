@@ -7,7 +7,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Personalized Poker Teacher</title>
     <link rel="stylesheet" href="css/style.css?v=31">
-    <link rel="stylesheet" href="css/poker-table.css?v=1">
+    <link rel="stylesheet" href="css/poker-table.css?v=5">
 </head>
 <body>
 
@@ -828,20 +828,29 @@
         </div>
     </div>
 
-    <!-- Hero hand (shown when seated) -->
-    <div id="pvp-hero-hand" style="display:flex;justify-content:center;gap:6px;margin-bottom:8px;min-height:66px;"></div>
+    <!-- Hero hand is rendered inside the table (on the hero seat) —
+         the separate #pvp-hero-hand div would duplicate it, kept hidden
+         purely so legacy code paths that still poke at it don't throw. -->
+    <div id="pvp-hero-hand" style="display:none;"></div>
 
-    <!-- Action buttons -->
+    <!-- WePoker-style action bar (same markup family as the AI cashgame) -->
     <div id="pvp-actions" style="display:none;">
-        <div id="pvp-slider-area" style="display:none;max-width:480px;margin:0 auto;padding:0 12px 6px;">
-            <div style="display:flex;align-items:center;gap:8px;">
-                <input type="range" id="pvp-bet-slider" min="1" max="100" value="3" step="0.5"
-                    oninput="pvpUpdateSliderLabel()"
-                    style="flex:1;accent-color:var(--accent-orange);">
-                <span id="pvp-slider-val" style="font-size:13px;font-weight:700;color:var(--accent-orange);min-width:56px;text-align:right;">3.0BB</span>
+        <div class="wp-action-bar">
+            <div class="wp-quick-row" id="pvp-quick-row" style="display:none;">
+                <button class="wp-quick-btn" data-pct="0.33" onclick="pvpSetSliderPct(0.33)">1/3池</button>
+                <button class="wp-quick-btn" data-pct="0.5" onclick="pvpSetSliderPct(0.5)">1/2池</button>
+                <button class="wp-quick-btn" data-pct="0.66" onclick="pvpSetSliderPct(0.66)">2/3池</button>
+                <button class="wp-quick-btn" data-pct="1" onclick="pvpSetSliderPct(1.0)">池底</button>
+                <button class="wp-quick-btn" data-pct="max" onclick="pvpSetSliderMax()">MAX</button>
             </div>
+            <div class="wp-slider-row" id="pvp-slider-area" style="display:none;">
+                <button class="wp-slider-minus" onclick="pvpSliderNudge(-1)">−</button>
+                <input type="range" id="pvp-bet-slider" min="1" max="100" value="3" step="0.5" oninput="pvpUpdateSliderLabel()">
+                <button class="wp-slider-plus" onclick="pvpSliderNudge(1)">+</button>
+                <span class="wp-slider-val" id="pvp-slider-val">3.0BB</span>
+            </div>
+            <div class="wp-main-row" id="pvp-action-btns"></div>
         </div>
-        <div class="cg-action-bar" id="pvp-action-btns"></div>
     </div>
 
     <!-- Queued-change indicator (e.g., "将在下一手开始") -->
@@ -1307,7 +1316,7 @@
 <script src="js/preflop-practice.js?v=23"></script>
 <script src="js/practice.js?v=27"></script>
 <script src="js/casino-fx.js?v=1"></script>
-<script src="js/poker-table-dom.js?v=3"></script>
+<script src="js/poker-table-dom.js?v=4"></script>
 <script src="js/roulette.js?v=3"></script>
 <script src="js/slots.js?v=2"></script>
 <script src="js/cash-game.js?v=1"></script>
@@ -5483,53 +5492,129 @@ async function pvpFetchMyCards(handNum) {
     } catch(e) {}
 }
 
+let pvpBetContext = null;  // { kind: 'bet'|'raise', min, max, stack }
+
 function pvpRenderActions(room) {
     const myBet = room.bets?.[pvpMySeat] || 0;
     const toCall = Math.max(0, room.current_bet - myBet);
     const stack = room.seats?.[pvpMySeat]?.stack || 0;
     const pot = room.pot || 0;
-    const minRaise = Math.max(room.current_bet * 2, room.current_bet + 1);
+    const isCheckable = toCall <= 0;
+    const kind = isCheckable ? 'bet' : 'raise';
+    const minBet = isCheckable ? 1 : Math.max(room.current_bet * 2, room.current_bet + 1);
+    const maxBet = stack + myBet;
+    const canBet = stack > 0 && maxBet > minBet + 0.01;
+    pvpBetContext = { kind, min: minBet, max: maxBet, stack };
 
-    let html = '';
-    const slider = document.getElementById('pvp-slider-area');
-
-    if (toCall <= 0) {
-        html += `<button class="action-btn check-btn" onclick="pvpAct('check')" style="flex:1;">过牌</button>`;
-        if (stack > 0) {
-            html += `<button class="action-btn raise-btn" onclick="pvpAct('bet',${Math.max(1, pot*0.33).toFixed(1)})" style="flex:1;">1/3池</button>`;
-            html += `<button class="action-btn raise-btn" onclick="pvpAct('bet',${Math.max(1, pot*0.66).toFixed(1)})" style="flex:1;">2/3池</button>`;
-            html += `<button class="action-btn raise-btn" onclick="pvpActSlider('bet')" style="flex:1;">自定义</button>`;
-        }
-        if (slider) {
-            const sl = document.getElementById('pvp-bet-slider');
-            sl.min = 1; sl.max = stack; sl.value = Math.round(Math.max(1, pot * 0.5));
-            slider.style.display = 'block';
-        }
+    // Build the 3-button main row: Fold → Check/Call → Raise/Bet
+    const btns = [];
+    if (!isCheckable) {
+        btns.push(`<button class="wp-btn wp-fold" onclick="pvpAct('fold')">弃牌<span class="wp-btn-amt">FOLD</span></button>`);
     } else {
-        html += `<button class="action-btn fold-btn" onclick="pvpAct('fold')" style="flex:1;">弃牌</button>`;
-        if (toCall <= stack) html += `<button class="action-btn call-btn" onclick="pvpAct('call')" style="flex:1;">跟注 ${toCall.toFixed(1)}</button>`;
-        if (minRaise <= stack + myBet) {
-            html += `<button class="action-btn raise-btn" onclick="pvpAct('raise',${minRaise.toFixed(1)})" style="flex:1;">加注 ${minRaise.toFixed(1)}</button>`;
-            html += `<button class="action-btn raise-btn" onclick="pvpActSlider('raise')" style="flex:1;">自定义</button>`;
-        }
-        if (slider) {
-            const sl = document.getElementById('pvp-bet-slider');
-            sl.min = minRaise; sl.max = stack + myBet; sl.value = minRaise;
-            slider.style.display = 'block';
-        }
+        btns.push(`<button class="wp-btn wp-fold" onclick="pvpAct('fold')">弃牌<span class="wp-btn-amt">FOLD</span></button>`);
     }
-    if (stack > 0) html += `<button class="action-btn raise-btn" onclick="pvpAct('allin')" style="flex:1;background:var(--accent-purple);">全压 ${stack.toFixed(1)}</button>`;
+    if (isCheckable) {
+        btns.push(`<button class="wp-btn wp-check" onclick="pvpAct('check')">过牌<span class="wp-btn-amt">CHECK</span></button>`);
+    } else if (toCall <= stack) {
+        btns.push(`<button class="wp-btn wp-call" onclick="pvpAct('call')">跟注<span class="wp-btn-amt">${toCall.toFixed(1)} BB</span></button>`);
+    } else {
+        btns.push(`<button class="wp-btn wp-call" disabled>—</button>`);
+    }
+    if (canBet) {
+        const label = isCheckable ? '下注' : '加注';
+        const sub = `≥ ${minBet.toFixed(1)} BB`;
+        btns.push(`<button class="wp-btn wp-raise" id="pvp-raise-btn" onclick="pvpToggleSlider()">${label}<span class="wp-btn-amt" id="pvp-raise-amt">${sub}</span></button>`);
+    } else if (stack > 0) {
+        btns.push(`<button class="wp-btn wp-allin" onclick="pvpAct('allin')">全压<span class="wp-btn-amt">${stack.toFixed(1)} BB</span></button>`);
+    } else {
+        btns.push(`<button class="wp-btn wp-raise" disabled>—</button>`);
+    }
+    document.getElementById('pvp-action-btns').innerHTML = btns.join('');
 
-    document.getElementById('pvp-action-btns').innerHTML = html;
+    // Show the quick-pill row when betting is possible; hide slider until opened.
+    const quickRow = document.getElementById('pvp-quick-row');
+    quickRow.style.display = canBet ? 'flex' : 'none';
+    quickRow.querySelectorAll('.wp-quick-btn').forEach(b => b.classList.remove('is-active'));
+    document.getElementById('pvp-slider-area').style.display = 'none';
+
     document.getElementById('pvp-actions').style.display = 'block';
+}
+
+function pvpToggleSlider() {
+    if (!pvpBetContext) return;
+    const area = document.getElementById('pvp-slider-area');
+    const raiseBtn = document.getElementById('pvp-raise-btn');
+    if (area.style.display !== 'none' && raiseBtn?.classList.contains('is-sliding')) {
+        // Second press → submit
+        pvpAct(pvpBetContext.kind, parseFloat(document.getElementById('pvp-bet-slider').value));
+        return;
+    }
+    const sl = document.getElementById('pvp-bet-slider');
+    sl.min = pvpBetContext.min;
+    sl.max = pvpBetContext.max;
+    sl.step = 0.5;
+    // Default: roughly half-pot bet or min raise
+    const roomPot = (window.pvpLastRoom?.pot) || 0;
+    const suggested = pvpBetContext.kind === 'bet'
+        ? Math.max(pvpBetContext.min, Math.min(pvpBetContext.max, Math.round(roomPot * 0.5 * 10) / 10))
+        : pvpBetContext.min;
+    sl.value = suggested;
+    area.style.display = 'flex';
+    if (raiseBtn) {
+        raiseBtn.classList.add('is-sliding');
+        raiseBtn.firstChild.nodeValue = '确认';
+    }
     pvpUpdateSliderLabel();
 }
 
 function pvpUpdateSliderLabel() {
     const sl = document.getElementById('pvp-bet-slider');
     const lbl = document.getElementById('pvp-slider-val');
+    const amt = document.getElementById('pvp-raise-amt');
     if (sl && lbl) lbl.textContent = parseFloat(sl.value).toFixed(1) + 'BB';
+    if (sl && amt && pvpBetContext) amt.textContent = parseFloat(sl.value).toFixed(1) + ' BB';
 }
+
+function pvpSetSliderPct(pct) {
+    if (!pvpBetContext) return;
+    const raiseBtn = document.getElementById('pvp-raise-btn');
+    if (raiseBtn && !raiseBtn.classList.contains('is-sliding')) raiseBtn.click();
+    const roomPot = (window.pvpLastRoom?.pot) || 0;
+    const myBet = window.pvpLastRoom?.bets?.[pvpMySeat] || 0;
+    const currentBet = window.pvpLastRoom?.current_bet || 0;
+    const toCall = Math.max(0, currentBet - myBet);
+    let amt = pvpBetContext.kind === 'bet'
+        ? roomPot * pct
+        : currentBet + toCall + pct * (roomPot + toCall * 2);
+    amt = Math.round(Math.max(pvpBetContext.min, Math.min(pvpBetContext.max, amt)) * 10) / 10;
+    document.getElementById('pvp-bet-slider').value = amt;
+    pvpUpdateSliderLabel();
+    document.querySelectorAll('#pvp-quick-row .wp-quick-btn').forEach(b => {
+        const p = parseFloat(b.dataset.pct);
+        b.classList.toggle('is-active', !isNaN(p) && Math.abs(p - pct) < 0.01);
+    });
+}
+
+function pvpSetSliderMax() {
+    if (!pvpBetContext) return;
+    const raiseBtn = document.getElementById('pvp-raise-btn');
+    if (raiseBtn && !raiseBtn.classList.contains('is-sliding')) raiseBtn.click();
+    document.getElementById('pvp-bet-slider').value = pvpBetContext.max;
+    pvpUpdateSliderLabel();
+    document.querySelectorAll('#pvp-quick-row .wp-quick-btn').forEach(b => {
+        b.classList.toggle('is-active', b.dataset.pct === 'max');
+    });
+}
+
+function pvpSliderNudge(dir) {
+    if (!pvpBetContext) return;
+    const sl = document.getElementById('pvp-bet-slider');
+    const next = Math.max(pvpBetContext.min, Math.min(pvpBetContext.max, parseFloat(sl.value) + dir));
+    sl.value = Math.round(next * 10) / 10;
+    pvpUpdateSliderLabel();
+    document.querySelectorAll('#pvp-quick-row .wp-quick-btn').forEach(b => b.classList.remove('is-active'));
+}
+
 function pvpActSlider(action) {
     pvpAct(action, parseFloat(document.getElementById('pvp-bet-slider').value));
 }
