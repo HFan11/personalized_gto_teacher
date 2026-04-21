@@ -46,17 +46,29 @@ class PokerTableDom {
     }
 
     _build() {
-        this.el.classList.add('poker-table');
-        this.el.dataset.seats = this.seatCount;
-        this.el.dataset.mode = this.mode;
-        this.el.innerHTML = '';
+        // Host becomes a wrap containing two siblings: the table itself
+        // and the hero-hand strip below it. The consumer already gave
+        // us a container div — we put both elements inside it.
+        this.hostEl = this.el;
+        this.hostEl.classList.add('poker-table-wrap');
+        this.hostEl.innerHTML = '';
+
+        // Table
+        const table = document.createElement('div');
+        table.classList.add('poker-table');
+        table.dataset.seats = this.seatCount;
+        table.dataset.mode = this.mode;
+        this.tableEl = table;
+        // Rewire this.el -> the table itself for backward compatibility
+        // with existing animation code that queries via this.el.
+        this.el = table;
 
         const felt = document.createElement('div');
         felt.className = 'felt-bg';
         const studs = document.createElement('div');
         studs.className = 'rail-studs';
-        this.el.appendChild(felt);
-        this.el.appendChild(studs);
+        table.appendChild(felt);
+        table.appendChild(studs);
 
         // Center: pot + board
         const center = document.createElement('div');
@@ -65,7 +77,7 @@ class PokerTableDom {
             <div class="pot-display"></div>
             <div class="board-cards"></div>
         `;
-        this.el.appendChild(center);
+        table.appendChild(center);
         this.potEl = center.querySelector('.pot-display');
         this.boardEl = center.querySelector('.board-cards');
 
@@ -73,7 +85,7 @@ class PokerTableDom {
         this.dealerBtn = document.createElement('div');
         this.dealerBtn.className = 'dealer-btn hidden';
         this.dealerBtn.textContent = 'D';
-        this.el.appendChild(this.dealerBtn);
+        table.appendChild(this.dealerBtn);
 
         // Seats
         this.seatEls = [];
@@ -97,9 +109,30 @@ class PokerTableDom {
                 });
                 seat.style.cursor = 'pointer';
             }
-            this.el.appendChild(seat);
+            table.appendChild(seat);
             this.seatEls.push(seat);
         }
+
+        this.hostEl.appendChild(table);
+
+        // Hero-hand strip below the table — big cards + stack. Shown
+        // only when hero has hole cards; empty state hidden via CSS.
+        const heroHand = document.createElement('div');
+        heroHand.className = 'poker-hero-hand is-empty';
+        heroHand.innerHTML = `
+            <div class="hero-cards"></div>
+            <div class="hero-stack-line">
+                <span class="hero-name"></span>
+                <span class="hero-stack"></span>
+                <span class="hero-pos-pill"></span>
+            </div>
+        `;
+        this.heroHandEl = heroHand;
+        this.heroCardsEl = heroHand.querySelector('.hero-cards');
+        this.heroNameEl = heroHand.querySelector('.hero-name');
+        this.heroStackEl = heroHand.querySelector('.hero-stack');
+        this.heroPosEl = heroHand.querySelector('.hero-pos-pill');
+        this.hostEl.appendChild(heroHand);
     }
 
     // =========== Public: state sync ===========
@@ -178,6 +211,54 @@ class PokerTableDom {
 
         // Dealer button
         this._renderDealer();
+
+        // Hero hand strip (outside the table — big cards + stack)
+        this._renderHeroHand();
+    }
+
+    // ============================================================
+    // Hero hand strip (below the table, not inside it)
+    // ============================================================
+    _renderHeroHand() {
+        if (!this.heroHandEl) return;
+        const heroIdx = this.state.seats.findIndex(s => s.isMe);
+        const hero = heroIdx >= 0 ? this.state.seats[heroIdx] : null;
+        if (!hero || !hero.name) {
+            this.heroHandEl.classList.add('is-empty');
+            return;
+        }
+        this.heroHandEl.classList.remove('is-empty');
+
+        // Name / stack / position line
+        this.heroNameEl.textContent = hero.name || 'Hero';
+        this.heroStackEl.textContent = `${(hero.stack || 0).toFixed(1)} BB`;
+        this.heroPosEl.textContent = hero.position || '';
+        this.heroPosEl.style.display = hero.position ? '' : 'none';
+
+        // Cards — show hero's actual hole cards face-up, or empty if not dealt
+        const cards = hero.holeCards || [];
+        const currentKey = Array.from(this.heroCardsEl.children)
+            .map(c => c.dataset.card || 'fd').join(',');
+        const desiredKey = cards.length === 2 && cards[0] && cards[1]
+            ? cards.join(',')
+            : '';
+        if (!desiredKey) {
+            this.heroCardsEl.innerHTML = '';
+            return;
+        }
+        if (currentKey === desiredKey && this.heroCardsEl.children.length === 2) return;
+
+        // Deal / reveal animation: add dealing-in the first time cards appear
+        const wasEmpty = this.heroCardsEl.children.length === 0;
+        this.heroCardsEl.innerHTML = '';
+        for (let k = 0; k < 2; k++) {
+            const cel = this._makeCardEl(cards[k], false);
+            if (wasEmpty) {
+                cel.classList.add('dealing-in');
+                cel.style.animationDelay = (k * 0.06) + 's';
+            }
+            this.heroCardsEl.appendChild(cel);
+        }
     }
 
     // Render the pot as a row of chip stacks (100 / 25 / 5 / 1 denominations)
@@ -610,8 +691,13 @@ class PokerTableDom {
     get _needsRedraw() { return false; }
 
     destroy() {
-        this.el.innerHTML = '';
-        this.el.classList.remove('poker-table');
+        if (this.hostEl) {
+            this.hostEl.innerHTML = '';
+            this.hostEl.classList.remove('poker-table-wrap');
+        } else if (this.el) {
+            this.el.innerHTML = '';
+            this.el.classList.remove('poker-table');
+        }
         this.seatEls = [];
     }
 }

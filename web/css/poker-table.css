@@ -15,17 +15,30 @@
      --pt-text         white text
    ============================================================ */
 
-.poker-table {
-    /* Sizing variables — change once to rescale everything */
-    --pt-avatar-size: 40px;
-    --pt-plate-w: 100px;
-    --pt-plate-h: 30px;
-    --pt-card-w: 46px;
-    --pt-card-h: 64px;
-    --pt-board-card-w: 44px;
-    --pt-board-card-h: 62px;
+/* ============================================================
+   Wrap — container for the table + the hero's hand strip beneath.
+   The wrap sits in the consumer's container; the table + hero-hand
+   are siblings owned by PokerTableDom.
+   ============================================================ */
+.poker-table-wrap {
+    /* Sizing + color variables live on the wrap so both the table
+       and the hero-hand strip below it can consume them. */
+    --pt-avatar-size: 36px;
+    --pt-plate-w: 96px;
+    --pt-plate-h: 28px;
+    /* Hero hole cards (rendered OUTSIDE the table in .poker-hero-hand)
+       — this var drives that block's card size. */
+    --pt-hero-card-w: 62px;
+    --pt-hero-card-h: 86px;
+    /* Board / bot peek stay inside the table */
+    --pt-board-card-w: 50px;
+    --pt-board-card-h: 70px;
     --pt-bot-card-w: 26px;
     --pt-bot-card-h: 36px;
+    /* Legacy — no longer used for the hero seat (kept so bot seats
+       that reuse .card inside .hole-cards still size correctly) */
+    --pt-card-w: 46px;
+    --pt-card-h: 64px;
     --pt-pill-font: 10px;
     --pt-stack-font: 13px;
     --pt-name-font: 11px;
@@ -56,23 +69,32 @@
     position: relative;
     width: 100%;
     max-width: 560px;
-    aspect-ratio: 1 / 0.85;  /* default desktop */
     margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.poker-table {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 0.66;  /* wide — hero's cards are outside */
     user-select: none;
     font-family: -apple-system, "Helvetica Neue", Arial, sans-serif;
 }
 
-/* Mobile: taller aspect + smaller sizes */
+/* Mobile: taller aspect + smaller sizes. All size vars live on the
+   wrap so both table and hero-hand see them. */
 @media (max-width: 600px) {
-    .poker-table {
-        aspect-ratio: 1 / 1.1;
-        --pt-avatar-size: 32px;
-        --pt-plate-w: 78px;
-        --pt-plate-h: 26px;
-        --pt-card-w: 38px;
-        --pt-card-h: 54px;
-        --pt-board-card-w: 34px;
-        --pt-board-card-h: 48px;
+    .poker-table-wrap {
+        max-width: 100%;
+        --pt-avatar-size: 30px;
+        --pt-plate-w: 74px;
+        --pt-plate-h: 24px;
+        --pt-hero-card-w: 52px;
+        --pt-hero-card-h: 72px;
+        --pt-board-card-w: 40px;
+        --pt-board-card-h: 56px;
         --pt-bot-card-w: 22px;
         --pt-bot-card-h: 30px;
         --pt-pill-font: 9px;
@@ -82,35 +104,95 @@
         --pt-seat-rx: 38%;
         --pt-seat-ry: 32%;
     }
+    .poker-table { aspect-ratio: 1 / 0.8; }
 }
 
 /* Teach mode (2-seat — compact so the whole hand + action bar fits
-   on a single screen, especially on mobile). Hero hole-cards and
-   board cards are sized so both fit without overlapping. */
-.poker-table[data-mode="teach"] {
+   on a single screen). Hero's big cards live OUTSIDE the table in
+   the hero-hand strip, so the table only has the villain on top and
+   a tiny hero marker at the bottom. */
+.poker-table-wrap:has(.poker-table[data-mode="teach"]) {
     --pt-seat-rx: 0%;
-    --pt-seat-ry: 42%;
-    --pt-card-w: 42px;
-    --pt-card-h: 60px;
-    --pt-board-card-w: 36px;
-    --pt-board-card-h: 50px;
+    --pt-seat-ry: 38%;
+    --pt-hero-card-w: 64px;
+    --pt-hero-card-h: 90px;
+    --pt-board-card-w: 46px;
+    --pt-board-card-h: 64px;
 }
-.poker-table[data-mode="teach"][data-seats="2"] {
-    aspect-ratio: 1 / 0.85;
+.poker-table-wrap:has(.poker-table[data-mode="teach"][data-seats="2"]) {
     max-width: 520px;
 }
+.poker-table[data-mode="teach"][data-seats="2"] {
+    aspect-ratio: 1 / 0.6;
+}
 @media (max-width: 600px) {
-    .poker-table[data-mode="teach"] {
-        --pt-card-w: 36px;
-        --pt-card-h: 52px;
-        --pt-board-card-w: 32px;
-        --pt-board-card-h: 44px;
+    .poker-table-wrap:has(.poker-table[data-mode="teach"]) {
+        --pt-hero-card-w: 54px;
+        --pt-hero-card-h: 76px;
+        --pt-board-card-w: 38px;
+        --pt-board-card-h: 54px;
+        --pt-seat-ry: 36%;
     }
     .poker-table[data-mode="teach"][data-seats="2"] {
-        aspect-ratio: 1 / 0.95;
-        --pt-seat-ry: 40%;
+        aspect-ratio: 1 / 0.72;
     }
 }
+
+/* ============================================================
+   Hero-hand strip — the big, readable hero hole cards and stack
+   that live BELOW the table, not inside it. This is what fixed
+   the "hero cards crowd the board + pot" problem.
+   ============================================================ */
+.poker-hero-hand {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 10px 8px 4px;
+    user-select: none;
+    font-family: -apple-system, "Helvetica Neue", Arial, sans-serif;
+}
+.poker-hero-hand .hero-cards {
+    display: flex;
+    gap: 6px;
+    min-height: var(--pt-hero-card-h, 86px);
+    perspective: 800px;
+}
+.poker-hero-hand .hero-cards .card {
+    width: var(--pt-hero-card-w, 62px);
+    height: var(--pt-hero-card-h, 86px);
+    font-size: var(--pt-hero-card-h, 86px);
+    transform: rotate(var(--tilt, 0deg));
+    transition: transform 0.2s ease;
+}
+.poker-hero-hand .hero-cards .card:first-child { --tilt: -5deg; }
+.poker-hero-hand .hero-cards .card:last-child  { --tilt:  5deg; }
+.poker-hero-hand .hero-stack-line {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 2px;
+    font-size: 13px;
+    font-weight: 700;
+}
+.poker-hero-hand .hero-stack-line .hero-name {
+    color: var(--pt-text, rgba(240,240,240,0.95));
+    font-weight: 700;
+}
+.poker-hero-hand .hero-stack-line .hero-stack {
+    color: var(--pt-gold, #fbbf24);
+    font-weight: 800;
+    font-size: 15px;
+}
+.poker-hero-hand .hero-stack-line .hero-pos-pill {
+    background: var(--pt-pill-bg, rgba(255,255,255,0.15));
+    padding: 2px 8px;
+    border-radius: 8px;
+    font-size: 10px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.85);
+}
+.poker-hero-hand.is-empty { display: none; }
 
 /* ============ Felt + rail ============ */
 .poker-table .felt-bg {
@@ -243,7 +325,7 @@
    is always identifiable at a glance. No mirrored rank/suit at the
    bottom-right — clean face like WePoker.
 */
-.poker-table .card {
+.poker-table-wrap .card {
     width: var(--pt-card-w);
     height: var(--pt-card-h);
     /* Anchor child font-sizes to the card height so % scales correctly */
@@ -273,11 +355,11 @@
     border-radius: 4px;
 }
 
-.poker-table .card.red { color: var(--pt-card-red); }
-.poker-table .card.black { color: var(--pt-card-black); }
+.poker-table-wrap .card.red { color: var(--pt-card-red); }
+.poker-table-wrap .card.black { color: var(--pt-card-black); }
 
 /* BIG rank — top-left, takes up ~half the card width */
-.poker-table .card::before {
+.poker-table-wrap .card::before {
     content: attr(data-rank);
     position: absolute;
     top: 4%;
@@ -288,14 +370,14 @@
     letter-spacing: -0.04em;
 }
 /* 10 is wider — squeeze letter-spacing + shift slightly */
-.poker-table .card[data-rank="10"]::before {
+.poker-table-wrap .card[data-rank="10"]::before {
     font-size: 44%;
     letter-spacing: -0.12em;
     left: 5%;
 }
 
 /* Suit symbol right below the rank */
-.poker-table .card .suit-corner {
+.poker-table-wrap .card .suit-corner {
     position: absolute;
     top: 46%;
     left: 10%;
@@ -303,10 +385,10 @@
     line-height: 1;
     font-weight: 900;
 }
-.poker-table .card[data-rank="10"] .suit-corner { top: 44%; left: 12%; }
+.poker-table-wrap .card[data-rank="10"] .suit-corner { top: 44%; left: 12%; }
 
 /* Big centre suit glyph (a softer watermark) */
-.poker-table .card .suit-center {
+.poker-table-wrap .card .suit-center {
     position: absolute;
     right: 6%;
     bottom: 4%;
@@ -317,25 +399,25 @@
 }
 
 /* Small cards (bot peek) don't need the centre suit — rank + corner suit is enough */
-.poker-table .card.small::before {
+.poker-table-wrap .card.small::before {
     font-size: 48%;
     top: 8%;
     left: 12%;
 }
-.poker-table .card.small[data-rank="10"]::before {
+.poker-table-wrap .card.small[data-rank="10"]::before {
     font-size: 40%;
     letter-spacing: -0.14em;
     left: 8%;
 }
-.poker-table .card.small .suit-corner {
+.poker-table-wrap .card.small .suit-corner {
     top: 52%;
     left: 14%;
     font-size: 34%;
 }
-.poker-table .card.small .suit-center { display: none; }
+.poker-table-wrap .card.small .suit-center { display: none; }
 
 /* Face-down card back */
-.poker-table .card.facedown {
+.poker-table-wrap .card.facedown {
     background:
         repeating-linear-gradient(45deg,
             #3a5db0 0, #3a5db0 3px,
@@ -343,9 +425,9 @@
     color: transparent;
     border: 1px solid rgba(255, 255, 255, 0.25);
 }
-.poker-table .card.facedown::before,
-.poker-table .card.facedown .suit-corner,
-.poker-table .card.facedown .suit-center {
+.poker-table-wrap .card.facedown::before,
+.poker-table-wrap .card.facedown .suit-corner,
+.poker-table-wrap .card.facedown .suit-center {
     display: none;
 }
 
@@ -403,6 +485,26 @@
 .poker-table .seat.is-hero .avatar {
     background: var(--pt-hero);
 }
+
+/* Hero in-table: mini marker only. Full hero cards + stack live in
+   .poker-hero-hand below the table. Keep a small avatar + position
+   pill here so the user still sees "this is where I sit at the
+   table", but drop the name/stack plate entirely. */
+.poker-table .seat.is-hero {
+    /* Shrink avatar for the hero marker — smaller than bots */
+}
+.poker-table .seat.is-hero .avatar {
+    width: calc(var(--pt-avatar-size) * 0.8);
+    height: calc(var(--pt-avatar-size) * 0.8);
+    font-size: calc(var(--pt-avatar-size) * 0.5);
+}
+.poker-table .seat.is-hero .player-info { display: none; }
+.poker-table .seat.is-hero .hole-cards  { display: none; }
+.poker-table .seat.is-hero .position-pill {
+    margin-top: 2px;
+    padding: 1px 6px;
+    font-size: calc(var(--pt-pill-font) - 1px);
+}
 .poker-table .seat.is-acting .avatar {
     box-shadow:
         0 0 0 3px var(--pt-gold),
@@ -457,22 +559,9 @@
     display: none;
 }
 
-/* Hero hole cards — pulled above the seat so they don't inflate the
-   seat's bounding box (keeps chip-positioning + the overall layout tight) */
-.poker-table .seat.is-hero .hole-cards {
-    position: absolute;
-    left: 50%;
-    bottom: calc(100% + 2px);
-    transform: translateX(-50%);
-    display: flex;
-    gap: 4px;
-    z-index: 5;
-}
-.poker-table .seat.is-hero .hole-cards .card {
-    transform: rotate(var(--tilt, 0deg));
-}
-.poker-table .seat.is-hero .hole-cards .card:first-child { --tilt: -5deg; }
-.poker-table .seat.is-hero .hole-cards .card:last-child  { --tilt:  5deg; }
+/* Hero hole cards are rendered OUTSIDE the table now (in the
+   .poker-hero-hand strip below) — the in-table hero container
+   stays hidden entirely. Kept as a comment so future grep survives. */
 
 /* Bot hole cards — peek from behind avatar */
 .poker-table .seat:not(.is-hero) .hole-cards {
@@ -556,9 +645,10 @@
 }
 
 .poker-table[data-seats="6"] .seat[data-vp="0"] .bet-chip {
-    /* Hero hole-cards are pulled above the seat → chip must sit ABOVE
-       the cards (between cards and pot), not between avatar and cards. */
-    top: calc(-1 * (var(--pt-card-h, 76px) + 18px));
+    /* Hero in-table is now just a mini avatar + pill (hole cards live
+       outside in .poker-hero-hand). Chip sits ABOVE the mini avatar
+       (between avatar and pot). */
+    top: calc(-1 * var(--pt-chip-offset));
 }
 .poker-table[data-seats="6"] .seat[data-vp="1"] .bet-chip {
     top: 50%; left: calc(100% + var(--pt-chip-offset)); transform: translate(-50%, -50%);
@@ -666,7 +756,7 @@
 }
 
 /* Hero-card flip-in (showdown reveal) */
-.poker-table .card.flipping-in {
+.poker-table-wrap .card.flipping-in {
     animation: pt-flip-in 0.55s ease-out backwards;
     transform-origin: center;
 }
@@ -677,7 +767,7 @@
 }
 
 /* ============ Dealing animation ============ */
-.poker-table .card.dealing-in {
+.poker-table-wrap .card.dealing-in {
     animation: pt-deal-in 0.45s cubic-bezier(0.2, 0.8, 0.3, 1) backwards;
 }
 @keyframes pt-deal-in {
