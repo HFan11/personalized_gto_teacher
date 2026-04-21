@@ -83,18 +83,20 @@
     font-family: -apple-system, "Helvetica Neue", Arial, sans-serif;
 }
 
-/* Mobile: taller aspect + smaller sizes. All size vars live on the
-   wrap so both table and hero-hand see them. */
+/* Mobile: shorter+wider table aspect, smaller sizes, tighter hero
+   strip + action spacing. All size vars live on the wrap so both
+   the table and the hero-hand strip see them. */
 @media (max-width: 600px) {
     .poker-table-wrap {
         max-width: 100%;
         --pt-avatar-size: 28px;
         --pt-plate-w: 70px;
         --pt-plate-h: 22px;
-        --pt-hero-card-w: 50px;
-        --pt-hero-card-h: 70px;
-        /* Slightly smaller community cards so 5 of them + side-seat
-           showdown reveals all fit without horizontal collision. */
+        /* Hero cards slightly smaller to free up vertical space for
+           the strip + action bar below */
+        --pt-hero-card-w: 46px;
+        --pt-hero-card-h: 64px;
+        /* Community cards — 5 of them plus side-seat reveals must fit */
         --pt-board-card-w: 36px;
         --pt-board-card-h: 50px;
         --pt-bot-card-w: 20px;
@@ -103,12 +105,28 @@
         --pt-stack-font: 11px;
         --pt-name-font: 9px;
         --pt-chip-font: 10px;
-        /* Push seats further from the centre so bots' enlarged
-           showdown reveals don't cross into the community-card row. */
+        /* Push seats further out so showdown reveals don't cross the
+           community-card strip */
         --pt-seat-rx: 44%;
         --pt-seat-ry: 30%;
     }
-    .poker-table { aspect-ratio: 1 / 0.82; }
+    /* Wider (less tall) so the felt doesn't push hero strip + action
+       bar below the fold on a standard phone viewport */
+    .poker-table { aspect-ratio: 1 / 0.76; }
+
+    /* Tighten the hero-hand strip — less padding, smaller vertical
+       footprint, one-line info */
+    .poker-hero-hand {
+        padding: 4px 8px 2px;
+        gap: 2px;
+    }
+    .poker-hero-hand .hero-stack-line {
+        font-size: 11px;
+        gap: 8px;
+        margin-top: 0;
+    }
+    .poker-hero-hand .hero-stack-line .hero-stack { font-size: 13px; }
+    .poker-hero-hand .hero-stack-line .hero-pos-pill { font-size: 9px; padding: 1px 6px; }
 }
 
 /* Teach mode (2-seat — compact so the whole hand + action bar fits
@@ -929,7 +947,7 @@
     box-shadow: 0 6px 22px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.04);
 }
 @media (max-width: 600px) {
-    .wp-action-bar { margin: 8px 8px; padding: 8px 10px 10px; gap: 8px; border-radius: 14px; }
+    .wp-action-bar { margin: 4px 6px; padding: 5px 7px 7px; gap: 5px; border-radius: 12px; }
 }
 
 /* Quick-bet pills (1/3 / 1/2 / 2/3 / POT / MAX) */
@@ -962,7 +980,8 @@
     box-shadow: 0 0 10px rgba(251,191,36,0.4);
 }
 @media (max-width: 600px) {
-    .wp-quick-btn { font-size: 11px; padding: 6px 2px; border-radius: 8px; }
+    .wp-quick-btn { font-size: 10px; padding: 4px 2px; border-radius: 6px; letter-spacing: 0; }
+    .wp-quick-row { gap: 4px; }
 }
 
 /* Slider row */
@@ -1048,8 +1067,8 @@
     font-variant-numeric: tabular-nums;
 }
 @media (max-width: 600px) {
-    .wp-btn { min-height: 48px; font-size: 13px; border-radius: 12px; letter-spacing: 0.5px; }
-    .wp-btn .wp-btn-amt { font-size: 10px; }
+    .wp-btn { min-height: 42px; padding: 4px 6px; font-size: 12px; border-radius: 10px; letter-spacing: 0.3px; gap: 1px; }
+    .wp-btn .wp-btn-amt { font-size: 9px; letter-spacing: 0.2px; }
 }
 
 /* Colour variants — WePoker palette */
