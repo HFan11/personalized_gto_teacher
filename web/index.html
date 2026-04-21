@@ -5553,12 +5553,8 @@ function pvpToggleSlider() {
     sl.min = pvpBetContext.min;
     sl.max = pvpBetContext.max;
     sl.step = 0.5;
-    // Default: roughly half-pot bet or min raise
-    const roomPot = (window.pvpLastRoom?.pot) || 0;
-    const suggested = pvpBetContext.kind === 'bet'
-        ? Math.max(pvpBetContext.min, Math.min(pvpBetContext.max, Math.round(roomPot * 0.5 * 10) / 10))
-        : pvpBetContext.min;
-    sl.value = suggested;
+    // Slider handle starts at the MINIMUM — user drags right to increase.
+    sl.value = pvpBetContext.min;
     area.style.display = 'flex';
     if (raiseBtn) {
         raiseBtn.classList.add('is-sliding');
@@ -6285,7 +6281,9 @@ function cgToggleSlider(action, minAmt, maxAmt, suggested) {
     sl.min = cgCustomMin;
     sl.max = cgCustomMax;
     sl.step = 0.5;
-    sl.value = suggested != null ? suggested : cgCustomMin;
+    // Slider handle starts at the MINIMUM (leftmost), not at a
+    // pre-suggested pot-sized value. User drags right to increase.
+    sl.value = cgCustomMin;
     area.style.display = 'flex';
     cgUpdateSliderLabel();
     // Flip raise button label to "确认 X.XBB" + switch to confirm colour
