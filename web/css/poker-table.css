@@ -88,23 +88,27 @@
 @media (max-width: 600px) {
     .poker-table-wrap {
         max-width: 100%;
-        --pt-avatar-size: 30px;
-        --pt-plate-w: 74px;
-        --pt-plate-h: 24px;
-        --pt-hero-card-w: 52px;
-        --pt-hero-card-h: 72px;
-        --pt-board-card-w: 40px;
-        --pt-board-card-h: 56px;
-        --pt-bot-card-w: 22px;
-        --pt-bot-card-h: 30px;
+        --pt-avatar-size: 28px;
+        --pt-plate-w: 70px;
+        --pt-plate-h: 22px;
+        --pt-hero-card-w: 50px;
+        --pt-hero-card-h: 70px;
+        /* Slightly smaller community cards so 5 of them + side-seat
+           showdown reveals all fit without horizontal collision. */
+        --pt-board-card-w: 36px;
+        --pt-board-card-h: 50px;
+        --pt-bot-card-w: 20px;
+        --pt-bot-card-h: 28px;
         --pt-pill-font: 9px;
-        --pt-stack-font: 12px;
-        --pt-name-font: 10px;
-        --pt-chip-font: 11px;
-        --pt-seat-rx: 38%;
-        --pt-seat-ry: 32%;
+        --pt-stack-font: 11px;
+        --pt-name-font: 9px;
+        --pt-chip-font: 10px;
+        /* Push seats further from the centre so bots' enlarged
+           showdown reveals don't cross into the community-card row. */
+        --pt-seat-rx: 44%;
+        --pt-seat-ry: 30%;
     }
-    .poker-table { aspect-ratio: 1 / 0.8; }
+    .poker-table { aspect-ratio: 1 / 0.82; }
 }
 
 /* Teach mode (2-seat — compact so the whole hand + action bar fits
@@ -605,13 +609,24 @@
     transition: top 0.35s ease;
 }
 .poker-table[data-street="showdown"] .seat:not(.is-hero) .hole-cards .card {
-    width: calc(var(--pt-bot-card-w) * 1.55);
-    height: calc(var(--pt-bot-card-h) * 1.55);
-    font-size: calc(var(--pt-bot-card-h) * 1.55);
+    width: calc(var(--pt-bot-card-w) * var(--pt-showdown-scale, 1.55));
+    height: calc(var(--pt-bot-card-h) * var(--pt-showdown-scale, 1.55));
+    font-size: calc(var(--pt-bot-card-h) * var(--pt-showdown-scale, 1.55));
     /* Smaller tilt at showdown — flatter cards read better */
 }
 .poker-table[data-street="showdown"] .seat:not(.is-hero) .hole-cards .card:first-child { --tilt: -6deg; }
 .poker-table[data-street="showdown"] .seat:not(.is-hero) .hole-cards .card:last-child  { --tilt:  6deg; }
+
+/* Mobile: much smaller showdown reveal — side seats are too close to
+   the community-card row to support a 1.55x reveal without overlap.
+   We also push the cards less far above the avatar so they don't
+   balloon off-screen at the top of the felt. */
+@media (max-width: 600px) {
+    .poker-table-wrap { --pt-showdown-scale: 1.2; }
+    .poker-table[data-street="showdown"] .seat:not(.is-hero) .hole-cards {
+        top: calc(var(--pt-avatar-size) * -0.7);
+    }
+}
 
 /* Teach HU mode: villain at TOP, so at showdown push cards DOWN
    (out of the felt top), not UP like game mode */
