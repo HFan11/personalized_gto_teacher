@@ -563,7 +563,7 @@
    .poker-hero-hand strip below) — the in-table hero container
    stays hidden entirely. Kept as a comment so future grep survives. */
 
-/* Bot hole cards — peek from behind avatar */
+/* Bot hole cards — peek from behind avatar (face-down, pre-showdown) */
 .poker-table .seat:not(.is-hero) .hole-cards {
     position: absolute;
     top: calc(var(--pt-avatar-size) * -0.35);
@@ -573,9 +573,11 @@
     gap: 1px;
     z-index: 1;
     pointer-events: none;
+    transition: top 0.35s ease, z-index 0s 0.35s;
 }
 .poker-table .seat:not(.is-hero) .hole-cards .card {
     transform: rotate(var(--tilt, 0deg));
+    transition: width 0.35s ease, height 0.35s ease, font-size 0.35s ease;
 }
 .poker-table .seat:not(.is-hero) .hole-cards .card:first-child { --tilt: -12deg; }
 .poker-table .seat:not(.is-hero) .hole-cards .card:last-child  { --tilt:  12deg; }
@@ -588,6 +590,34 @@
 }
 .poker-table[data-mode="teach"] .seat:not(.is-hero) .hole-cards .card:first-child { --tilt: -6deg; }
 .poker-table[data-mode="teach"] .seat:not(.is-hero) .hole-cards .card:last-child  { --tilt:  6deg; }
+
+/* ============ Showdown reveal for bot hole cards ============
+   When a hand reaches showdown the revealed bot cards need to be
+   clearly readable. Pre-showdown they're tiny, face-down, and
+   tucked behind the avatar (peek style). At showdown we:
+     1. Grow the card ~1.5x so the rank + suit are obvious
+     2. Raise z-index above the avatar so nothing obscures them
+     3. Move them further out from the avatar so the full card shows
+*/
+.poker-table[data-street="showdown"] .seat:not(.is-hero) .hole-cards {
+    top: calc(var(--pt-avatar-size) * -0.85);
+    z-index: 5;
+    transition: top 0.35s ease;
+}
+.poker-table[data-street="showdown"] .seat:not(.is-hero) .hole-cards .card {
+    width: calc(var(--pt-bot-card-w) * 1.55);
+    height: calc(var(--pt-bot-card-h) * 1.55);
+    font-size: calc(var(--pt-bot-card-h) * 1.55);
+    /* Smaller tilt at showdown — flatter cards read better */
+}
+.poker-table[data-street="showdown"] .seat:not(.is-hero) .hole-cards .card:first-child { --tilt: -6deg; }
+.poker-table[data-street="showdown"] .seat:not(.is-hero) .hole-cards .card:last-child  { --tilt:  6deg; }
+
+/* Teach HU mode: villain at TOP, so at showdown push cards DOWN
+   (out of the felt top), not UP like game mode */
+.poker-table[data-mode="teach"][data-street="showdown"] .seat:not(.is-hero) .hole-cards {
+    top: calc(var(--pt-avatar-size) * 0.8);
+}
 
 .poker-table .seat.is-folded .hole-cards { display: none; }
 .poker-table .seat.is-ghost { visibility: hidden; pointer-events: none; }

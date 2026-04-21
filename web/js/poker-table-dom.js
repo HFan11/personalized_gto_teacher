@@ -198,6 +198,10 @@ class PokerTableDom {
 
     _render() {
         const s = this.state;
+        // Expose street on the table element so CSS can branch on it
+        // (e.g. bot hole cards grow + rise above avatar at showdown).
+        if (this.tableEl) this.tableEl.dataset.street = s.street || 'waiting';
+
         // Pot
         this._renderPot(s.pot);
 
