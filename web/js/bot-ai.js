@@ -42,7 +42,10 @@ class BotAI {
             // Postflop: try precomputed GTO lookup on the flop; fall
             // through to heuristic for turn/river and uncovered flops.
             try {
-                const solved = await this._solverPostflop(holeCards, board, pos, style, toCall, potSize, stack, seat, game, playersInHand, isPFR);
+                // Flop first (precomputed, 0ms). If no match, try live CFR.
+                let solved = await this._solverPostflop(holeCards, board, pos, style, toCall, potSize, stack, seat, game, playersInHand, isPFR);
+                if (solved) return solved;
+                solved = await this._solverPostflopLive(holeCards, board, pos, style, toCall, potSize, stack, seat, game, playersInHand, isPFR);
                 if (solved) return solved;
             } catch (e) {
                 console.warn('[BotAI] solver postflop failed, using heuristic:', e.message);
@@ -116,6 +119,183 @@ class BotAI {
 
         const picked = this._sampleStrategy(tilted);
         return this._translatePostflopAction(picked, holeCards, board, toCall, potSize, stack, seat, game);
+    }
+
+    // ============================================================
+    // LIVE CFR POSTFLOP SOLVER (turn / river, HU only)
+    // ============================================================
+    //
+    // Precomputed lookup covers flops only. For turn and river, run a
+    // live CFR+ solve via the JS PostflopSolver. Results are cached by
+    // board + street + pot + stack bucket, so the first bot decision
+    // on a street pays the ~700ms solve cost and subsequent bots reuse
+    // the strategy instantly.
+    //
+    // Ranges are approximated from position and preflop action — the
+    // bot doesn't track opponent ranges explicitly. These rough ranges
+    // are still a huge upgrade over "raw hand strength vs random" that
+    // the heuristic uses.
+    static async _solverPostflopLive(holeCards, board, pos, style, toCall, potSize, stack, seat, game, playersInHand, isPFR) {
+        if (typeof PostflopSolver === 'undefined') return null;
+        if (typeof pm === 'undefined' || !pm) return null;
+        if (playersInHand > 2) return null;                // HU only
+        if (board.length < 4) return null;                 // turn & river (flop via precomputed)
+        if (stack <= 1 || potSize < game.bb) return null;  // degenerate
+
+        const street = board.length === 4 ? 'turn' : 'river';
+        const isIP = pos === 'BTN' || pos === 'CO' || (pos === 'HJ' && playersInHand === 2);
+
+        // Build cache key — any two bots on the same board/pot/stack
+        // context share the same solved strategy
+        const boardKey = board.map(c => c.rank + c.suit).join(',');
+        const potBucket = Math.round(potSize / Math.max(1, game.bb * 4)) * 4;
+        const stackBucket = Math.round(stack / Math.max(1, game.bb * 10)) * 10;
+        const cacheKey = `${boardKey}|${street}|${potBucket}|${stackBucket}|${isIP ? 'ip' : 'oop'}`;
+
+        if (!this._liveCache) this._liveCache = new Map();
+        let solver = this._liveCache.get(cacheKey);
+
+        if (!solver) {
+            // Determine bot's own postflop range from preflop history
+            const botRaisedPreflop = game.handHistory.some(h =>
+                h.seat === seat && h.street === 'preflop' &&
+                (h.action === 'raise' || h.action === 'allin'));
+            const botRangeKeys = this._approxPostflopRange(pos, botRaisedPreflop);
+
+            // Villain is the hero (only active opp in HU) — use a wide
+            // GTO-ish range since we don't know their exact style
+            const heroSeatIdx = game.heroSeat != null ? game.heroSeat : (game.seats.findIndex(s => s.isHero));
+            const heroPos = heroSeatIdx >= 0 ? game.getSeatPosition(heroSeatIdx) : 'BTN';
+            const heroRaisedPreflop = heroSeatIdx >= 0 && game.handHistory.some(h =>
+                h.seat === heroSeatIdx && h.street === 'preflop' &&
+                (h.action === 'raise' || h.action === 'allin'));
+            const heroRangeKeys = this._approxPostflopRange(heroPos, heroRaisedPreflop);
+
+            const botRangeHands = pm.rangeToHands(botRangeKeys);
+            const heroRangeHands = pm.rangeToHands(heroRangeKeys);
+            if (botRangeHands.length === 0 || heroRangeHands.length === 0) return null;
+
+            // Tight bot-mode solve — trade precision for speed. Equity
+            // bucketing (combo × combo MC sims) is the bottleneck, so we
+            // cut simsPerHand aggressively and cap buckets. This target
+            // ~1s turn, ~1.2s river on a modern laptop; quality is still
+            // notably better than pure heuristic.
+            const iters = street === 'river' ? 250 : 200;
+            const numBuckets = 12;
+            const sims = 15;
+
+            const t0 = performance.now();
+            try {
+                solver = new PostflopSolver({
+                    heroRange: botRangeHands,
+                    villainRange: heroRangeHands,
+                    board,
+                    pot: potSize,
+                    stack,
+                    heroIsIP: isIP,
+                    street,
+                    betSizes: [0.33, 0.66, 1.0],
+                    numBuckets,
+                    iterations: iters,
+                    simsPerHand: sims,
+                });
+                solver.solve();
+            } catch (e) {
+                console.warn('[BotAI] live solver failed:', e.message);
+                return null;
+            }
+            console.log(`[BotAI] ${street} live solve ${(performance.now()-t0).toFixed(0)}ms (${iters} iter, ${numBuckets} bucket)`);
+            this._liveCache.set(cacheKey, solver);
+        }
+
+        // Get strategy for the bot's specific hand
+        let strategy;
+        try {
+            if (toCall > 0) {
+                const betPct = toCall / Math.max(1, potSize);
+                strategy = solver.getStrategyFacingBet
+                    ? solver.getStrategyFacingBet(holeCards, betPct)
+                    : solver.getStrategy(holeCards);
+            } else {
+                strategy = solver.getStrategy(holeCards);
+            }
+        } catch (e) { return null; }
+        if (!strategy || Object.keys(strategy).length === 0) return null;
+
+        // Collapse sized-bet keys (bet33/bet66/bet100) into "bet" and
+        // normalise. Same pattern as the precomputed path so we can
+        // reuse the style-tilt + sampler.
+        const collapsed = { check: 0, fold: 0, call: 0, bet: 0, raise: 0, allin: 0 };
+        for (const [k, v] of Object.entries(strategy)) {
+            if (k === 'check') collapsed.check += v;
+            else if (k === 'fold') collapsed.fold += v;
+            else if (k === 'call') collapsed.call += v;
+            else if (k === 'raise') collapsed.raise += v;
+            else if (k === 'allin') collapsed.allin += v;
+            else if (k.startsWith('bet')) collapsed.bet += v;
+        }
+        const cleaned = {};
+        for (const [k, v] of Object.entries(collapsed)) if (v > 0.001) cleaned[k] = v;
+        if (Object.keys(cleaned).length === 0) return null;
+
+        // Style tilt (same table as precomputed path)
+        const tilts = {
+            NIT:  { fold: 1.4,  call: 0.8, check: 1.1, bet: 0.7, raise: 0.6, allin: 0.5 },
+            TAG:  { fold: 1.1,  call: 0.95, check: 1.0, bet: 0.95, raise: 0.9, allin: 0.85 },
+            REG:  { fold: 1.0,  call: 1.0,  check: 1.0, bet: 1.0,  raise: 1.0, allin: 1.0 },
+            LAG:  { fold: 0.7,  call: 1.0,  check: 0.85, bet: 1.3, raise: 1.35, allin: 1.2 },
+            FISH: { fold: 0.55, call: 1.5,  check: 1.0, bet: 0.9, raise: 0.7, allin: 0.6 },
+        };
+        const t = tilts[style] || tilts.REG;
+        const tilted = {};
+        let total = 0;
+        for (const [k, v] of Object.entries(cleaned)) {
+            tilted[k] = Math.max(0, v * (t[k] != null ? t[k] : 1.0));
+            total += tilted[k];
+        }
+        if (total <= 0) return null;
+        for (const k in tilted) tilted[k] /= total;
+
+        const picked = this._sampleStrategy(tilted);
+        return this._translatePostflopAction(picked, holeCards, board, toCall, potSize, stack, seat, game);
+    }
+
+    // Rough postflop range for a given position + preflop action.
+    // Returns an array of hand keys like ['AA', 'KK', 'AKs', ...].
+    static _approxPostflopRange(pos, wasRaiser) {
+        // Hand ranking used by _getHandRank reversed: top N% -> first N entries
+        const all = this._handRankingList();
+        const widths = wasRaiser
+            ? { UTG: 0.14, HJ: 0.19, CO: 0.27, BTN: 0.42, SB: 0.32, BB: 0.35 }
+            : { UTG: 0.08, HJ: 0.10, CO: 0.14, BTN: 0.20, SB: 0.20, BB: 0.40 };
+        const pct = widths[pos] || 0.25;
+        const n = Math.max(1, Math.round(all.length * pct));
+        return all.slice(0, n);
+    }
+
+    // Canonical 169-hand ranking (same list used by _getHandRank but
+    // exposed so we can slice top-N% for solver ranges)
+    static _handRankingList() {
+        if (this._cachedRankList) return this._cachedRankList;
+        // Reuse the hardcoded ranking from _getHandRank
+        this._cachedRankList = ['AA','KK','QQ','JJ','AKs','TT','AKo','AQs','AJs','KQs',
+            '99','ATs','AQo','KJs','KTs','QJs','88','AJo','A9s','QTs',
+            'KQo','A8s','JTs','77','A5s','A7s','KJo','A4s','A6s','A3s',
+            'QJo','66','K9s','A2s','T9s','KTo','Q9s','J9s','55','JTo',
+            'A9o','QTo','K8s','A8o','98s','K7s','44','T8s','Q8s','87s',
+            'A5o','K6s','33','A7o','J8s','97s','K5s','76s','Q9o','22',
+            'A4o','T9o','K4s','J9o','65s','A6o','K3s','Q7s','A3o','86s',
+            'K2s','54s','T7s','Q6s','A2o','98o','Q5s','75s','96s','J7s',
+            'K9o','64s','Q4s','87o','T8o','53s','43s','Q3s','K8o','J8o',
+            'Q2s','85s','97o','76o','J6s','T6s','K7o','74s','65o','J5s',
+            '95s','86o','54o','63s','K6o','T9o','J4s','52s','T7o','Q8o',
+            'K5o','42s','J3s','84s','96o','Q7o','75o','J2s','93s','T5s',
+            'K4o','64o','53o','73s','Q6o','K3o','T4s','92s','43o','Q5o',
+            'K2o','82s','T3s','62s','83o','94o','Q4o','T2s','72s','85o',
+            'Q3o','74o','32s','J7o','T6o','Q2o','63o','95o','J6o','52o',
+            '42o','J5o','84o','93o','J4o','73o','32o','J3o','92o','62o',
+            'T5o','82o','J2o','T4o','72o','T3o','T2o'];
+        return this._cachedRankList;
     }
 
     static _translatePostflopAction(action, holeCards, board, toCall, potSize, stack, seat, game) {
