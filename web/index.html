@@ -1319,7 +1319,7 @@
 <script src="js/poker-table-dom.js?v=5"></script>
 <script src="js/roulette.js?v=3"></script>
 <script src="js/slots.js?v=2"></script>
-<script src="js/cash-game.js?v=1"></script>
+<script src="js/cash-game.js?v=2"></script>
 <script src="js/bot-ai.js?v=7"></script>
 <script>
 // ============================================================
@@ -5937,16 +5937,19 @@ function advanceCGAction() {
             const decision = await BotAI.decide(cashGame, actorSeat);
             if (!cashGame) return;   // user may have left mid-await
             const didFold = decision.action === 'fold';
+            // Capture board-before-action so the showdown path can detect
+            // a multi-card runout and stagger the reveal.
+            const prevBoardLen = (cashGame.board || []).length;
             const result = cashGame.processAction(actorSeat, decision.action, decision.amount);
             // Canvas-side animations (toast + chip fly + fold)
             if (cgCanvasTable) cgCanvasTable.playAction(actorSeat, decision.action, decision.amount);
-            renderCGTable(cashGame.getState());
+            // On all-in runout we DON'T render the final state yet — the
+            // reveal helper will stagger it.
+            const willStagger = result?.showdown && (cashGame.board?.length || 0) - prevBoardLen >= 2;
+            if (!willStagger) renderCGTable(cashGame.getState());
             if (didFold) triggerFoldAnim(actorSeat);
             if (result?.showdown) {
-                if (cgCanvasTable && result.winner !== undefined && result.winAmount) {
-                    cgCanvasTable.showWinner(result.winner, result.winAmount);
-                }
-                showCGResult(result);
+                runAllInRevealIfNeeded(result, prevBoardLen);
             }
             else if (result?.nextStreet) {
                 if (cgCanvasTable) cgCanvasTable.dealBoard(cashGame.board.map(c => c.rank + (c.suit === '♠' ? 's' : c.suit === '♥' ? 'h' : c.suit === '♦' ? 'd' : 'c')));
@@ -5961,15 +5964,14 @@ function heroAction(action, amount) {
     if (!cashGame) return;
     document.getElementById('cg-actions').style.display = 'none';
     const didFold = action === 'fold';
+    const prevBoardLen = (cashGame.board || []).length;
     const result = cashGame.processAction(cashGame.heroSeat, action, amount);
     if (cgCanvasTable) cgCanvasTable.playAction(cashGame.heroSeat, action, amount);
-    renderCGTable(cashGame.getState());
+    const willStagger = result?.showdown && (cashGame.board?.length || 0) - prevBoardLen >= 2;
+    if (!willStagger) renderCGTable(cashGame.getState());
     if (didFold) triggerFoldAnim(cashGame.heroSeat);
     if (result?.showdown) {
-        if (cgCanvasTable && result.winner !== undefined && result.winAmount) {
-            cgCanvasTable.showWinner(result.winner, result.winAmount);
-        }
-        showCGResult(result);
+        runAllInRevealIfNeeded(result, prevBoardLen);
     }
     else if (result?.nextStreet) {
         if (cgCanvasTable) cgCanvasTable.dealBoard(cashGame.board.map(c => c.rank + (c.suit === '♠' ? 's' : c.suit === '♥' ? 'h' : c.suit === '♦' ? 'd' : 'c')));
@@ -6010,6 +6012,72 @@ function triggerFoldAnim(seatIdx) {
         seatEl.classList.add('cg-fold-anim');
         setTimeout(() => seatEl.classList.remove('cg-fold-anim'), 500);
     }
+}
+
+// All-in runout reveal: when a showdown arrives and 2+ new community
+// cards need to be flipped (preflop/flop all-in calls), stagger the
+// reveal across streets so the user sees flop → turn → river like a
+// normal hand instead of 5 cards flashing at once. For 0–1 new cards
+// (turn all-in call, river all-in call, turn fold), go straight to the
+// winner burst.
+function runAllInRevealIfNeeded(result, prevBoardLen) {
+    if (!cashGame) { showCGResult(result); return; }
+    const finalBoard = (cashGame.board || []).slice();
+    // Use board length BEFORE the action, not the freshly-rendered DOM count
+    // (the caller may or may not have rendered already depending on whether
+    // we detected the stagger case early).
+    const alreadyShown = Math.min(
+        prevBoardLen != null ? prevBoardLen : (cgRenderedBoardCount || 0),
+        finalBoard.length
+    );
+    const remaining = finalBoard.length - alreadyShown;
+
+    const suitMap = { '♠': 's', '♥': 'h', '♦': 'd', '♣': 'c' };
+    const toStr = (c) => c.rank + (suitMap[c.suit] || c.suit);
+
+    const finalize = () => {
+        if (cgCanvasTable && result.winner !== undefined && result.winAmount) {
+            cgCanvasTable.showWinner(result.winner, result.winAmount);
+        }
+        showCGResult(result);
+    };
+
+    if (remaining <= 1 || !cgCanvasTable) {
+        finalize();
+        return;
+    }
+
+    // Figure out the milestone cutoffs: flop (3), turn (4), river (5).
+    // Reveal every milestone that hasn't been shown yet, with a gap.
+    const milestones = [3, 4, 5].filter(n => n > alreadyShown && n <= finalBoard.length);
+    let i = 0;
+    const GAP_MS = 750;
+
+    const step = () => {
+        if (!cashGame) return;
+        const n = milestones[i];
+        const partial = finalBoard.slice(0, n);
+        // Sync the engine's view too so renderCGTable sees the partial
+        // board (so stacks/pot update visually once). We mutate the live
+        // board temporarily, then restore on the last step.
+        cashGame.board = partial;
+        cashGame.street = n === 3 ? 'flop' : n === 4 ? 'turn' : 'river';
+        renderCGTable(cashGame.getState());
+        if (cgCanvasTable) cgCanvasTable.dealBoard(partial.map(toStr));
+        i++;
+        if (i < milestones.length) {
+            setTimeout(step, GAP_MS);
+        } else {
+            setTimeout(() => {
+                // Restore the real final state (board/street/pot)
+                if (!cashGame) return;
+                cashGame.board = finalBoard;
+                cashGame.street = 'showdown';
+                finalize();
+            }, GAP_MS);
+        }
+    };
+    step();
 }
 
 function showCGResult(result) {
@@ -6092,8 +6160,13 @@ function renderCGTable(state) {
     const bets = new Array(6).fill(0);
     const folded = new Array(6).fill(false);
     const allIn = new Array(6).fill(false);
+    // At showdown all bets have already been awarded to the winner — the
+    // engine doesn't clear `seat.bet` on the all-in runout path because
+    // _runItOut skips _nextStreet. Zero them here so stale "100.0" chips
+    // don't stay floating on the felt.
+    const isShowdown = state.street === 'showdown';
     for (let i = 0; i < 6; i++) {
-        bets[i] = state.seats[i]?.bet || 0;
+        bets[i] = isShowdown ? 0 : (state.seats[i]?.bet || 0);
         folded[i] = !!state.seats[i]?.folded;
         allIn[i] = !!state.seats[i]?.allIn;
     }

@@ -397,6 +397,15 @@ class CashGameEngine {
             this.seats[w].stack += share;
         }
 
+        // Normalize hand state on pot award: the hand is over, so
+        // clear leftover per-seat bets (otherwise stale all-in chips
+        // stay floating on the felt) and mark the street as 'showdown'.
+        // This covers the all-fold path too — _runItOut already sets
+        // street='showdown' itself, but a fold-wins doesn't reach _runItOut.
+        this.bets = new Array(this.numSeats).fill(0);
+        this.currentBet = 0;
+        if (this.street !== 'showdown') this.street = 'showdown';
+
         // Calculate each player's total investment this hand
         const invested = new Array(this.numSeats).fill(0);
         for (const h of this.handHistory) {
