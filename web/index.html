@@ -5579,9 +5579,12 @@ function pvpSetSliderPct(pct) {
     const myBet = window.pvpLastRoom?.bets?.[pvpMySeat] || 0;
     const currentBet = window.pvpLastRoom?.current_bet || 0;
     const toCall = Math.max(0, currentBet - myBet);
+    // Raise-to = currentBet + pct × (pot after our call). `roomPot`
+    // already includes opponents' currentBet contributions, so only
+    // add our own toCall once.
     let amt = pvpBetContext.kind === 'bet'
         ? roomPot * pct
-        : currentBet + toCall + pct * (roomPot + toCall * 2);
+        : currentBet + pct * (roomPot + toCall);
     amt = Math.round(Math.max(pvpBetContext.min, Math.min(pvpBetContext.max, amt)) * 10) / 10;
     document.getElementById('pvp-bet-slider').value = amt;
     pvpUpdateSliderLabel();
@@ -6318,9 +6321,15 @@ function cgSetSliderPct(pct) {
     const toCall = Math.max(0, currentBet - heroBet);
     let amount;
     if (cgCustomAction === 'bet') {
+        // Simple pot-size bet — pot is the full current pot, hero bets pct of it.
         amount = pot * pct;
     } else {
-        amount = currentBet + toCall + pct * (pot + toCall * 2);
+        // Raise-to size: bet-into-a-pot standard.
+        //   raise-to = currentBet + pct × (pot after hero's call)
+        //   pot after hero's call = pot + toCall
+        // `pot` already includes villain's currentBet contribution (the
+        // engine bumps pot on every bet), so we only add one toCall.
+        amount = currentBet + pct * (pot + toCall);
     }
     amount = Math.round(Math.max(cgCustomMin, Math.min(cgCustomMax, amount)) * 10) / 10;
     document.getElementById('cg-bet-slider').value = amount;
