@@ -940,14 +940,10 @@
         <!-- Action bar (WePoker-style) -->
         <div id="cg-actions" style="display:none;">
             <div class="wp-action-bar">
-                <!-- Quick-bet pills (visible when bet/raise is available) -->
-                <div class="wp-quick-row" id="cg-quick-row" style="display:none;">
-                    <button class="wp-quick-btn" data-pct="0.33" onclick="cgSetSliderPct(0.33)">1/3池</button>
-                    <button class="wp-quick-btn" data-pct="0.5" onclick="cgSetSliderPct(0.5)">1/2池</button>
-                    <button class="wp-quick-btn" data-pct="0.66" onclick="cgSetSliderPct(0.66)">2/3池</button>
-                    <button class="wp-quick-btn" data-pct="1" onclick="cgSetSliderPct(1.0)">池底</button>
-                    <button class="wp-quick-btn" data-pct="max" onclick="cgSetSliderMax()">MAX</button>
-                </div>
+                <!-- Quick-bet pills: preflop = BB-multiple (2.5x/3x/4x…),
+                     postflop = pot-fraction (1/3池 / 1/2池 / 2/3池 / 池底 / MAX).
+                     Populated by renderCGActions based on street. -->
+                <div class="wp-quick-row" id="cg-quick-row" style="display:none;"></div>
                 <!-- Bet slider (only shown when user starts dragging a custom amount) -->
                 <div class="wp-slider-row" id="cg-slider-area" style="display:none;">
                     <button class="wp-slider-minus" onclick="cgSliderNudge(-1)">−</button>
@@ -6256,11 +6252,39 @@ function renderCGActions() {
     }
     document.getElementById('cg-action-btns').innerHTML = btns.join('');
 
-    // Show the quick-pill row only when the player can actually bet/raise
+    // Show + populate the quick-pill row based on street. Preflop uses
+    // BB-multiple sizings (2.5x / 3x / 4x / 5x / MAX) which is the
+    // standard open/3-bet/4-bet convention; postflop uses pot-fraction
+    // sizings (1/3 / 1/2 / 2/3 / 池底 / MAX) which is the bet-size
+    // convention there. Same pills were used everywhere before — which
+    // produced pot-sized preflop raises that felt way too big.
     const quickRow = document.getElementById('cg-quick-row');
-    quickRow.style.display = (hasBetOrRaise && maxAmount > minRaise + 0.01) ? 'flex' : 'none';
-    // Reset active pill state
-    quickRow.querySelectorAll('.wp-quick-btn').forEach(b => b.classList.remove('is-active'));
+    const showPills = hasBetOrRaise && maxAmount > minRaise + 0.01;
+    quickRow.style.display = showPills ? 'flex' : 'none';
+    if (showPills) {
+        const isPreflop = cashGame.street === 'preflop';
+        if (isPreflop) {
+            // Preflop: X-times the current bet level. If no-one raised yet
+            // (currentBet = BB), 2.5x means "open to 2.5 BB". If there's a
+            // raise, the same 2.5x means "raise to 2.5× of the current
+            // raise" — i.e. a standard 3-bet or 4-bet multiplier.
+            quickRow.innerHTML = `
+                <button class="wp-quick-btn" data-mult="2.5" onclick="cgSetSliderMult(2.5)">2.5x</button>
+                <button class="wp-quick-btn" data-mult="3" onclick="cgSetSliderMult(3)">3x</button>
+                <button class="wp-quick-btn" data-mult="4" onclick="cgSetSliderMult(4)">4x</button>
+                <button class="wp-quick-btn" data-mult="5" onclick="cgSetSliderMult(5)">5x</button>
+                <button class="wp-quick-btn" data-pct="max" onclick="cgSetSliderMax()">MAX</button>
+            `;
+        } else {
+            quickRow.innerHTML = `
+                <button class="wp-quick-btn" data-pct="0.33" onclick="cgSetSliderPct(0.33)">1/3池</button>
+                <button class="wp-quick-btn" data-pct="0.5" onclick="cgSetSliderPct(0.5)">1/2池</button>
+                <button class="wp-quick-btn" data-pct="0.66" onclick="cgSetSliderPct(0.66)">2/3池</button>
+                <button class="wp-quick-btn" data-pct="1" onclick="cgSetSliderPct(1.0)">池底</button>
+                <button class="wp-quick-btn" data-pct="max" onclick="cgSetSliderMax()">MAX</button>
+            `;
+        }
+    }
 
     document.getElementById('cg-actions').style.display = 'block';
     // Hide slider until user opens it
@@ -6338,6 +6362,25 @@ function cgSetSliderPct(pct) {
     document.querySelectorAll('#cg-quick-row .wp-quick-btn').forEach(b => {
         const p = parseFloat(b.dataset.pct);
         b.classList.toggle('is-active', !isNaN(p) && Math.abs(p - pct) < 0.01);
+    });
+}
+
+// Preflop-only quick-bet: multiples of the current bet level.
+// No raise yet → 2.5× BB means "open to 2.5 BB" (currentBet == BB == 1).
+// Facing a raise → 2.5× currentBet is a standard 3-bet / 4-bet size.
+function cgSetSliderMult(mult) {
+    if (!cashGame) return;
+    const raiseBtn = document.getElementById('cg-raise-btn');
+    if (!cgCustomAction && raiseBtn) raiseBtn.click();
+    if (!cgCustomAction) return;
+    const currentBet = cashGame.currentBet || cashGame.bb || 1;
+    let amount = currentBet * mult;
+    amount = Math.round(Math.max(cgCustomMin, Math.min(cgCustomMax, amount)) * 10) / 10;
+    document.getElementById('cg-bet-slider').value = amount;
+    cgUpdateSliderLabel();
+    document.querySelectorAll('#cg-quick-row .wp-quick-btn').forEach(b => {
+        const m = parseFloat(b.dataset.mult);
+        b.classList.toggle('is-active', !isNaN(m) && Math.abs(m - mult) < 0.01);
     });
 }
 
