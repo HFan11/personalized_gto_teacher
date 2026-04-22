@@ -5347,6 +5347,11 @@ function pvpRenderTable(room) {
 
     // Push state + fire animations on diffs.
     if (pvpCanvasTable) {
+        // PVP engine sets room.street back to 'waiting' AFTER the
+        // showdown is awarded — so we'd lose the showdown CSS branch
+        // (which reveals villain cards + enlarges them) if we passed
+        // 'waiting' through directly. Map showdown → 'showdown' here.
+        const renderStreet = showdownActive ? 'showdown' : (room.street || 'waiting');
         pvpCanvasTable.setState({
             seats: visualSeats,
             board: board.slice(),
@@ -5357,7 +5362,7 @@ function pvpRenderTable(room) {
             actingSeat: visualActingSeat,
             dealerSeat: visualDealerSeat,
             heroSeat: 0,
-            street: room.street || 'waiting',
+            street: renderStreet,
         });
 
         if (pvpLastRoom) {
