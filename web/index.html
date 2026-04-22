@@ -6206,7 +6206,13 @@ function renderCGActions() {
         if (a.action === 'bet' || a.action === 'raise') {
             hasBetOrRaise = true;
             betAction = a.action;
-            if (a.action === 'bet') minRaise = Math.max(cashGame.bb || 1, a.amount || minRaise);
+            if (a.action === 'bet') {
+                // Minimum bet is always BB. The engine emits multiple
+                // "bet" presets (33/50/66/100% pot) — we must NOT let
+                // any of their amounts overwrite minRaise, otherwise
+                // the slider's floor becomes pot-size.
+                minRaise = cashGame.bb || 1;
+            }
             if (a.action === 'raise') minRaise = Math.max(currentBet * 2, currentBet + (cashGame.bb || 1));
         }
         if (a.action === 'allin') allInAction = a;
