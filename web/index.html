@@ -812,6 +812,7 @@
             </div>
             <div style="display:flex;gap:6px;">
                 <button id="pvp-leave-btn" onclick="pvpLeaveRoom()" style="background:transparent;border:1px solid var(--border-color);color:var(--text-muted);padding:6px 14px;border-radius:6px;font-size:11px;cursor:pointer;display:none;">离席</button>
+                <button id="pvp-exit-btn" onclick="pvpExitRoom()" style="background:transparent;border:1px solid var(--border-color);color:var(--text-muted);padding:6px 14px;border-radius:6px;font-size:11px;cursor:pointer;">离开房间</button>
             </div>
         </div>
     </div>
@@ -836,13 +837,10 @@
     <!-- WePoker-style action bar (same markup family as the AI cashgame) -->
     <div id="pvp-actions" style="display:none;">
         <div class="wp-action-bar">
-            <div class="wp-quick-row" id="pvp-quick-row" style="display:none;">
-                <button class="wp-quick-btn" data-pct="0.33" onclick="pvpSetSliderPct(0.33)">1/3池</button>
-                <button class="wp-quick-btn" data-pct="0.5" onclick="pvpSetSliderPct(0.5)">1/2池</button>
-                <button class="wp-quick-btn" data-pct="0.66" onclick="pvpSetSliderPct(0.66)">2/3池</button>
-                <button class="wp-quick-btn" data-pct="1" onclick="pvpSetSliderPct(1.0)">池底</button>
-                <button class="wp-quick-btn" data-pct="max" onclick="pvpSetSliderMax()">MAX</button>
-            </div>
+            <!-- Populated dynamically by pvpRenderActions: preflop shows
+                 BB-multiple pills (2.5x / 3x / 4x …), postflop shows pot
+                 fraction pills (1/3池 / 1/2池 / …). -->
+            <div class="wp-quick-row" id="pvp-quick-row" style="display:none;"></div>
             <div class="wp-slider-row" id="pvp-slider-area" style="display:none;">
                 <button class="wp-slider-minus" onclick="pvpSliderNudge(-1)">−</button>
                 <input type="range" id="pvp-bet-slider" min="1" max="100" value="3" step="0.5" oninput="pvpUpdateSliderLabel()">
@@ -5463,6 +5461,9 @@ function pvpRenderTable(room) {
     } else {
         document.getElementById('pvp-actions').style.display = 'none';
     }
+
+    // Auto-rebuy bots if the table is stuck with <2 players holding chips
+    pvpMaybeAutoRebuy(room);
 }
 
 function pvpRenderHeroHand() {
@@ -5527,10 +5528,34 @@ function pvpRenderActions(room) {
     }
     document.getElementById('pvp-action-btns').innerHTML = btns.join('');
 
-    // Show the quick-pill row when betting is possible; hide slider until opened.
+    // Populate + show the quick-pill row. Preflop uses BB-multiple
+    // pills (2.5x / 3x / 4x / 5x / MAX) — the standard open / 3-bet /
+    // 4-bet sizing convention. Postflop uses pot-fraction pills
+    // (1/3 / 1/2 / 2/3 / 池底 / MAX). Before this split the preflop
+    // slider was fed pot-fractions, which on a 1.5 BB pot made every
+    // pill click land at "just below min-raise".
     const quickRow = document.getElementById('pvp-quick-row');
     quickRow.style.display = canBet ? 'flex' : 'none';
-    quickRow.querySelectorAll('.wp-quick-btn').forEach(b => b.classList.remove('is-active'));
+    if (canBet) {
+        const isPreflop = (room.street || 'waiting') === 'preflop';
+        if (isPreflop) {
+            quickRow.innerHTML = `
+                <button class="wp-quick-btn" data-mult="2.5" onclick="pvpSetSliderMult(2.5)">2.5x</button>
+                <button class="wp-quick-btn" data-mult="3" onclick="pvpSetSliderMult(3)">3x</button>
+                <button class="wp-quick-btn" data-mult="4" onclick="pvpSetSliderMult(4)">4x</button>
+                <button class="wp-quick-btn" data-mult="5" onclick="pvpSetSliderMult(5)">5x</button>
+                <button class="wp-quick-btn" data-pct="max" onclick="pvpSetSliderMax()">MAX</button>
+            `;
+        } else {
+            quickRow.innerHTML = `
+                <button class="wp-quick-btn" data-pct="0.33" onclick="pvpSetSliderPct(0.33)">1/3池</button>
+                <button class="wp-quick-btn" data-pct="0.5" onclick="pvpSetSliderPct(0.5)">1/2池</button>
+                <button class="wp-quick-btn" data-pct="0.66" onclick="pvpSetSliderPct(0.66)">2/3池</button>
+                <button class="wp-quick-btn" data-pct="1" onclick="pvpSetSliderPct(1.0)">池底</button>
+                <button class="wp-quick-btn" data-pct="max" onclick="pvpSetSliderMax()">MAX</button>
+            `;
+        }
+    }
     document.getElementById('pvp-slider-area').style.display = 'none';
 
     document.getElementById('pvp-actions').style.display = 'block';
@@ -5601,6 +5626,22 @@ function pvpSetSliderMax() {
     });
 }
 
+// Preflop-only: multiples of the current bet level (open/3-bet/4-bet size).
+function pvpSetSliderMult(mult) {
+    if (!pvpBetContext) return;
+    const raiseBtn = document.getElementById('pvp-raise-btn');
+    if (raiseBtn && !raiseBtn.classList.contains('is-sliding')) raiseBtn.click();
+    const currentBet = (window.pvpLastRoom?.current_bet) || 1;
+    let amt = currentBet * mult;
+    amt = Math.round(Math.max(pvpBetContext.min, Math.min(pvpBetContext.max, amt)) * 10) / 10;
+    document.getElementById('pvp-bet-slider').value = amt;
+    pvpUpdateSliderLabel();
+    document.querySelectorAll('#pvp-quick-row .wp-quick-btn').forEach(b => {
+        const m = parseFloat(b.dataset.mult);
+        b.classList.toggle('is-active', !isNaN(m) && Math.abs(m - mult) < 0.01);
+    });
+}
+
 function pvpSliderNudge(dir) {
     if (!pvpBetContext) return;
     const sl = document.getElementById('pvp-bet-slider');
@@ -5635,6 +5676,51 @@ async function pvpLeaveRoom() {
         if (typeof syncFromCloud === 'function') syncFromCloud();
         pvpLoadRoom();
     } catch(e) { alert('离席失败: ' + e.message); }
+}
+
+// Hard-exit the PVP page: leave seat (if any) and route the user back
+// to the cashgame buy-in selector. The "离席" button only released
+// the seat but kept the user in the spectator view, which made the
+// "leave" action feel broken.
+async function pvpExitRoom() {
+    // Cancel polling so the page doesn't keep re-rendering after exit
+    if (window.pvpPollTimer) { clearInterval(window.pvpPollTimer); window.pvpPollTimer = null; }
+    // Best-effort leave seat (silent — don't block the exit on RPC failure)
+    if (supabase.user && pvpMySeat >= 0) {
+        try { await supabase.rpc('pvp_leave_seat'); } catch(e) {}
+    }
+    pvpMySeat = -1;
+    pvpMyPendingSeat = -1;
+    pvpLastRoom = null;
+    // Hide PVP, show cashgame selector
+    const pvp = document.getElementById('pvp-container');
+    if (pvp) pvp.style.display = 'none';
+    document.getElementById('cashgame-buyin').style.display = 'block';
+    document.getElementById('cashgame-table').style.display = 'none';
+    document.getElementById('ai-buyin').style.display = 'none';
+}
+
+// Auto-rebuy bots when the table can no longer play (< 2 seats with chips).
+// Uses a debounced flag so we don't spam the RPC while the room is polling.
+let _pvpAutoRebuyArmed = false;
+function pvpMaybeAutoRebuy(room) {
+    if (!supabase.user) return;
+    if (!room || room.street !== 'waiting') return;
+    const seats = room.seats || [];
+    const seatsWithChips = seats.filter(s => (s?.stack || 0) > 0.5).length;
+    if (seatsWithChips >= 2) { _pvpAutoRebuyArmed = false; return; }
+    if (_pvpAutoRebuyArmed) return;
+    _pvpAutoRebuyArmed = true;
+    setTimeout(async () => {
+        try {
+            await supabase.rpc('pvp_restart_table');
+            pvpLoadRoom();
+        } catch(e) {
+            console.warn('[pvp] auto-rebuy failed:', e.message);
+        }
+        // Re-arm after a delay so we don't loop if the RPC keeps failing
+        setTimeout(() => { _pvpAutoRebuyArmed = false; }, 5000);
+    }, 1500);
 }
 
 // Admin: refill all bot seats to 100BB (no effect on humans).
