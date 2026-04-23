@@ -5465,6 +5465,10 @@ function pvpRenderTable(room) {
         pvpRenderActions(room);
     } else {
         document.getElementById('pvp-actions').style.display = 'none';
+        // Drop the cached render-key so the next time it IS our turn we
+        // rebuild the buttons (otherwise a stale key from the prior turn
+        // skips the render and the slider stays in last hand's state).
+        pvpActionsRenderKey = null;
     }
 
     // Auto-rebuy bots if the table is stuck with <2 players holding chips
@@ -5495,11 +5499,30 @@ async function pvpFetchMyCards(handNum) {
 }
 
 let pvpBetContext = null;  // { kind: 'bet'|'raise', min, max, stack }
+// Key that captures every piece of room state that should change the
+// hero's legal-action set. We re-render the action bar ONLY when this
+// changes — without this guard the 1.5s poll rebuilds buttons (and
+// hides the slider) on every tick, so a slider opened by the user gets
+// clobbered ~within a second of dragging.
+let pvpActionsRenderKey = null;
 
 function pvpRenderActions(room) {
     const myBet = room.bets?.[pvpMySeat] || 0;
     const toCall = Math.max(0, room.current_bet - myBet);
-    const stack = room.seats?.[pvpMySeat]?.stack || 0;
+    const myStack = room.seats?.[pvpMySeat]?.stack || 0;
+    // Render-key: anything that would change the legal actions or the
+    // bet/raise range. If unchanged we early-return without touching
+    // the DOM, which keeps the slider open across polls.
+    const key = `${room.hand_number}|${room.street}|${room.acting_seat}|${room.current_bet}|${room.pot}|${myBet}|${myStack}`;
+    if (key === pvpActionsRenderKey) {
+        // Make sure the panel is still visible, but otherwise leave the
+        // current DOM (and any open slider) untouched.
+        const el = document.getElementById('pvp-actions');
+        if (el && el.style.display === 'none') el.style.display = 'block';
+        return;
+    }
+    pvpActionsRenderKey = key;
+    const stack = myStack;
     const pot = room.pot || 0;
     const isCheckable = toCall <= 0;
     const kind = isCheckable ? 'bet' : 'raise';
@@ -6049,6 +6072,7 @@ function advanceCGAction() {
 function heroAction(action, amount) {
     if (!cashGame) return;
     document.getElementById('cg-actions').style.display = 'none';
+    cgActionsRenderKey = null;   // hero acted → next renderCGActions must rebuild
     const didFold = action === 'fold';
     const prevBoardLen = (cashGame.board || []).length;
     const result = cashGame.processAction(cashGame.heroSeat, action, amount);
@@ -6277,6 +6301,12 @@ function renderCGTable(state) {
 let cgCustomAction = null; // 'bet' or 'raise'
 let cgCustomMin = 1;
 let cgCustomMax = 100;
+// Same render-key guard as PVP — if the legal-action context hasn't
+// changed, don't tear down + rebuild the buttons (which closes any
+// slider the user has open). Currently renderCGActions is only called
+// once per hero-turn-start, but having the guard makes the code robust
+// against future callers.
+let cgActionsRenderKey = null;
 
 function renderCGActions() {
     if (!cashGame) return;
@@ -6285,6 +6315,13 @@ function renderCGActions() {
     const heroStack = hero.stack;
     const heroBet = cashGame.bets[cashGame.heroSeat] || 0;
     const currentBet = cashGame.currentBet || 0;
+    const key = `${cashGame.handNumber || 0}|${cashGame.street}|${cashGame.actingSeat ?? -1}|${currentBet}|${cashGame.pot || 0}|${heroBet}|${heroStack}`;
+    if (key === cgActionsRenderKey) {
+        const el = document.getElementById('cg-actions');
+        if (el && el.style.display === 'none') el.style.display = 'block';
+        return;
+    }
+    cgActionsRenderKey = key;
 
     // Decide if we have bet/raise options and the range available.
     let hasBetOrRaise = false;
