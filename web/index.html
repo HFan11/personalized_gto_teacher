@@ -1306,7 +1306,7 @@
 <script src="js/preflop-solver.js?v=2"></script>
 <script src="js/precomputed-lookup.js?v=1"></script>
 <script src="js/postflop-solver.js?v=2"></script>
-<script src="js/profiles.js?v=20"></script>
+<script src="js/profiles.js?v=21"></script>
 <script src="js/preflop-practice.js?v=23"></script>
 <script src="js/practice.js?v=27"></script>
 <script src="js/casino-fx.js?v=1"></script>
@@ -1558,6 +1558,8 @@ function selectProfileFor(side, id) {
     } else {
         selectedVillainId = id;
     }
+    // Per-user persistence: push the new selection to the server.
+    if (typeof scheduleSettingsSync === 'function') scheduleSettingsSync();
     renderProfiles();
 
     // Pre-warm solver cache when profiles are selected
@@ -1610,9 +1612,10 @@ function updateStartButton() {
 
 function resetProfiles() {
     if (confirm('确定恢复所有默认档案？')) {
-        pm.resetToDefaults();
+        pm.resetToDefaults();  // this already calls saveProfiles → scheduleSettingsSync
         selectedHeroId = null;
         selectedVillainId = null;
+        if (typeof scheduleSettingsSync === 'function') scheduleSettingsSync();
         renderProfiles();
     }
 }
@@ -1662,6 +1665,7 @@ function saveNewProfile() {
     if (document.getElementById('page-wizard')?.classList.contains('active')) {
         if (modalSide === 'hero') selectedHeroId = profile.id;
         else selectedVillainId = profile.id;
+        if (typeof scheduleSettingsSync === 'function') scheduleSettingsSync();
         renderWizardStep();
     }
 }
@@ -4655,8 +4659,71 @@ async function syncFromCloud() {
             // Sync bankroll to casino
             if (p.bankroll !== undefined) setBankroll(p.bankroll);
             if (p.last_checkin) localStorage.setItem('pokergto_last_checkin', p.last_checkin);
+            // Per-user range+profile persistence (added for training page).
+            applyServerSettings(p.settings || {});
         }
     } catch(e) { console.warn('Sync failed:', e); }
+}
+
+// ---- Per-user training settings (ranges, profiles, selected IDs) ----
+// Applied after syncFromCloud pulls profiles.settings. If the server
+// has non-empty training data, it overwrites local. If the server is
+// empty (fresh account), the user's current local state is pushed up
+// so pre-login edits aren't lost.
+function applyServerSettings(settings) {
+    if (!settings || typeof settings !== 'object') settings = {};
+    const serverProfiles = Array.isArray(settings.profiles) ? settings.profiles : null;
+    if (serverProfiles && serverProfiles.length > 0) {
+        // Server has data → replace local, update selections.
+        pm.replaceAllFromServer(serverProfiles);
+        if (settings.selectedHeroId) selectedHeroId = settings.selectedHeroId;
+        if (settings.selectedVillainId) selectedVillainId = settings.selectedVillainId;
+        // Validate selected IDs still exist (in case of stale references)
+        if (selectedHeroId && !pm.getById(selectedHeroId)) selectedHeroId = null;
+        if (selectedVillainId && !pm.getById(selectedVillainId)) selectedVillainId = null;
+        // Re-render any open training UI so the pulled data shows up.
+        if (typeof renderProfileList === 'function' && document.getElementById('hero-profile-list')) {
+            renderProfileList('hero-profile-list', selectedHeroId, 'hero');
+            renderProfileList('villain-profile-list', selectedVillainId, 'villain');
+        }
+        if (typeof updatePreflopDisplay === 'function' && document.querySelector('#page-preflop.active')) {
+            updatePreflopDisplay();
+        }
+    } else {
+        // Server is empty → push current local state up so this user's
+        // pre-login edits get preserved. Fire once, no debounce.
+        pushSettingsNow();
+    }
+}
+
+// Debounced scheduler. Every call within the window coalesces into a
+// single network write. Exposed on window so profiles.js can trigger
+// from saveProfiles() without a direct reference.
+let _settingsSyncTimer = null;
+function scheduleSettingsSync() {
+    if (!supabase.user) return;       // guest mode → localStorage only
+    if (_settingsSyncTimer) clearTimeout(_settingsSyncTimer);
+    _settingsSyncTimer = setTimeout(() => {
+        _settingsSyncTimer = null;
+        pushSettingsNow();
+    }, 1500);
+}
+window.scheduleSettingsSync = scheduleSettingsSync;
+
+async function pushSettingsNow() {
+    if (!supabase.user) return;
+    const payload = {
+        settings: {
+            v: 1,
+            profiles: pm.getAll(),
+            selectedHeroId: selectedHeroId || null,
+            selectedVillainId: selectedVillainId || null,
+        },
+        updated_at: new Date().toISOString(),
+    };
+    try {
+        await supabase.update('profiles', { id: supabase.user.id }, payload);
+    } catch(e) { console.warn('Settings sync failed:', e); }
 }
 
 // Save data to cloud

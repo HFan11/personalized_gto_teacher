@@ -207,6 +207,23 @@ class ProfileManager {
 
     saveProfiles() {
         localStorage.setItem('poker_profiles', JSON.stringify(this.profiles));
+        // Per-user server sync: debounced push of the full settings blob
+        // to Supabase profiles.settings so edits follow the user across
+        // browsers/devices. The actual push is wired in index.html
+        // (syncSettingsToServer) because that file owns the global
+        // selectedHeroId/selectedVillainId which are part of the blob.
+        if (typeof window.scheduleSettingsSync === 'function') {
+            window.scheduleSettingsSync();
+        }
+    }
+
+    // Replace all profiles with a server-supplied list (used on login
+    // when the Supabase row has a non-empty settings.profiles).
+    // Does NOT trigger a re-sync — the data came FROM the server.
+    replaceAllFromServer(profilesFromServer) {
+        if (!Array.isArray(profilesFromServer) || profilesFromServer.length === 0) return;
+        this.profiles = profilesFromServer;
+        localStorage.setItem('poker_profiles', JSON.stringify(this.profiles));
     }
 
     getAll() {
