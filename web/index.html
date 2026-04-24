@@ -5510,10 +5510,16 @@ function pvpRenderActions(room) {
     const myBet = room.bets?.[pvpMySeat] || 0;
     const toCall = Math.max(0, room.current_bet - myBet);
     const myStack = room.seats?.[pvpMySeat]?.stack || 0;
-    // Render-key: anything that would change the legal actions or the
-    // bet/raise range. If unchanged we early-return without touching
-    // the DOM, which keeps the slider open across polls.
-    const key = `${room.hand_number}|${room.street}|${room.acting_seat}|${room.current_bet}|${room.pot}|${myBet}|${myStack}`;
+    // Render-key: ONLY the coarse identity of the turn. During the user's
+    // own turn nothing else changes — no one else can act until they do.
+    // Previously we also mixed pot/current_bet/my_bet/my_stack into the
+    // key, but those fields can drift by float-precision epsilons between
+    // polls (PostgREST re-serializes NUMERIC each query), so the key
+    // changed spuriously and the slider got torn down mid-drag. Keeping
+    // only hand|street|acting_seat is sufficient: if any of those
+    // advance, the user's turn has ended or the street flipped, at which
+    // point the slider SHOULD be torn down anyway.
+    const key = `${room.hand_number}|${room.street}|${room.acting_seat}`;
     if (key === pvpActionsRenderKey) {
         // Make sure the panel is still visible, but otherwise leave the
         // current DOM (and any open slider) untouched.
@@ -6315,7 +6321,9 @@ function renderCGActions() {
     const heroStack = hero.stack;
     const heroBet = cashGame.bets[cashGame.heroSeat] || 0;
     const currentBet = cashGame.currentBet || 0;
-    const key = `${cashGame.handNumber || 0}|${cashGame.street}|${cashGame.actingSeat ?? -1}|${currentBet}|${cashGame.pot || 0}|${heroBet}|${heroStack}`;
+    // Identity-only key — see pvpRenderActions for rationale (float drift
+    // in numeric columns re-serialized each poll tore the slider down).
+    const key = `${cashGame.handNumber || 0}|${cashGame.street}|${cashGame.actingSeat ?? -1}`;
     if (key === cgActionsRenderKey) {
         const el = document.getElementById('cg-actions');
         if (el && el.style.display === 'none') el.style.display = 'block';
