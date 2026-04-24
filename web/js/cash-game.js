@@ -89,6 +89,31 @@ class CashGameEngine {
         };
     }
 
+    // Normalize a bot's stack at hand start to keep the table playable.
+    // Real online cash games cap buy-in at ~200 BB and offer auto-rebuy
+    // below a threshold; without this, after enough hands you get one
+    // bot at 299 BB sitting across from a 100 BB hero, which destroys
+    // the training value (hero can never threaten the big stack, and
+    // three seats are busted-out ghosts).
+    //
+    // Rules:
+    //   stack > 2.0 × starting  →  cash out down to starting (100 BB)
+    //   stack < 0.3 × starting  →  top up to starting (auto-rebuy
+    //                              short stacks, but keep some natural
+    //                              variance in the mid-stack range)
+    //   otherwise                →  unchanged (bot keeps its wins/losses)
+    //
+    // Hero is exempt — they manage their own buy-in via the UI.
+    _rebalanceBotStack(seat) {
+        const s = this.seats[seat];
+        if (!s || s.isHero) return;
+        if (s.stack <= 0) return;               // leave to _replaceBot
+        const cap   = this.startingStack * 2.0;  // 200 BB default
+        const floor = this.startingStack * 0.3;  // 30 BB default
+        if (s.stack > cap)   s.stack = this.startingStack;
+        else if (s.stack < floor) s.stack = this.startingStack;
+    }
+
     _replaceBot(seat) {
         const old = this.seats[seat];
         if (old && old.name) this._usedBotNames.delete(old.name);
@@ -134,10 +159,13 @@ class CashGameEngine {
         }
         this.handNumber++;
 
-        // Replace busted bots
+        // Bot stack hygiene at hand boundaries. Order matters:
+        //   1. Rebalance live bots (cap oversize, top up too-short).
+        //   2. Replace fully-busted bots with a brand-new bot.
         for (let i = 0; i < this.numSeats; i++) {
-            if (!this.seats[i].isHero && this.seats[i].stack <= 0) {
-                this._replaceBot(i);
+            if (!this.seats[i].isHero) {
+                this._rebalanceBotStack(i);
+                if (this.seats[i].stack <= 0) this._replaceBot(i);
             }
         }
 
