@@ -4526,13 +4526,23 @@ function renderLBRows(data, valueKey, valueFn, emptyMsg) {
         <span>#</span><span>玩家</span><span style="text-align:right;">${valueKey}</span>
     </div>`;
     data.forEach((p, i) => {
-        const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1);
+        // Divider rendered between top 3 and the user's own row when
+        // they're out of the top-3 cutoff (so they can still see their
+        // rank without the leaderboard being 50 rows long).
+        if (p._separator) {
+            html += `<div style="text-align:center;color:var(--text-muted);font-size:11px;padding:4px 0;opacity:0.5;">···</div>`;
+            return;
+        }
+        // Prefer an explicit _rank (set when we injected the user's own
+        // row below the top-3 cut); otherwise fall back to list index.
+        const rankNum = p._rank || (i + 1);
+        const medal = rankNum === 1 ? '🥇' : rankNum === 2 ? '🥈' : rankNum === 3 ? '🥉' : rankNum;
         const isMe = supabase.user && p.id === supabase.user.id;
         const bg = isMe ? 'rgba(79,143,247,0.08)' : 'transparent';
         const name = p.display_name || p.username || 'Anonymous';
         const { text, color } = valueFn(p);
         html += `<div style="display:grid;grid-template-columns:28px 1fr 90px;gap:4px;padding:5px 4px;border-bottom:1px solid rgba(255,255,255,0.04);background:${bg};border-radius:4px;">
-            <span style="font-size:${i < 3 ? '14px' : '11px'};">${medal}</span>
+            <span style="font-size:${rankNum <= 3 ? '14px' : '11px'};">${medal}</span>
             <span style="font-weight:${isMe ? '700' : '400'};${isMe ? 'color:var(--accent-blue);' : ''}font-size:12px;">${name}</span>
             <span style="text-align:right;color:${color};font-weight:600;font-size:12px;">${text}</span>
         </div>`;
@@ -4553,7 +4563,13 @@ async function loadLeaderboard(tab) {
         if (tab === 'total') {
             // Sort by total bankroll
             data.sort((a, b) => (b.bankroll || 0) - (a.bankroll || 0));
-            renderLBRows(data.slice(0, 50), '总筹码', p => ({
+            // Top 3 only — plus the user's own row if they're not in top 3.
+            const top3 = data.slice(0, 3);
+            const myIdx = supabase.user ? data.findIndex(p => p.id === supabase.user.id) : -1;
+            const rows = (myIdx >= 3)
+                ? [...top3, { _separator: true }, { ...data[myIdx], _rank: myIdx + 1 }]
+                : top3;
+            renderLBRows(rows, '总筹码', p => ({
                 text: Math.round(p.bankroll || 0) + '',
                 color: 'var(--accent-orange)',
             }), '暂无数据');
@@ -4569,7 +4585,12 @@ async function loadLeaderboard(tab) {
             });
             // Sort by daily P&L descending
             withProfit.sort((a, b) => b.dailyPL - a.dailyPL);
-            renderLBRows(withProfit.slice(0, 50), '今日盈亏', p => {
+            const top3 = withProfit.slice(0, 3);
+            const myIdx = supabase.user ? withProfit.findIndex(p => p.id === supabase.user.id) : -1;
+            const rows = (myIdx >= 3)
+                ? [...top3, { _separator: true }, { ...withProfit[myIdx], _rank: myIdx + 1 }]
+                : top3;
+            renderLBRows(rows, '今日盈亏', p => {
                 const v = p.dailyPL;
                 return {
                     text: (v > 0 ? '+' : '') + v,
@@ -4659,9 +4680,15 @@ async function syncFromCloud() {
             // Sync bankroll to casino
             if (p.bankroll !== undefined) setBankroll(p.bankroll);
             if (p.last_checkin) localStorage.setItem('pokergto_last_checkin', p.last_checkin);
-            // Per-user range+profile persistence (added for training page).
-            applyServerSettings(p.settings || {});
         }
+        // Per-user range+profile settings live in a SEPARATE table
+        // (user_settings) with strict own-row RLS — the profiles
+        // table has a legacy "readable by all" policy for the
+        // leaderboard, so storing settings there leaked them across
+        // accounts.
+        const rows = await supabase.select('user_settings', `user_id=eq.${supabase.user.id}&select=settings`);
+        const serverSettings = (rows && rows.length > 0) ? (rows[0].settings || {}) : {};
+        applyServerSettings(serverSettings);
     } catch(e) { console.warn('Sync failed:', e); }
 }
 
@@ -4712,17 +4739,21 @@ window.scheduleSettingsSync = scheduleSettingsSync;
 
 async function pushSettingsNow() {
     if (!supabase.user) return;
-    const payload = {
-        settings: {
-            v: 1,
-            profiles: pm.getAll(),
-            selectedHeroId: selectedHeroId || null,
-            selectedVillainId: selectedVillainId || null,
-        },
-        updated_at: new Date().toISOString(),
+    const blob = {
+        v: 1,
+        profiles: pm.getAll(),
+        selectedHeroId: selectedHeroId || null,
+        selectedVillainId: selectedVillainId || null,
     };
     try {
-        await supabase.update('profiles', { id: supabase.user.id }, payload);
+        // Upsert into user_settings (own-row RLS). Using upsert keeps
+        // first-ever-login simple — no row exists yet, INSERT creates
+        // it; subsequent pushes UPDATE in place.
+        await supabase.upsert('user_settings', {
+            user_id: supabase.user.id,
+            settings: blob,
+            updated_at: new Date().toISOString(),
+        });
     } catch(e) { console.warn('Settings sync failed:', e); }
 }
 
